@@ -44,38 +44,6 @@
   </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased">
-
-  <!-- ==================== CONFIG SCREEN (FIRST RUN) ==================== -->
-  <div id="setup-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/80 backdrop-blur-md p-4 hidden">
-    <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center text-white font-black text-xl">N</div>
-        <div>
-          <h2 class="font-extrabold text-navy-900 text-lg">Connect Your Supabase</h2>
-          <p class="text-xs text-slate-500">Enter your project credentials once</p>
-        </div>
-      </div>
-      <p class="text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
-        From your <b>Supabase Dashboard</b> → <b>Project Settings</b> → <b>API</b>.
-      </p>
-      <form id="setup-form" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Project URL</label>
-          <input id="cfg-url" type="url" placeholder="https://xyzcompany.supabase.co" required
-            class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Anon / Public API Key</label>
-          <input id="cfg-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." required
-            class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
-        </div>
-        <button type="submit" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition">
-          Save & Connect
-        </button>
-      </form>
-    </div>
-  </div>
-
   <!-- ==================== AUTH SCREEN ==================== -->
   <div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy-950 via-navy-900 to-[#0F2742] p-4">
     <div class="bg-white/95 backdrop-blur-xl rounded-3xl p-8 sm:p-10 max-w-md w-full shadow-2xl border border-white/20">
@@ -110,10 +78,7 @@
         </button>
       </form>
 
-      <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-        <span>100% Free Supabase Backend</span>
-        <button onclick="openConfigModal()" class="text-brand-500 hover:underline font-semibold">Change Supabase API</button>
-      </div>
+
     </div>
   </div>
 

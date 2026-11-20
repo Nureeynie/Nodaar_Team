@@ -13,15 +13,11 @@ const DEFAULT_SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const DEFAULT_SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
 
 function initSupabase() {
-  const url = localStorage.getItem('nodaar_sb_url') || DEFAULT_SB_URL;
-  const key = localStorage.getItem('nodaar_sb_key') || DEFAULT_SB_KEY;
-
   try {
-    supabase = window.supabase.createClient(url, key);
+    supabase = window.supabase.createClient(DEFAULT_SB_URL, DEFAULT_SB_KEY);
     return true;
   } catch (err) {
     console.error('Failed to init Supabase:', err);
-    document.getElementById('setup-modal').classList.remove('hidden');
     return false;
   }
 }
@@ -558,22 +554,7 @@ function showApp() {
   navigate(activeTab);
 }
 
-function openConfigModal() {
-  document.getElementById('cfg-url').value = localStorage.getItem('nodaar_sb_url') || '';
-  document.getElementById('cfg-key').value = localStorage.getItem('nodaar_sb_key') || '';
-  document.getElementById('setup-modal').classList.remove('hidden');
-}
 
-document.getElementById('setup-form').onsubmit = (e) => {
-  e.preventDefault();
-  const url = document.getElementById('cfg-url').value.trim();
-  const key = document.getElementById('cfg-key').value.trim();
-  localStorage.setItem('nodaar_sb_url', url);
-  localStorage.setItem('nodaar_sb_key', key);
-  document.getElementById('setup-modal').classList.add('hidden');
-  showToast('Supabase connected!');
-  checkAuth();
-};
 
 // Auth Form Submit (Strict Login-Only Mode)
 document.getElementById('auth-form').onsubmit = async (e) => {
