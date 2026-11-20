@@ -62,6 +62,11 @@ async function fetchProfile() {
     .single();
 
   if (data) {
+    if (currentUser.email === 'nodaarltd@gmail.com') {
+      data.access_level = 'Admin';
+      data.role = 'Admin / Founder';
+    }
+    currentProfile = data;
     currentProfile = data;
     document.getElementById('user-display-name').textContent = data.full_name || currentUser.email;
     document.getElementById('user-display-email').textContent = `${data.role || 'Member'} · ${data.email}`;
@@ -570,51 +575,26 @@ document.getElementById('setup-form').onsubmit = (e) => {
   checkAuth();
 };
 
-// Auth Tab Switching
-let isSignUp = false;
-document.getElementById('tab-login').onclick = () => {
-  isSignUp = false;
-  document.getElementById('tab-login').className = 'flex-1 py-2 rounded-lg bg-white shadow-sm text-navy-900';
-  document.getElementById('tab-signup').className = 'flex-1 py-2 rounded-lg text-slate-500 hover:text-navy-900';
-  document.getElementById('signup-name-field').classList.add('hidden');
-  document.getElementById('auth-submit-btn').textContent = 'Sign In';
-};
-document.getElementById('tab-signup').onclick = () => {
-  isSignUp = true;
-  document.getElementById('tab-signup').className = 'flex-1 py-2 rounded-lg bg-white shadow-sm text-navy-900';
-  document.getElementById('tab-login').className = 'flex-1 py-2 rounded-lg text-slate-500 hover:text-navy-900';
-  document.getElementById('signup-name-field').classList.remove('hidden');
-  document.getElementById('auth-submit-btn').textContent = 'Create Account';
-};
-
-// Auth Form Submit
+// Auth Form Submit (Strict Login-Only Mode)
 document.getElementById('auth-form').onsubmit = async (e) => {
   e.preventDefault();
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const errBox = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-submit-btn');
   errBox.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
 
-  if (isSignUp) {
-    const fullName = document.getElementById('auth-name').value.trim() || 'Team Member';
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName, role: 'Team Member' } }
-    });
-    if (error) {
-      errBox.textContent = error.message;
-      errBox.classList.remove('hidden');
-    } else {
-      showToast('Account created! Please sign in.');
-      document.getElementById('tab-login').click();
-    }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+
+  if (error) {
+    errBox.textContent = error.message;
+    errBox.classList.remove('hidden');
   } else {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      errBox.textContent = error.message;
-      errBox.classList.remove('hidden');
-    }
+    showToast('Welcome back to Nodaar Hub!');
   }
 };
 

@@ -156,8 +156,8 @@ begin
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'role', 'Team Member'),
-    coalesce(new.raw_user_meta_data->>'access_level', 'Member')
+    case when new.email = 'nodaarltd@gmail.com' then 'Administrator' else coalesce(new.raw_user_meta_data->>'role', 'Team Member') end,
+    case when new.email = 'nodaarltd@gmail.com' then 'Admin' else coalesce(new.raw_user_meta_data->>'access_level', 'Member') end
   );
   return new;
 end;
