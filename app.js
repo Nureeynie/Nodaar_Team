@@ -3,18 +3,18 @@
 // 100% Client-side, Real-time, Google Drive Links Integration
 // ==============================================================================
 
-let supabase = null;
+let sbClient = null;
 let currentUser = null;
 let currentProfile = null;
 let activeTab = 'tasks';
 
 // 1. Initialize Supabase
-const DEFAULT_SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
+const DEFAULT_SB_URL = 'https://xzrczuoxlujzmztkupbz.sbClient.co';
 const DEFAULT_SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
 
 function initSupabase() {
   try {
-    supabase = window.supabase.createClient(DEFAULT_SB_URL, DEFAULT_SB_KEY);
+    sbClient = window.supabase.createClient(DEFAULT_SB_URL, DEFAULT_SB_KEY);
     return true;
   } catch (err) {
     console.error('Failed to init Supabase:', err);
@@ -26,7 +26,7 @@ function initSupabase() {
 async function checkAuth() {
   if (!initSupabase()) return;
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sbClient.auth.getSession();
   if (session) {
     currentUser = session.user;
     await fetchProfile();
@@ -35,7 +35,7 @@ async function checkAuth() {
     showAuth();
   }
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  sbClient.auth.onAuthStateChange(async (event, session) => {
     if (session) {
       currentUser = session.user;
       await fetchProfile();
@@ -52,7 +52,7 @@ async function checkAuth() {
 async function fetchProfile() {
   if (!currentUser) return;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sbClient
       .from('profiles')
       .select('*')
       .eq('id', currentUser.id)
@@ -134,7 +134,7 @@ async function loadTasks() {
   const container = document.getElementById('tasks-container');
   container.innerHTML = '<div class="text-xs text-slate-400 p-4">Loading tasks...</div>';
 
-  const { data: tasks, error } = await supabase
+  const { data: tasks, error } = await sbClient
     .from('tasks')
     .select('*, profiles:assignee_id(full_name, email)')
     .order('created_at', { ascending: false });
@@ -214,7 +214,7 @@ function taskCard(t) {
 // --- REPORTS LOADER ---
 async function loadReports() {
   const container = document.getElementById('reports-list');
-  const { data: reports, error } = await supabase
+  const { data: reports, error } = await sbClient
     .from('reports')
     .select('*, profiles:user_id(full_name, email, role)')
     .order('created_at', { ascending: false })
@@ -265,7 +265,7 @@ async function loadReports() {
 // --- OKRs LOADER ---
 async function loadOKRs() {
   const container = document.getElementById('okrs-container');
-  const { data: okrs } = await supabase.from('okrs').select('*, profiles:owner_id(full_name)').order('quarter');
+  const { data: okrs } = await sbClient.from('okrs').select('*, profiles:owner_id(full_name)').order('quarter');
 
   if (!okrs || okrs.length === 0) {
     container.innerHTML = '<div class="col-span-2 text-center p-8 bg-white rounded-3xl border text-xs text-slate-400">No OKRs added. Click "+ New OKR" to set goals.</div>';
@@ -307,7 +307,7 @@ async function loadOKRs() {
 // --- MEETINGS LOADER ---
 async function loadMeetings() {
   const container = document.getElementById('meetings-container');
-  const { data: meetings } = await supabase.from('meetings').select('*').order('meeting_date', { ascending: true });
+  const { data: meetings } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
 
   if (!meetings || meetings.length === 0) {
     container.innerHTML = '<div class="p-8 text-center bg-white rounded-3xl border text-xs text-slate-400">No upcoming meetings scheduled. Click "+ New Meeting" to schedule one.</div>';
@@ -335,7 +335,7 @@ async function loadMeetings() {
 // --- IDEAS LOADER ---
 async function loadIdeas() {
   const container = document.getElementById('ideas-container');
-  const { data: ideas } = await supabase.from('ideas').select('*, profiles:user_id(full_name)').order('created_at', { ascending: false });
+  const { data: ideas } = await sbClient.from('ideas').select('*, profiles:user_id(full_name)').order('created_at', { ascending: false });
 
   if (!ideas || ideas.length === 0) {
     container.innerHTML = '<div class="col-span-3 text-center p-8 bg-white rounded-3xl border text-xs text-slate-400">No suggestions yet. Have an initiative? Click "+ New Idea"!</div>';
@@ -359,7 +359,7 @@ async function loadIdeas() {
 // --- TEAM LOADER ---
 async function loadTeam() {
   const container = document.getElementById('team-container');
-  const { data: team } = await supabase.from('profiles').select('*').order('full_name');
+  const { data: team } = await sbClient.from('profiles').select('*').order('full_name');
 
   if (!team || team.length === 0) {
     container.innerHTML = '<div class="col-span-4 text-center p-8 text-xs text-slate-400">No team profiles found.</div>';
@@ -454,7 +454,7 @@ document.getElementById('modal-form').onsubmit = async (e) => {
     const due_date = document.getElementById('f-due').value || null;
     const drive_link = document.getElementById('f-link').value || null;
 
-    const { error } = await supabase.from('tasks').insert({
+    const { error } = await sbClient.from('tasks').insert({
       title, description, priority, due_date, drive_link,
       assignee_id: currentUser.id
     });
@@ -472,7 +472,7 @@ document.getElementById('modal-form').onsubmit = async (e) => {
     const current = Number(document.getElementById('f-current').value);
     const drive_link = document.getElementById('f-link').value || null;
 
-    const { error } = await supabase.from('okrs').insert({
+    const { error } = await sbClient.from('okrs').insert({
       quarter, unit, objective, key_result, target, current, drive_link,
       owner_id: currentUser.id
     });
@@ -490,7 +490,7 @@ document.getElementById('modal-form').onsubmit = async (e) => {
     const drive_notes_link = document.getElementById('f-notes').value || null;
     const agenda = document.getElementById('f-agenda').value || null;
 
-    const { error } = await supabase.from('meetings').insert({
+    const { error } = await sbClient.from('meetings').insert({
       title, meeting_date, start_time, end_time, meet_link, drive_notes_link, agenda
     });
 
@@ -504,7 +504,7 @@ document.getElementById('modal-form').onsubmit = async (e) => {
     const expected_impact = document.getElementById('f-impact').value || null;
     const drive_link = document.getElementById('f-link').value || null;
 
-    const { error } = await supabase.from('ideas').insert({
+    const { error } = await sbClient.from('ideas').insert({
       user_id: currentUser.id,
       title, description, expected_impact, drive_link
     });
@@ -526,7 +526,7 @@ document.getElementById('report-form').onsubmit = async (e) => {
   const hours_worked = Number(document.getElementById('rep-hours').value) || 8;
   const mood = document.getElementById('rep-mood').value;
 
-  const { error } = await supabase.from('reports').insert({
+  const { error } = await sbClient.from('reports').insert({
     user_id: currentUser.id,
     done_today, plan_tomorrow, blockers, drive_link, hours_worked, mood
   });
@@ -539,14 +539,14 @@ document.getElementById('report-form').onsubmit = async (e) => {
 
 // 9. Quick Actions
 async function updateTaskStatus(id, status) {
-  await supabase.from('tasks').update({ status }).eq('id', id);
+  await sbClient.from('tasks').update({ status }).eq('id', id);
   showToast(`Task moved to ${status}`);
   loadTasks();
 }
 
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
-  await supabase.from('tasks').delete().eq('id', id);
+  await sbClient.from('tasks').delete().eq('id', id);
   showToast('Task deleted');
   loadTasks();
 }
@@ -576,7 +576,7 @@ document.getElementById('auth-form').onsubmit = async (e) => {
   btn.disabled = true;
   btn.textContent = 'Signing in...';
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
   btn.disabled = false;
   btn.textContent = 'Sign In';
 
@@ -592,7 +592,7 @@ document.getElementById('auth-form').onsubmit = async (e) => {
 };
 
 async function logout() {
-  await supabase.auth.signOut();
+  await sbClient.auth.signOut();
   showToast('Signed out');
 }
 
