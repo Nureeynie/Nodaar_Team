@@ -51,21 +51,30 @@ async function checkAuth() {
 // 3. User Profile
 async function fetchProfile() {
   if (!currentUser) return;
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .maybeSingle();
 
-  if (data) {
+    const prof = data || {
+      id: currentUser.id,
+      email: currentUser.email,
+      full_name: currentUser.email.split('@')[0],
+      role: currentUser.email === 'nodaarltd@gmail.com' ? 'Admin / Founder' : 'Member',
+      access_level: currentUser.email === 'nodaarltd@gmail.com' ? 'Admin' : 'Member'
+    };
+
     if (currentUser.email === 'nodaarltd@gmail.com') {
-      data.access_level = 'Admin';
-      data.role = 'Admin / Founder';
+      prof.access_level = 'Admin';
+      prof.role = 'Admin / Founder';
     }
-    currentProfile = data;
-    currentProfile = data;
-    document.getElementById('user-display-name').textContent = data.full_name || currentUser.email;
-    document.getElementById('user-display-email').textContent = `${data.role || 'Member'} · ${data.email}`;
+    currentProfile = prof;
+    document.getElementById('user-display-name').textContent = prof.full_name || currentUser.email;
+    document.getElementById('user-display-email').textContent = `${prof.role || 'Member'} · ${prof.email}`;
+  } catch (err) {
+    console.error('fetchProfile fallback:', err);
   }
 }
 
@@ -574,7 +583,10 @@ document.getElementById('auth-form').onsubmit = async (e) => {
   if (error) {
     errBox.textContent = error.message;
     errBox.classList.remove('hidden');
-  } else {
+  } else if (data && data.user) {
+    currentUser = data.user;
+    await fetchProfile();
+    showApp();
     showToast('Welcome back to Nodaar Hub!');
   }
 };
