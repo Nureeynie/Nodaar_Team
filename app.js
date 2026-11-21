@@ -1,6 +1,7 @@
 // ==============================================================================
-// NODAAR TEAM HUB — Full Enterprise App Logic v2.0
-// Features: Roles, Notifications, Avatar, Profile Settings, Mobile Nav, Task Filters
+// NODAAR TEAM HUB — Full Enterprise App Logic v2.1
+// Features: Roles, OKR Role Assignment, Admin Work & Tasks, Role Switcher,
+//           Add User & Role Assignment, Notifications, Avatar & Profile Settings
 // ==============================================================================
 
 let sbClient = null;
@@ -13,7 +14,7 @@ const SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
 
 // ─────────────────────────────────────────────
-// 1. INIT
+// 1. INIT & AUTH
 // ─────────────────────────────────────────────
 function initSupabase() {
   try {
@@ -31,6 +32,7 @@ async function checkAuth() {
   if (session) {
     currentUser = session.user;
     await fetchProfile();
+    await fetchAllRoles();
     showApp();
   } else {
     showAuth();
@@ -39,16 +41,18 @@ async function checkAuth() {
     if (session) {
       currentUser = session.user;
       await fetchProfile();
+      await fetchAllRoles();
       showApp();
     } else {
-      currentUser = null; currentProfile = null;
+      currentUser = null;
+      currentProfile = null;
       showAuth();
     }
   });
 }
 
 // ─────────────────────────────────────────────
-// 2. PROFILE
+// 2. PROFILE & ROLES CACHE
 // ─────────────────────────────────────────────
 async function fetchProfile() {
   if (!currentUser) return;
@@ -60,11 +64,86 @@ async function fetchProfile() {
       role: 'Member', access_level: 'Member'
     };
     if (currentUser.email === 'nodaarltd@gmail.com') {
-      prof.access_level = 'Admin'; prof.role = prof.role || 'Founder / Admin';
+      prof.access_level = 'Admin';
+      prof.role = prof.role || 'Founder / Admin';
     }
     currentProfile = prof;
     updateSidebarUser();
   } catch (err) { console.error('fetchProfile:', err); }
+}
+
+async function fetchAllRoles() {
+  try {
+    const { data } = await sbClient.from('roles').select('*').order('name');
+    allRoles = data || [];
+    updateRoleDropdowns();
+  } catch (err) {
+    console.error('fetchAllRoles:', err);
+  }
+}
+
+function updateRoleDropdowns() {
+  // Update task role filter
+  const taskRoleSel = document.getElementById('task-role-filter');
+  if (taskRoleSel) {
+    const prev = taskRoleSel.value;
+    taskRoleSel.innerHTML = '<option value="all">All Roles</option>' +
+      allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+    taskRoleSel.value = prev || 'all';
+  }
+
+  // Update OKR role filter
+  const okrRoleSel = document.getElementById('okr-role-filter');
+  if (okrRoleSel) {
+    const prev = okrRoleSel.value;
+    okrRoleSel.innerHTML = '<option value="all">All Roles & Departments</option>' +
+      allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+    okrRoleSel.value = prev || 'all';
+  }
+
+  // Update Admin Quick Role Switcher
+  const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
+  const adminRoleSelect = document.getElementById('admin-active-role-select');
+  if (adminSwitcherBox && adminRoleSelect) {
+    if (currentProfile?.access_level === 'Admin') {
+      adminSwitcherBox.classList.remove('hidden');
+      adminSwitcherBox.classList.add('flex');
+      let options = `<option value="">Admin / Founder</option>`;
+      allRoles.forEach(r => {
+        const sel = currentProfile.role_id === r.id ? 'selected' : '';
+        options += `<option value="${r.id}" ${sel}>${escapeHtml(r.name)}</option>`;
+      });
+      adminRoleSelect.innerHTML = options;
+    } else {
+      adminSwitcherBox.classList.add('hidden');
+      adminSwitcherBox.classList.remove('flex');
+    }
+  }
+
+  // Update Profile edit role select
+  const pfRoleSel = document.getElementById('pf-role-id');
+  if (pfRoleSel) {
+    pfRoleSel.innerHTML = '<option value="">No Role</option>' +
+      allRoles.map(r => `<option value="${r.id}" ${currentProfile?.role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  }
+}
+
+async function switchAdminRole(roleId) {
+  if (!currentProfile || currentProfile.access_level !== 'Admin') return;
+  const targetRole = allRoles.find(r => r.id === roleId);
+  const newRoleName = targetRole ? targetRole.name : 'Founder / Admin';
+
+  currentProfile.role_id = roleId || null;
+  currentProfile.role = newRoleName;
+
+  await sbClient.from('profiles').update({
+    role_id: roleId || null,
+    role: newRoleName
+  }).eq('id', currentUser.id);
+
+  updateSidebarUser();
+  showToast(`Switched active role to: ${newRoleName}`);
+  loadTabData(activeTab);
 }
 
 function updateSidebarUser() {
@@ -76,7 +155,7 @@ function updateSidebarUser() {
   const nameEl = document.getElementById('user-display-name');
   const roleEl = document.getElementById('user-display-role');
   if (nameEl) nameEl.textContent = name;
-  if (roleEl) roleEl.textContent = role;
+  if (roleEl) roleEl.textContent = `${role} · ${p.access_level || 'Member'}`;
 
   // Sidebar avatar
   const avatarEl = document.getElementById('sidebar-avatar');
@@ -88,9 +167,15 @@ function updateSidebarUser() {
     }
   }
 
-  // Show/hide admin elements
+  // Show/hide admin-only navigation
   const rolesBtn = document.getElementById('roles-nav-btn');
   if (rolesBtn) rolesBtn.style.display = p.access_level === 'Admin' ? 'flex' : 'none';
+
+  const teamAddUserBtn = document.getElementById('team-add-user-btn');
+  if (teamAddUserBtn) {
+    if (p.access_level === 'Admin') teamAddUserBtn.classList.remove('hidden');
+    else teamAddUserBtn.classList.add('hidden');
+  }
 
   loadNotifBadge();
 }
@@ -99,14 +184,14 @@ function updateSidebarUser() {
 // 3. NAVIGATION
 // ─────────────────────────────────────────────
 const TAB_META = {
-  tasks:   { title:'Tasks & Deliverables', sub:'Track assignments and open Google Drive attachments', btn:'New Task' },
+  tasks:   { title:'Tasks & Deliverables', sub:'Track assignments, admin work and Google Drive links', btn:'New Task' },
   reports: { title:'Daily Standup Reports', sub:'Submit what you worked on and attach Drive proof-of-work', btn:'New Standup' },
-  okrs:    { title:'Quarterly OKRs & Goals', sub:'High-level business and product targets', btn:'New OKR' },
+  okrs:    { title:'Quarterly OKRs & Goals', sub:'High-level business and role targets', btn:'New OKR' },
   meetings:{ title:'Team Meetings & Notes', sub:'Video links, agendas and Drive meeting notes', btn:'New Meeting' },
   ideas:   { title:'Ideas & Innovation Decks', sub:'Pitch initiatives with Google Docs / Slides attachments', btn:'New Idea' },
-  team:    { title:'Team Directory', sub:'View colleagues, responsibilities, and contact info', btn:'' },
-  roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and task categories', btn:'New Role' },
-  profile: { title:'Profile & Settings', sub:'Edit your profile, avatar and account settings', btn:'' },
+  team:    { title:'Team Directory', sub:'View members, roles, permissions and contact info', btn:'' },
+  roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
+  profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
 };
 
 function navigate(tab) {
@@ -144,7 +229,6 @@ function navigate(tab) {
 
   loadTabData(tab);
   closeMobileSidebar();
-  // close notif panel
   document.getElementById('notif-panel').classList.add('hidden');
 }
 
@@ -162,20 +246,33 @@ async function loadTabData(tab) {
 }
 
 // ─────────────────────────────────────────────
-// 4. TASKS
+// 4. TASKS (with Admin Work & Role filters)
 // ─────────────────────────────────────────────
 async function loadTasks() {
   const container = document.getElementById('tasks-container');
   container.innerHTML = loadingHTML('col-span-3');
 
   const filter = document.getElementById('task-filter')?.value || 'all';
+  const roleFilter = document.getElementById('task-role-filter')?.value || 'all';
   const priFilter = document.getElementById('task-priority-filter')?.value || 'all';
 
   let query = sbClient.from('tasks').select('*, profiles:assignee_id(full_name, email, avatar_url), roles:role_id(name,color)').order('created_at', { ascending: false });
 
-  if (filter === 'mine') query = query.eq('assignee_id', currentUser.id);
-  else if (filter === 'role' && currentProfile?.role_id) query = query.eq('role_id', currentProfile.role_id);
-  if (priFilter !== 'all') query = query.eq('priority', priFilter);
+  if (filter === 'mine') {
+    query = query.eq('assignee_id', currentUser.id);
+  } else if (filter === 'role') {
+    if (currentProfile?.role_id) query = query.eq('role_id', currentProfile.role_id);
+  } else if (filter === 'admin') {
+    query = query.eq('is_admin_task', true);
+  }
+
+  if (roleFilter !== 'all') {
+    query = query.eq('role_id', roleFilter);
+  }
+
+  if (priFilter !== 'all') {
+    query = query.eq('priority', priFilter);
+  }
 
   const { data: tasks, error } = await query;
 
@@ -183,7 +280,7 @@ async function loadTasks() {
     container.innerHTML = `<div class="col-span-3 text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
       <div class="text-4xl mb-3">📋</div>
       <div class="text-sm font-bold text-navy-900 mb-1">No tasks found</div>
-      <p class="text-xs text-slate-400 mb-4">Create your first task and attach a Google Drive link.</p>
+      <p class="text-xs text-slate-400 mb-4">Create your first task or change your filters above.</p>
       <button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Task</button>
     </div>`;
     return;
@@ -218,6 +315,7 @@ function taskCard(t) {
     ? `<img src="${avatarSrc}" class="w-6 h-6 rounded-full object-cover" alt="">`
     : `<div class="w-6 h-6 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white text-[9px] font-black flex items-center justify-center">${initials}</div>`;
   const roleTag = t.roles ? `<span class="pill text-[9px]" style="background:${t.roles.color}22;color:${t.roles.color};border:1px solid ${t.roles.color}44;">${escapeHtml(t.roles.name)}</span>` : '';
+  const adminTag = t.is_admin_task ? `<span class="pill text-[9px] bg-purple-100 text-purple-700 border border-purple-200">🔒 Admin Work</span>` : '';
   const dueTag = t.due_date ? `<span class="text-[9px] text-slate-400 font-medium">📅 ${t.due_date}</span>` : '';
 
   return `
@@ -227,7 +325,7 @@ function taskCard(t) {
       <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded border flex-shrink-0 ${pColor}">${t.priority}</span>
     </div>
     ${t.description ? `<p class="text-[11px] text-slate-500 line-clamp-2 mb-2">${escapeHtml(t.description)}</p>` : ''}
-    <div class="flex flex-wrap items-center gap-1.5 mb-3">${roleTag}${dueTag}</div>
+    <div class="flex flex-wrap items-center gap-1.5 mb-3">${adminTag}${roleTag}${dueTag}</div>
     <div class="flex items-center justify-between pt-2.5 border-t border-slate-200/60">
       <div class="flex items-center gap-1.5">
         ${avatarHtml}
@@ -310,22 +408,43 @@ async function loadReports() {
 }
 
 // ─────────────────────────────────────────────
-// 6. OKRS
+// 6. OKRS (with Roles & Department support)
 // ─────────────────────────────────────────────
 async function loadOKRs() {
   const container = document.getElementById('okrs-container');
-  const { data: okrs } = await sbClient.from('okrs').select('*, profiles:owner_id(full_name)').order('quarter');
+  const roleFilter = document.getElementById('okr-role-filter')?.value || 'all';
+  const quarterFilter = document.getElementById('okr-quarter-filter')?.value || 'all';
+
+  let query = sbClient.from('okrs').select('*, profiles:owner_id(full_name), roles:role_id(name,color)').order('quarter');
+
+  if (roleFilter !== 'all') {
+    query = query.eq('role_id', roleFilter);
+  }
+  if (quarterFilter !== 'all') {
+    query = query.eq('quarter', quarterFilter);
+  }
+
+  const { data: okrs } = await query;
+
   if (!okrs || okrs.length === 0) {
-    container.innerHTML = '<div class="col-span-2 text-center p-10 bg-white rounded-3xl border text-xs text-slate-400">No OKRs added yet. Click "+ New OKR" to set goals.</div>';
+    container.innerHTML = '<div class="col-span-2 text-center p-10 bg-white rounded-3xl border text-xs text-slate-400">No OKRs found. Click "+ New OKR" to set goals for your team or roles.</div>';
     return;
   }
+
   container.innerHTML = okrs.map(o => {
     const progress = Math.min(100, Math.round(((o.current - (o.baseline||0)) / ((o.target - (o.baseline||0)) || 1)) * 100));
     const progColor = progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-brand-500' : 'bg-amber-500';
+    const roleTag = o.roles
+      ? `<span class="pill" style="background:${o.roles.color}22;color:${o.roles.color};border:1px solid ${o.roles.color}44;">🎯 Role: ${escapeHtml(o.roles.name)}</span>`
+      : `<span class="pill bg-slate-100 text-slate-600">Company-wide</span>`;
+
     return `
     <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex items-center justify-between">
-        <span class="pill bg-brand-50 text-brand-700 border border-brand-200">${escapeHtml(o.quarter)} Goal</span>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="pill bg-brand-50 text-brand-700 border border-brand-200">${escapeHtml(o.quarter)} Goal</span>
+          ${roleTag}
+        </div>
         <span class="text-xs font-semibold text-slate-400">👤 ${escapeHtml(o.profiles?.full_name || 'Team')}</span>
       </div>
       <div>
@@ -415,47 +534,257 @@ async function loadIdeas() {
 }
 
 // ─────────────────────────────────────────────
-// 9. TEAM
+// 9. TEAM (Add User, Assign Role, Switch to Admin)
 // ─────────────────────────────────────────────
 async function loadTeam() {
   const container = document.getElementById('team-container');
   container.innerHTML = loadingHTML('col-span-4');
   const { data: team } = await sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
+
+  const countEl = document.getElementById('team-count-text');
+  if (countEl) countEl.textContent = `${(team || []).length} Team Members`;
+
   if (!team || team.length === 0) {
     container.innerHTML = '<div class="col-span-4 text-center p-10 text-xs text-slate-400">No team members found.</div>';
     return;
   }
+
+  const isAdmin = currentProfile?.access_level === 'Admin';
+
   container.innerHTML = team.map(u => {
     const name = u.full_name || u.email || 'Member';
     const initials = name.charAt(0).toUpperCase();
-    const isAdmin = u.access_level === 'Admin';
+    const userIsAdmin = u.access_level === 'Admin';
     const roleTag = u.roles ? `<span class="pill mt-1" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>` : '';
+
     return `
-    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm text-center relative">
-      ${isAdmin ? '<span class="absolute top-3 right-3 pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : ''}
-      <div class="w-16 h-16 rounded-2xl mx-auto mb-3 overflow-hidden shadow-md">
-        ${u.avatar_url
-          ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" alt="${escapeHtml(name)}">`
-          : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-2xl flex items-center justify-center">${initials}</div>`}
+    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm text-center relative flex flex-col justify-between">
+      <div>
+        <div class="absolute top-3 right-3 flex items-center gap-1">
+          ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600">Member</span>'}
+        </div>
+        <div class="w-16 h-16 rounded-2xl mx-auto mb-3 overflow-hidden shadow-md">
+          ${u.avatar_url
+            ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" alt="${escapeHtml(name)}">`
+            : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-2xl flex items-center justify-center">${initials}</div>`}
+        </div>
+        <h4 class="font-bold text-sm text-navy-900">${escapeHtml(name)}</h4>
+        <div class="text-xs text-brand-600 font-semibold mt-0.5">${escapeHtml(u.role || 'Member')}</div>
+        <div class="text-[11px] text-slate-400 truncate mt-1">${escapeHtml(u.email)}</div>
+        <div class="mt-1">${roleTag}</div>
+        ${u.phone ? `<div class="text-[11px] text-slate-400 mt-1">📞 ${escapeHtml(u.phone)}</div>` : ''}
       </div>
-      <h4 class="font-bold text-sm text-navy-900">${escapeHtml(name)}</h4>
-      <div class="text-xs text-brand-600 font-semibold mt-0.5">${escapeHtml(u.role || 'Member')}</div>
-      <div class="text-[11px] text-slate-400 truncate mt-1">${escapeHtml(u.email)}</div>
-      ${roleTag}
-      ${u.phone ? `<div class="text-[11px] text-slate-400 mt-1">📞 ${escapeHtml(u.phone)}</div>` : ''}
+
+      ${isAdmin ? `
+      <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-center gap-2">
+        <button onclick="openEditUserModal('${u.id}')" class="px-3 py-1.5 text-[11px] font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition">
+          ✏️ Edit & Role
+        </button>
+        ${u.id !== currentUser.id ? `
+          <button onclick="toggleUserAdminRole('${u.id}', '${u.access_level}')" class="px-2.5 py-1.5 text-[10px] font-bold ${userIsAdmin ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'} rounded-xl transition" title="Switch role">
+            ${userIsAdmin ? 'Set Member' : 'Promote Admin'}
+          </button>
+        ` : ''}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
 
+// Quick toggle between Admin & Member
+async function toggleUserAdminRole(userId, currentLevel) {
+  const newLevel = currentLevel === 'Admin' ? 'Member' : 'Admin';
+  if (!confirm(`Switch this user's access level to ${newLevel}?`)) return;
+
+  const { error } = await sbClient.from('profiles').update({ access_level: newLevel }).eq('id', userId);
+  if (error) return showToast(error.message, true);
+
+  showToast(`User is now an ${newLevel}!`);
+  loadTeam();
+}
+
+// Add User Modal (for Admins)
+function openAddUserModal() {
+  const modal = document.getElementById('action-modal');
+  document.getElementById('modal-title').textContent = 'Add New Team Member';
+
+  const roleOptions = `<option value="">No Specific Role</option>` +
+    allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
+      <input id="u-name" type="text" required placeholder="Jane Doe" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Email Address *</label>
+      <input id="u-email" type="email" required placeholder="jane@nodaar.com" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Temporary Password *</label>
+      <input id="u-password" type="password" required value="Nodaar@2026" placeholder="Min 6 characters" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <span class="text-[10px] text-slate-400">Share this password with the member to sign in.</span>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Assigned Role</label>
+        <select id="u-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          ${roleOptions}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Access Level</label>
+        <select id="u-access" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <option value="Member">Member</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
+      <input id="u-title" type="text" placeholder="e.g. Marketing Specialist, Designer" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+
+  document.getElementById('modal-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Creating user…';
+
+    const full_name = document.getElementById('u-name').value.trim();
+    const email = document.getElementById('u-email').value.trim();
+    const password = document.getElementById('u-password').value.trim();
+    const role_id = document.getElementById('u-role-id').value || null;
+    const access_level = document.getElementById('u-access').value;
+    const selectedRole = allRoles.find(r => r.id === role_id);
+    const job_title = document.getElementById('u-title').value.trim() || (selectedRole ? selectedRole.name : 'Member');
+
+    try {
+      // Create isolated client to avoid overwriting admin session
+      const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+
+      const { data: authData, error: authErr } = await tempClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name, role: job_title, access_level }
+        }
+      });
+
+      if (authErr) throw authErr;
+
+      const newUserId = authData.user?.id;
+      if (newUserId) {
+        // Upsert profile with role and access level
+        await sbClient.from('profiles').upsert({
+          id: newUserId,
+          email,
+          full_name,
+          role: job_title,
+          role_id,
+          access_level
+        });
+      }
+
+      showToast(`User ${full_name} created successfully! 🎉`);
+      closeActionModal();
+      resetModalSubmit();
+      loadTeam();
+    } catch (err) {
+      showToast(err.message || 'Failed to create user', true);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+  };
+}
+
+// Edit existing user modal (change role, switch to admin, edit details)
+async function openEditUserModal(userId) {
+  const { data: user } = await sbClient.from('profiles').select('*').eq('id', userId).single();
+  if (!user) return;
+
+  const modal = document.getElementById('action-modal');
+  document.getElementById('modal-title').textContent = `Edit User: ${user.full_name || user.email}`;
+
+  const roleOptions = `<option value="">No Role</option>` +
+    allRoles.map(r => `<option value="${r.id}" ${r.id === user.role_id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Full Name</label>
+      <input id="eu-name" type="text" required value="${escapeHtml(user.full_name || '')}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Email</label>
+      <input type="text" disabled value="${escapeHtml(user.email)}" class="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed">
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Role / Department</label>
+        <select id="eu-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          ${roleOptions}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Access Level (Switch Role)</label>
+        <select id="eu-access" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <option value="Member" ${user.access_level === 'Member' ? 'selected' : ''}>Member</option>
+          <option value="Admin" ${user.access_level === 'Admin' ? 'selected' : ''}>Admin</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Job Title / Display Role</label>
+      <input id="eu-title" type="text" value="${escapeHtml(user.role || '')}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label>
+      <input id="eu-phone" type="tel" value="${escapeHtml(user.phone || '')}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+
+  document.getElementById('modal-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const full_name = document.getElementById('eu-name').value.trim();
+    const role_id = document.getElementById('eu-role-id').value || null;
+    const access_level = document.getElementById('eu-access').value;
+    const role = document.getElementById('eu-title').value.trim() || 'Member';
+    const phone = document.getElementById('eu-phone').value.trim();
+
+    const { error } = await sbClient.from('profiles').update({
+      full_name,
+      role_id,
+      access_level,
+      role,
+      phone
+    }).eq('id', userId);
+
+    if (error) return showToast(error.message, true);
+
+    showToast('User updated successfully!');
+    closeActionModal();
+    resetModalSubmit();
+    loadTeam();
+  };
+}
+
 // ─────────────────────────────────────────────
-// 10. ROLES
+// 10. ROLES (Create Role, Assign Members)
 // ─────────────────────────────────────────────
 async function loadRoles() {
   const container = document.getElementById('roles-container');
   if (!container) return;
   container.innerHTML = loadingHTML('col-span-3');
-  const { data: roles } = await sbClient.from('roles').select('*').order('name');
-  allRoles = roles || [];
+
+  await fetchAllRoles();
+  const roles = allRoles;
+
+  const countEl = document.getElementById('roles-count-text');
+  if (countEl) countEl.textContent = `${roles.length} Active Roles`;
 
   // Count members per role
   const { data: profiles } = await sbClient.from('profiles').select('role_id');
@@ -486,7 +815,7 @@ async function loadRoles() {
       </div>
       ${r.description ? `<p class="text-xs text-slate-500 mb-3 leading-relaxed">${escapeHtml(r.description)}</p>` : ''}
       <div class="pt-3 border-t border-slate-100">
-        <div class="text-[10px] font-black text-slate-400 uppercase mb-2">Assign Member</div>
+        <div class="text-[10px] font-black text-slate-400 uppercase mb-2">Assigned Members</div>
         <div id="role-members-${r.id}" class="space-y-1"></div>
         ${currentProfile?.access_level === 'Admin' ? `<button onclick="openAssignMemberModal('${r.id}','${escapeHtml(r.name)}')" class="mt-2 w-full py-1.5 text-[11px] font-bold text-brand-600 border border-brand-200 hover:bg-brand-50 rounded-xl transition">+ Assign Member</button>` : ''}
       </div>
@@ -494,24 +823,36 @@ async function loadRoles() {
 
   // Load members for each role
   roles.forEach(async r => {
-    const { data: members } = await sbClient.from('profiles').select('full_name, email, avatar_url').eq('role_id', r.id);
+    const { data: members } = await sbClient.from('profiles').select('id, full_name, email, avatar_url').eq('role_id', r.id);
     const el = document.getElementById(`role-members-${r.id}`);
     if (!el) return;
     if (!members || members.length === 0) { el.innerHTML = '<div class="text-[10px] text-slate-300">No members assigned</div>'; return; }
     el.innerHTML = members.map(m => {
       const n = m.full_name || m.email || 'Member';
-      return `<div class="flex items-center gap-2 py-1">
-        ${m.avatar_url ? `<img src="${m.avatar_url}" class="w-5 h-5 rounded-full object-cover">` : `<div class="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white text-[8px] font-black flex items-center justify-center">${n.charAt(0).toUpperCase()}</div>`}
-        <span class="text-[11px] text-slate-600 font-semibold truncate">${escapeHtml(n)}</span>
+      return `<div class="flex items-center justify-between py-1 group/m">
+        <div class="flex items-center gap-2 truncate">
+          ${m.avatar_url ? `<img src="${m.avatar_url}" class="w-5 h-5 rounded-full object-cover">` : `<div class="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white text-[8px] font-black flex items-center justify-center">${n.charAt(0).toUpperCase()}</div>`}
+          <span class="text-[11px] text-slate-600 font-semibold truncate">${escapeHtml(n)}</span>
+        </div>
+        ${currentProfile?.access_level === 'Admin' ? `
+          <button onclick="unassignRoleMember('${m.id}')" class="text-[10px] text-slate-300 hover:text-red-500 opacity-0 group-hover/m:opacity-100 transition" title="Remove from role">&times;</button>
+        ` : ''}
       </div>`;
     }).join('');
   });
+}
+
+async function unassignRoleMember(userId) {
+  await sbClient.from('profiles').update({ role_id: null }).eq('id', userId);
+  showToast('Member removed from role');
+  loadRoles();
 }
 
 async function deleteRole(id) {
   if (!confirm('Delete this role? Members assigned to it will be unassigned.')) return;
   await sbClient.from('roles').delete().eq('id', id);
   showToast('Role deleted');
+  await fetchAllRoles();
   loadRoles();
 }
 
@@ -527,13 +868,13 @@ function openAssignMemberModal(roleId, roleName) {
     <input type="hidden" id="f-role-id" value="${roleId}">
   `;
   document.getElementById('action-modal').classList.remove('hidden');
-  // Populate members
+
   sbClient.from('profiles').select('id,full_name,email').order('full_name').then(({ data }) => {
     const sel = document.getElementById('f-member');
     if (!sel) return;
     sel.innerHTML = (data || []).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
   });
-  // override submit
+
   document.getElementById('modal-form').onsubmit = async (e) => {
     e.preventDefault();
     const userId = document.getElementById('f-member').value;
@@ -560,7 +901,7 @@ function loadProfilePage() {
   const name = p.full_name || p.email || 'Member';
 
   document.getElementById('profile-name-display').textContent = name;
-  document.getElementById('profile-role-display').textContent = p.role || 'Member';
+  document.getElementById('profile-role-display').textContent = `${p.role || 'Member'}`;
   document.getElementById('profile-email-display').textContent = p.email || '';
   document.getElementById('profile-access-badge').textContent = p.access_level || 'Member';
   document.getElementById('profile-access-badge').className = `pill mt-2 ${p.access_level === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`;
@@ -576,6 +917,12 @@ function loadProfilePage() {
   document.getElementById('pf-name').value = p.full_name || '';
   document.getElementById('pf-role').value = p.role || '';
   document.getElementById('pf-phone').value = p.phone || '';
+
+  const pfRoleSel = document.getElementById('pf-role-id');
+  if (pfRoleSel) {
+    pfRoleSel.innerHTML = '<option value="">No Role</option>' +
+      allRoles.map(r => `<option value="${r.id}" ${p.role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  }
 }
 
 async function uploadAvatar(input) {
@@ -608,12 +955,17 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const full_name = document.getElementById('pf-name').value.trim();
     const role = document.getElementById('pf-role').value.trim();
+    const role_id = document.getElementById('pf-role-id').value || null;
     const phone = document.getElementById('pf-phone').value.trim();
-    const { error } = await sbClient.from('profiles').update({ full_name, role, phone }).eq('id', currentUser.id);
+
+    const { error } = await sbClient.from('profiles').update({ full_name, role, role_id, phone }).eq('id', currentUser.id);
     if (error) return showToast(error.message, true);
+
     currentProfile.full_name = full_name;
     currentProfile.role = role;
+    currentProfile.role_id = role_id;
     currentProfile.phone = phone;
+
     showToast('Profile saved!');
     updateSidebarUser();
     loadProfilePage();
@@ -691,21 +1043,16 @@ async function createNotification(userId, title, message, type = 'info', link_ta
 }
 
 // ─────────────────────────────────────────────
-// 13. ACTION MODAL
+// 13. ACTION MODALS (Tasks with Admin Work, OKRs with Roles)
 // ─────────────────────────────────────────────
 async function openActionModal() {
   const modal = document.getElementById('action-modal');
   const fields = document.getElementById('modal-fields');
   const title = document.getElementById('modal-title');
 
-  // Load roles for dropdowns
-  if (allRoles.length === 0) {
-    const { data } = await sbClient.from('roles').select('id, name');
-    allRoles = data || [];
-  }
-  const roleOptions = `<option value="">No Role</option>` + allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  await fetchAllRoles();
+  const roleOptions = `<option value="">No Specific Role</option>` + allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
 
-  // Load team members for assignee
   const { data: members } = await sbClient.from('profiles').select('id,full_name,email').order('full_name');
   const memberOptions = `<option value="${currentUser.id}">(Me)</option>` +
     (members || []).filter(m => m.id !== currentUser.id).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
@@ -721,7 +1068,11 @@ async function openActionModal() {
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
+      </div>
+      <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
+        <input type="checkbox" id="f-admin-task" class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
+        <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
       </div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
@@ -732,11 +1083,26 @@ async function openActionModal() {
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Quarter</label><select id="f-q" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option>Q1</option><option>Q2</option><option>Q3</option><option selected>Q4</option></select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Unit</label><input id="f-unit" type="text" value="%" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required placeholder="Scale Client Base" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required placeholder="Scale Client Base & Market Share" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Key Result *</label><input id="f-kr" type="text" required placeholder="Acquire 100 new paying clients" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Target</label><input id="f-target" type="number" required value="100" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Current Progress</label><input id="f-current" type="number" value="0" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role / Department</label>
+          <select id="f-okr-role" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <option value="">Company-wide</option>
+            ${allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Lead / Owner</label>
+          <select id="f-okr-owner" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            ${memberOptions}
+          </select>
+        </div>
       </div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Strategy Doc</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
@@ -764,12 +1130,12 @@ async function openActionModal() {
   } else if (activeTab === 'roles') {
     title.textContent = 'Create New Role';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required placeholder="Marketing Team" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Responsible for all marketing activities..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required placeholder="Marketing, Engineering, Operations..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Responsibilities and scope for this role..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Color</label>
         <div class="flex items-center gap-3">
           <input id="f-color" type="color" value="#FE8A03" class="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer">
-          <span class="text-xs text-slate-400">Pick a color to identify this role</span>
+          <span class="text-xs text-slate-400">Color helps identify role badges on cards</span>
         </div>
       </div>`;
   }
@@ -791,10 +1157,14 @@ async function handleModalSubmit(e) {
       const due_date = document.getElementById('f-due').value || null;
       const assignee_id = document.getElementById('f-assignee').value || currentUser.id;
       const role_id = document.getElementById('f-role-id').value || null;
+      const is_admin_task = document.getElementById('f-admin-task')?.checked || false;
       const drive_link = document.getElementById('f-link').value || null;
-      const { error } = await sbClient.from('tasks').insert({ title, description, priority, due_date, drive_link, assignee_id, role_id });
+
+      const { error } = await sbClient.from('tasks').insert({
+        title, description, priority, due_date, drive_link, assignee_id, role_id, is_admin_task
+      });
       if (error) throw error;
-      // Notify assignee
+
       if (assignee_id !== currentUser.id) {
         await createNotification(assignee_id, 'New Task Assigned', `"${title}" has been assigned to you.`, 'task', 'tasks');
       }
@@ -807,8 +1177,13 @@ async function handleModalSubmit(e) {
       const key_result = document.getElementById('f-kr').value;
       const target = Number(document.getElementById('f-target').value);
       const current = Number(document.getElementById('f-current').value);
+      const role_id = document.getElementById('f-okr-role').value || null;
+      const owner_id = document.getElementById('f-okr-owner').value || currentUser.id;
       const drive_link = document.getElementById('f-link').value || null;
-      const { error } = await sbClient.from('okrs').insert({ quarter, unit, objective, key_result, target, current, drive_link, owner_id: currentUser.id });
+
+      const { error } = await sbClient.from('okrs').insert({
+        quarter, unit, objective, key_result, target, current, drive_link, owner_id, role_id
+      });
       if (error) throw error;
       showToast('OKR saved!'); closeActionModal(); loadOKRs();
 
@@ -839,7 +1214,9 @@ async function handleModalSubmit(e) {
       const color = document.getElementById('f-color').value || '#FE8A03';
       const { error } = await sbClient.from('roles').insert({ name, description, color });
       if (error) throw error;
-      showToast('Role created!'); closeActionModal(); loadRoles();
+      showToast('Role created!'); closeActionModal();
+      await fetchAllRoles();
+      loadRoles();
     }
   } catch (err) {
     showToast(err.message || 'Error saving', true);
@@ -851,7 +1228,7 @@ function closeActionModal() {
   document.getElementById('action-modal').classList.add('hidden');
 }
 
-// Edit task modal
+// Edit task modal (includes admin task toggle)
 async function openEditTaskModal(id) {
   const { data: t } = await sbClient.from('tasks').select('*').eq('id', id).single();
   if (!t) return;
@@ -871,6 +1248,10 @@ async function openEditTaskModal(id) {
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
     </div>
+    <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
+      <input type="checkbox" id="f-admin-task" ${t.is_admin_task ? 'checked' : ''} class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
+      <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
+    </div>
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Due Date</label><input id="f-due" type="date" value="${t.due_date || ''}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Link</label><input id="f-link" type="url" value="${t.drive_link || ''}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
@@ -884,6 +1265,7 @@ async function openEditTaskModal(id) {
       status: document.getElementById('f-status').value,
       assignee_id: document.getElementById('f-assignee').value,
       role_id: document.getElementById('f-role-id').value || null,
+      is_admin_task: document.getElementById('f-admin-task')?.checked || false,
       due_date: document.getElementById('f-due').value || null,
       drive_link: document.getElementById('f-link').value || null,
     }).eq('id', id);
@@ -896,7 +1278,6 @@ async function openEditTaskModal(id) {
 // 14. AUTH & HELPERS
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Show/hide password toggle
   const toggleBtn = document.getElementById('toggle-pw');
   const pwInput = document.getElementById('auth-password');
   if (toggleBtn && pwInput) {
@@ -907,7 +1288,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Auth form submit
   const authForm = document.getElementById('auth-form');
   if (authForm) authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -927,12 +1307,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data?.user) {
       currentUser = data.user;
       await fetchProfile();
+      await fetchAllRoles();
       showApp();
       showToast('Welcome back to Nodaar Hub! 🎉');
     }
   });
 
-  // Report form
   const reportForm = document.getElementById('report-form');
   if (reportForm) reportForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -951,7 +1331,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadReports();
   });
 
-  // Close notif panel on outside click
   document.addEventListener('click', (e) => {
     const panel = document.getElementById('notif-panel');
     const bell = document.getElementById('notif-bell');

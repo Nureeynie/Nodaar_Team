@@ -108,7 +108,7 @@
       <div class="text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 mb-2">Main</div>
       <button onclick="navigate('tasks')" data-tab="tasks" class="nav-btn active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-        Tasks
+        Tasks & Deliverables
       </button>
       <button onclick="navigate('reports')" data-tab="reports" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -120,14 +120,14 @@
       </button>
       <button onclick="navigate('meetings')" data-tab="meetings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        Meetings
+        Meetings & Notes
       </button>
       <button onclick="navigate('ideas')" data-tab="ideas" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.5 17.5A6 6 0 0112 6a6 6 0 015.5 11.5"/></svg>
         Ideas & Decks
       </button>
 
-      <div class="text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 pt-4 mb-2">People</div>
+      <div class="text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 pt-4 mb-2">People & Organization</div>
       <button onclick="navigate('team')" data-tab="team" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         Team Directory
@@ -170,7 +170,16 @@
           <p id="page-subtitle" class="text-[11px] text-slate-400 hidden sm:block">Track assignments and Drive work links</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 sm:gap-3">
+
+        <!-- ADMIN QUICK ROLE SWITCHER -->
+        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
+          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-xs font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer">
+            <option value="">Admin / Founder</option>
+          </select>
+        </div>
+
         <!-- Notification bell -->
         <div class="relative">
           <button id="notif-bell" onclick="toggleNotifPanel()" class="relative p-2 rounded-xl hover:bg-slate-100 transition">
@@ -178,7 +187,14 @@
             <span id="notif-badge" class="notif-dot hidden"></span>
           </button>
         </div>
-        <!-- Action button -->
+
+        <!-- Secondary action button (e.g., + Add User in Team view) -->
+        <button id="secondary-action-btn" onclick="openSecondaryModal()" class="hidden px-3 md:px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5 border border-slate-200">
+          <span>👥</span>
+          <span id="secondary-btn-text">Add User</span>
+        </button>
+
+        <!-- Primary Action button -->
         <button id="primary-action-btn" onclick="openActionModal()" class="px-3 md:px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
           <span class="text-base leading-none">+</span>
           <span id="action-btn-text" class="hidden sm:inline">New Task</span>
@@ -209,6 +225,10 @@
             <option value="all">All Tasks</option>
             <option value="mine">My Tasks</option>
             <option value="role">My Role's Tasks</option>
+            <option value="admin">🔒 Admin Work</option>
+          </select>
+          <select id="task-role-filter" onchange="loadTasks()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="all">All Roles</option>
           </select>
           <select id="task-priority-filter" onchange="loadTasks()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
             <option value="all">All Priorities</option>
@@ -269,6 +289,19 @@
 
       <!-- ===== OKRS ===== -->
       <section id="view-okrs" class="view-section hidden">
+        <!-- OKR Filter bar -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+          <select id="okr-role-filter" onchange="loadOKRs()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="all">All Roles & Departments</option>
+          </select>
+          <select id="okr-quarter-filter" onchange="loadOKRs()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="all">All Quarters</option>
+            <option value="Q1">Q1</option>
+            <option value="Q2">Q2</option>
+            <option value="Q3">Q3</option>
+            <option value="Q4">Q4</option>
+          </select>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5" id="okrs-container"></div>
       </section>
 
@@ -284,11 +317,27 @@
 
       <!-- ===== TEAM ===== -->
       <section id="view-team" class="view-section hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="text-xs font-bold text-slate-500" id="team-count-text">All Members</span>
+          </div>
+          <button id="team-add-user-btn" onclick="openAddUserModal()" class="hidden px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <span>+</span> Add New User
+          </button>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="team-container"></div>
       </section>
 
       <!-- ===== ROLES ===== -->
       <section id="view-roles" class="view-section hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="text-xs font-bold text-slate-500" id="roles-count-text">Team Roles & Responsibilities</span>
+          </div>
+          <button onclick="openActionModal()" class="px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <span>+</span> Create New Role
+          </button>
+        </div>
         <div id="roles-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </section>
 
@@ -321,13 +370,21 @@
                   <input id="pf-name" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">Job Title / Role</label>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
                   <input id="pf-role" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
                 </div>
               </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label>
-                <input id="pf-phone" type="tel" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Assigned Role</label>
+                  <select id="pf-role-id" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <option value="">No Role</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label>
+                  <input id="pf-phone" type="tel" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
               </div>
               <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Save Profile</button>
             </form>
