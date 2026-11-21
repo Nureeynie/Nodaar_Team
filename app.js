@@ -569,7 +569,7 @@ function showApp() {
 document.getElementById('auth-form').onsubmit = async (e) => {
   e.preventDefault();
   const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
+  const password = document.getElementById('auth-password').value.trim();
   const errBox = document.getElementById('auth-error');
   const btn = document.getElementById('auth-submit-btn');
   errBox.classList.add('hidden');

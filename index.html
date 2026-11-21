@@ -68,7 +68,10 @@
             class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-slate-700 uppercase">Password</label>
+            <button type="button" onclick="const p=document.getElementById('auth-password');const isP=p.type==='password';p.type=isP?'text':'password';this.textContent=isP?'Hide':'Show';" class="text-xs font-semibold text-brand-600 hover:text-brand-700 focus:outline-none">Show</button>
+          </div>
           <input id="auth-password" type="password" placeholder="••••••••" required
             class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
         </div>
