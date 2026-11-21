@@ -1,14 +1,15 @@
 // ==============================================================================
-// NODAAR TEAM HUB — Full Enterprise App Logic v2.1
-// Features: Roles, OKR Role Assignment, Admin Work & Tasks, Role Switcher,
-//           Add User & Role Assignment, Notifications, Avatar & Profile Settings
+// NODAAR TEAM HUB — Enterprise Workspace Logic v2.2
+// Features: Overview & Member Performance Insights, Collapsible Sidebar,
+//           List Views, Role Management, OKR Role Assignment, Admin Work Filters
 // ==============================================================================
 
 let sbClient = null;
 let currentUser = null;
 let currentProfile = null;
-let activeTab = 'tasks';
+let activeTab = 'overview';
 let allRoles = [];
+let taskViewMode = 'board'; // 'board' or 'list'
 
 const SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
@@ -28,6 +29,12 @@ function initSupabase() {
 
 async function checkAuth() {
   if (!initSupabase()) return;
+
+  // Restore sidebar collapsed preference
+  if (localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
+    document.body.classList.add('sidebar-collapsed');
+  }
+
   const { data: { session } } = await sbClient.auth.getSession();
   if (session) {
     currentUser = session.user;
@@ -37,6 +44,7 @@ async function checkAuth() {
   } else {
     showAuth();
   }
+
   sbClient.auth.onAuthStateChange(async (event, session) => {
     if (session) {
       currentUser = session.user;
@@ -49,6 +57,11 @@ async function checkAuth() {
       showAuth();
     }
   });
+}
+
+function toggleSidebarCollapse() {
+  const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+  localStorage.setItem('nodaar_sidebar_collapsed', isCollapsed);
 }
 
 // ─────────────────────────────────────────────
@@ -83,7 +96,6 @@ async function fetchAllRoles() {
 }
 
 function updateRoleDropdowns() {
-  // Update task role filter
   const taskRoleSel = document.getElementById('task-role-filter');
   if (taskRoleSel) {
     const prev = taskRoleSel.value;
@@ -92,7 +104,6 @@ function updateRoleDropdowns() {
     taskRoleSel.value = prev || 'all';
   }
 
-  // Update OKR role filter
   const okrRoleSel = document.getElementById('okr-role-filter');
   if (okrRoleSel) {
     const prev = okrRoleSel.value;
@@ -101,7 +112,6 @@ function updateRoleDropdowns() {
     okrRoleSel.value = prev || 'all';
   }
 
-  // Update Admin Quick Role Switcher
   const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
   const adminRoleSelect = document.getElementById('admin-active-role-select');
   if (adminSwitcherBox && adminRoleSelect) {
@@ -120,7 +130,6 @@ function updateRoleDropdowns() {
     }
   }
 
-  // Update Profile edit role select
   const pfRoleSel = document.getElementById('pf-role-id');
   if (pfRoleSel) {
     pfRoleSel.innerHTML = '<option value="">No Role</option>' +
@@ -157,7 +166,6 @@ function updateSidebarUser() {
   if (nameEl) nameEl.textContent = name;
   if (roleEl) roleEl.textContent = `${role} · ${p.access_level || 'Member'}`;
 
-  // Sidebar avatar
   const avatarEl = document.getElementById('sidebar-avatar');
   if (avatarEl) {
     if (p.avatar_url) {
@@ -167,7 +175,6 @@ function updateSidebarUser() {
     }
   }
 
-  // Show/hide admin-only navigation
   const rolesBtn = document.getElementById('roles-nav-btn');
   if (rolesBtn) rolesBtn.style.display = p.access_level === 'Admin' ? 'flex' : 'none';
 
@@ -184,6 +191,7 @@ function updateSidebarUser() {
 // 3. NAVIGATION
 // ─────────────────────────────────────────────
 const TAB_META = {
+  overview:{ title:'Overview & Insights', sub:'Team velocity, performance metrics and member accountability', btn:'' },
   tasks:   { title:'Tasks & Deliverables', sub:'Track assignments, admin work and Google Drive links', btn:'New Task' },
   reports: { title:'Daily Standup Reports', sub:'Submit what you worked on and attach Drive proof-of-work', btn:'New Standup' },
   okrs:    { title:'Quarterly OKRs & Goals', sub:'High-level business and role targets', btn:'New OKR' },
@@ -198,12 +206,10 @@ function navigate(tab) {
   activeTab = tab;
   document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
 
-  // Sidebar active state
   document.querySelectorAll('#sidebar-nav .nav-btn').forEach(btn => btn.classList.remove('active'));
   const target = document.querySelector(`[data-tab="${tab}"]`);
   if (target) target.classList.add('active');
 
-  // Bottom nav active state
   document.querySelectorAll('.bottom-nav button').forEach(btn => {
     btn.classList.remove('text-brand-500');
     btn.classList.add('text-slate-500');
@@ -234,6 +240,7 @@ function navigate(tab) {
 
 async function loadTabData(tab) {
   switch (tab) {
+    case 'overview':await loadOverviewData(); break;
     case 'tasks':   await loadTasks(); break;
     case 'reports': await loadReports(); break;
     case 'okrs':    await loadOKRs(); break;
@@ -246,11 +253,291 @@ async function loadTabData(tab) {
 }
 
 // ─────────────────────────────────────────────
-// 4. TASKS (with Admin Work & Role filters)
+// 4. OVERVIEW & MEMBER PERFORMANCE INSIGHTS
 // ─────────────────────────────────────────────
+async function loadOverviewData() {
+  const kpiContainer = document.getElementById('overview-kpi-cards');
+  const blockersContainer = document.getElementById('overview-blockers-container');
+  const tableBody = document.getElementById('overview-performance-table');
+  const rolesBreakdown = document.getElementById('overview-roles-breakdown');
+
+  tableBody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 text-xs">Computing performance insights…</td></tr>`;
+
+  // Parallel fetch: profiles, tasks, reports, okrs, roles
+  const [
+    { data: profiles },
+    { data: tasks },
+    { data: reports },
+    { data: okrs },
+    { data: roles }
+  ] = await Promise.all([
+    sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name'),
+    sbClient.from('tasks').select('*'),
+    sbClient.from('reports').select('*, profiles:user_id(full_name, avatar_url)').order('created_at', { ascending: false }),
+    sbClient.from('okrs').select('*'),
+    sbClient.from('roles').select('*')
+  ]);
+
+  const allProfiles = profiles || [];
+  const allTasks = tasks || [];
+  const allReports = reports || [];
+  const allOKRs = okrs || [];
+  const allRolesList = roles || [];
+
+  // Compute Task KPIs
+  const totalTasks = allTasks.length;
+  const completedTasks = allTasks.filter(t => t.status === 'Done').length;
+  const inProgressTasks = allTasks.filter(t => t.status === 'In Progress').length;
+  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  // Compute Standup & Hours KPIs
+  const totalHoursLogged = allReports.reduce((sum, r) => sum + (Number(r.hours_worked) || 0), 0);
+  const avgHours = allReports.length > 0 ? (totalHoursLogged / allReports.length).toFixed(1) : '8.0';
+
+  // Compute OKR aggregate
+  let okrAvg = 0;
+  if (allOKRs.length > 0) {
+    const sumOkr = allOKRs.reduce((sum, o) => {
+      const p = Math.min(100, Math.round(((o.current - (o.baseline||0)) / ((o.target - (o.baseline||0)) || 1)) * 100));
+      return sum + Math.max(0, p);
+    }, 0);
+    okrAvg = Math.round(sumOkr / allOKRs.length);
+  }
+
+  // Active Blockers
+  const activeBlockers = allReports.filter(r => r.blockers && r.blockers.toLowerCase() !== 'none' && r.blockers.trim() !== '');
+
+  // Render KPI Cards
+  kpiContainer.innerHTML = `
+    <div class="card-hover bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-400 uppercase">Task Delivery</span>
+        <span class="text-lg">📋</span>
+      </div>
+      <div class="text-2xl font-black text-navy-900">${taskCompletionRate}%</div>
+      <div class="text-xs text-slate-500 mt-1 flex items-center justify-between">
+        <span><b>${completedTasks}</b> completed</span>
+        <span class="text-blue-600 font-semibold">${inProgressTasks} in progress</span>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+        <div class="bg-emerald-500 h-1.5 rounded-full" style="width:${taskCompletionRate}%"></div>
+      </div>
+    </div>
+
+    <div class="card-hover bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-400 uppercase">Standups Logged</span>
+        <span class="text-lg">📝</span>
+      </div>
+      <div class="text-2xl font-black text-navy-900">${allReports.length}</div>
+      <div class="text-xs text-slate-500 mt-1">
+        <span>Avg <b>${avgHours} hrs</b> / standup</span>
+      </div>
+      <div class="text-[11px] text-brand-600 font-semibold mt-2">Total ${totalHoursLogged}h tracked</div>
+    </div>
+
+    <div class="card-hover bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-400 uppercase">Quarterly OKRs</span>
+        <span class="text-lg">🎯</span>
+      </div>
+      <div class="text-2xl font-black text-navy-900">${okrAvg}%</div>
+      <div class="text-xs text-slate-500 mt-1">${allOKRs.length} active objectives</div>
+      <div class="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+        <div class="bg-brand-500 h-1.5 rounded-full" style="width:${okrAvg}%"></div>
+      </div>
+    </div>
+
+    <div class="card-hover bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-400 uppercase">Team Roadblocks</span>
+        <span class="text-lg">${activeBlockers.length > 0 ? '⚠️' : '✅'}</span>
+      </div>
+      <div class="text-2xl font-black ${activeBlockers.length > 0 ? 'text-red-600' : 'text-emerald-600'}">
+        ${activeBlockers.length}
+      </div>
+      <div class="text-xs text-slate-500 mt-1">
+        ${activeBlockers.length > 0 ? 'Blockers needing leadership' : 'No reported blockers'}
+      </div>
+      <div class="text-[11px] text-slate-400 font-medium mt-2">${allProfiles.length} active members</div>
+    </div>
+  `;
+
+  // Render Blockers Watchlist
+  if (activeBlockers.length > 0) {
+    blockersContainer.classList.remove('hidden');
+    blockersContainer.innerHTML = `
+      <div class="bg-red-50/80 border border-red-200 rounded-3xl p-5 shadow-sm">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-lg">🚨</span>
+          <h4 class="font-extrabold text-sm text-red-900">Active Roadblocks Needing Attention (${activeBlockers.length})</h4>
+        </div>
+        <div class="space-y-2">
+          ${activeBlockers.slice(0, 4).map(b => `
+            <div class="bg-white p-3 rounded-2xl border border-red-100 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xs font-bold text-navy-900">${escapeHtml(b.profiles?.full_name || 'Member')}:</span>
+                <span class="text-xs text-red-700 font-medium">${escapeHtml(b.blockers)}</span>
+              </div>
+              <span class="text-[10px] text-slate-400">📅 ${b.report_date}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } else {
+    blockersContainer.classList.add('hidden');
+  }
+
+  // Render Member Performance Table
+  if (allProfiles.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400 text-xs">No team members registered.</td></tr>`;
+  } else {
+    tableBody.innerHTML = allProfiles.map(u => {
+      const name = u.full_name || u.email || 'Member';
+      const initials = name.charAt(0).toUpperCase();
+
+      // Member's tasks
+      const mTasks = allTasks.filter(t => t.assignee_id === u.id);
+      const mDone = mTasks.filter(t => t.status === 'Done').length;
+      const mTotal = mTasks.length;
+      const mRate = mTotal > 0 ? Math.round((mDone / mTotal) * 100) : 0;
+
+      // Member's standups
+      const mReports = allReports.filter(r => r.user_id === u.id);
+      const mHours = mReports.reduce((s, r) => s + (Number(r.hours_worked) || 0), 0);
+      const latestReport = mReports[0];
+
+      // Dominant mood
+      const mood = latestReport?.mood || '—';
+
+      // Latest deliverable
+      const latestDrive = latestReport?.drive_link || mTasks.find(t => t.drive_link)?.drive_link;
+
+      // Performance rating
+      let statusBadge = '';
+      if (mTotal === 0 && mReports.length === 0) {
+        statusBadge = `<span class="pill bg-slate-100 text-slate-500">New / Idle</span>`;
+      } else if (latestReport?.blockers && latestReport.blockers.toLowerCase() !== 'none' && latestReport.blockers.trim() !== '') {
+        statusBadge = `<span class="pill bg-red-100 text-red-700">⚠️ Blocked</span>`;
+      } else if (mRate >= 75 || mReports.length >= 3) {
+        statusBadge = `<span class="pill bg-emerald-100 text-emerald-800">🔥 High Performer</span>`;
+      } else {
+        statusBadge = `<span class="pill bg-blue-100 text-blue-800">⚡ On Track</span>`;
+      }
+
+      const roleTag = u.roles
+        ? `<span class="pill" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>`
+        : `<span class="text-slate-400 text-[11px]">—</span>`;
+
+      return `
+        <tr class="hover:bg-slate-50/70 transition">
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+                ${u.avatar_url
+                  ? `<img src="${u.avatar_url}" class="w-full h-full object-cover">`
+                  : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-xs flex items-center justify-center">${initials}</div>`}
+              </div>
+              <div>
+                <div class="font-bold text-navy-900">${escapeHtml(name)}</div>
+                <div class="text-[11px] text-slate-400">${escapeHtml(u.email)}</div>
+              </div>
+            </div>
+          </td>
+          <td class="py-3 px-4">${roleTag}</td>
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-2">
+              <div class="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-brand-500 h-1.5 rounded-full" style="width:${mRate}%"></div>
+              </div>
+              <span class="font-bold text-[11px] text-slate-700">${mDone}/${mTotal} (${mRate}%)</span>
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <span class="font-bold text-navy-900">${mReports.length}</span> reports
+            <span class="text-slate-400 text-[11px]">· ${mHours}h</span>
+          </td>
+          <td class="py-3 px-4 text-sm">${mood}</td>
+          <td class="py-3 px-4">
+            ${latestDrive ? `
+              <a href="${latestDrive}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:underline">
+                <span>📁</span> Drive Link ↗
+              </a>
+            ` : '<span class="text-slate-300 text-[11px]">No link</span>'}
+          </td>
+          <td class="py-3 px-4 text-right">${statusBadge}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Render Department & Role Velocity Breakdown
+  if (allRolesList.length === 0) {
+    rolesBreakdown.innerHTML = `<div class="py-4 text-center text-xs text-slate-400">No roles created yet. Use the Roles & Permissions tab to define team roles.</div>`;
+  } else {
+    rolesBreakdown.innerHTML = allRolesList.map(r => {
+      const rMembers = allProfiles.filter(p => p.role_id === r.id);
+      const rTasks = allTasks.filter(t => t.role_id === r.id);
+      const rDone = rTasks.filter(t => t.status === 'Done').length;
+      const rRate = rTasks.length > 0 ? Math.round((rDone / rTasks.length) * 100) : 0;
+      const rOkrs = allOKRs.filter(o => o.role_id === r.id);
+
+      return `
+        <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0" style="background:${r.color}22;color:${r.color};border:1px solid ${r.color}44;">
+              ${(r.name || 'R').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div class="font-bold text-xs text-navy-900">${escapeHtml(r.name)}</div>
+              <div class="text-[11px] text-slate-400">${rMembers.length} member${rMembers.length !== 1 ? 's' : ''} · ${rOkrs.length} assigned OKRs</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <div class="text-xs font-bold text-navy-900">${rDone}/${rTasks.length} Tasks (${rRate}%)</div>
+              <div class="w-32 bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                <div class="h-1.5 rounded-full" style="background:${r.color || '#FE8A03'};width:${rRate}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+// ─────────────────────────────────────────────
+// 5. TASKS (Board & List Views)
+// ─────────────────────────────────────────────
+function setTaskViewMode(mode) {
+  taskViewMode = mode;
+  const boardBtn = document.getElementById('task-view-board-btn');
+  const listBtn = document.getElementById('task-view-list-btn');
+  const boardContainer = document.getElementById('tasks-board-container');
+  const listContainer = document.getElementById('tasks-list-container');
+
+  if (mode === 'board') {
+    boardBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-navy-900 shadow-sm transition';
+    listBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-navy-900 transition';
+    boardContainer.classList.remove('hidden');
+    listContainer.classList.add('hidden');
+  } else {
+    listBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-navy-900 shadow-sm transition';
+    boardBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-navy-900 transition';
+    boardContainer.classList.add('hidden');
+    listContainer.classList.remove('hidden');
+  }
+  loadTasks();
+}
+
 async function loadTasks() {
-  const container = document.getElementById('tasks-container');
-  container.innerHTML = loadingHTML('col-span-3');
+  const boardContainer = document.getElementById('tasks-board-container');
+  const tableBody = document.getElementById('tasks-table-body');
+
+  boardContainer.innerHTML = loadingHTML('col-span-3');
+  tableBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-xs text-slate-400">Loading tasks…</td></tr>`;
 
   const filter = document.getElementById('task-filter')?.value || 'all';
   const roleFilter = document.getElementById('task-role-filter')?.value || 'all';
@@ -277,22 +564,26 @@ async function loadTasks() {
   const { data: tasks, error } = await query;
 
   if (error || !tasks || tasks.length === 0) {
-    container.innerHTML = `<div class="col-span-3 text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
-      <div class="text-4xl mb-3">📋</div>
-      <div class="text-sm font-bold text-navy-900 mb-1">No tasks found</div>
-      <p class="text-xs text-slate-400 mb-4">Create your first task or change your filters above.</p>
-      <button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Task</button>
-    </div>`;
+    const emptyMsg = `
+      <div class="col-span-3 text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+        <div class="text-4xl mb-3">📋</div>
+        <div class="text-sm font-bold text-navy-900 mb-1">No tasks found</div>
+        <p class="text-xs text-slate-400 mb-4">Create your first task or change your filters above.</p>
+        <button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Task</button>
+      </div>`;
+    boardContainer.innerHTML = emptyMsg;
+    tableBody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-xs text-slate-400">No tasks found. Click "+ New Task" above.</td></tr>`;
     return;
   }
 
+  // 1. Render Kanban Board
   const columns = { 'To Do': [], 'In Progress': [], 'Done': [] };
   tasks.forEach(t => { (columns[t.status] || columns['To Do']).push(t); });
 
   const colColors = { 'To Do': 'border-slate-300', 'In Progress': 'border-blue-400', 'Done': 'border-emerald-400' };
   const colHeaders = { 'To Do': '⬜ To Do', 'In Progress': '🔵 In Progress', 'Done': '✅ Done' };
 
-  container.innerHTML = ['To Do', 'In Progress', 'Done'].map(col => `
+  boardContainer.innerHTML = ['To Do', 'In Progress', 'Done'].map(col => `
     <div class="bg-white rounded-3xl border-2 ${colColors[col]} p-4">
       <div class="flex items-center justify-between mb-3">
         <span class="text-xs font-black text-navy-900">${colHeaders[col]}</span>
@@ -303,6 +594,52 @@ async function loadTasks() {
       </div>
     </div>
   `).join('');
+
+  // 2. Render List Table View
+  const priColors = { Critical:'bg-red-50 text-red-700 border-red-200', High:'bg-orange-50 text-orange-700 border-orange-200', Medium:'bg-amber-50 text-amber-700 border-amber-200', Low:'bg-emerald-50 text-emerald-700 border-emerald-200' };
+
+  tableBody.innerHTML = tasks.map(t => {
+    const name = t.profiles?.full_name || 'Unassigned';
+    const initials = name.charAt(0).toUpperCase();
+    const roleTag = t.roles ? `<span class="pill" style="background:${t.roles.color}22;color:${t.roles.color};border:1px solid ${t.roles.color}44;">${escapeHtml(t.roles.name)}</span>` : '<span class="text-slate-300">—</span>';
+    const adminTag = t.is_admin_task ? `<span class="pill bg-purple-100 text-purple-700 mr-1.5">🔒 Admin</span>` : '';
+
+    return `
+      <tr class="hover:bg-slate-50/70 transition">
+        <td class="py-3 px-4">
+          <div class="font-bold text-navy-900 flex items-center">${adminTag} ${escapeHtml(t.title)}</div>
+          ${t.description ? `<div class="text-[11px] text-slate-400 line-clamp-1">${escapeHtml(t.description)}</div>` : ''}
+        </td>
+        <td class="py-3 px-4">
+          <span class="pill border ${priColors[t.priority] || priColors.Medium}">${t.priority}</span>
+        </td>
+        <td class="py-3 px-4">${roleTag}</td>
+        <td class="py-3 px-4">
+          <div class="flex items-center gap-2">
+            ${t.profiles?.avatar_url
+              ? `<img src="${t.profiles.avatar_url}" class="w-5 h-5 rounded-full object-cover">`
+              : `<div class="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white text-[8px] font-black flex items-center justify-center">${initials}</div>`}
+            <span class="text-slate-700 font-medium truncate max-w-[120px]">${escapeHtml(name)}</span>
+          </div>
+        </td>
+        <td class="py-3 px-4 text-slate-500 font-medium">${t.due_date ? `📅 ${t.due_date}` : '—'}</td>
+        <td class="py-3 px-4">
+          <select onchange="updateTaskStatus('${t.id}', this.value)" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 focus:outline-none">
+            <option ${t.status==='To Do'?'selected':''}>To Do</option>
+            <option ${t.status==='In Progress'?'selected':''}>In Progress</option>
+            <option ${t.status==='Done'?'selected':''}>Done</option>
+          </select>
+        </td>
+        <td class="py-3 px-4 text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            ${t.drive_link ? `<a href="${t.drive_link}" target="_blank" rel="noopener" class="p-1 text-brand-600 hover:text-brand-700" title="Open Google Drive">📁</a>` : ''}
+            <button onclick="openEditTaskModal('${t.id}')" class="p-1 text-slate-400 hover:text-slate-600" title="Edit">✏️</button>
+            <button onclick="deleteTask('${t.id}')" class="p-1 text-slate-400 hover:text-red-500" title="Delete">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function taskCard(t) {
@@ -363,7 +700,7 @@ async function deleteTask(id) {
 }
 
 // ─────────────────────────────────────────────
-// 5. REPORTS
+// 6. REPORTS (List)
 // ─────────────────────────────────────────────
 async function loadReports() {
   const container = document.getElementById('reports-list');
@@ -398,8 +735,8 @@ async function loadReports() {
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
-        <div><span class="font-bold text-navy-900 block mb-1">✅ Done:</span><p class="text-slate-600 whitespace-pre-line">${escapeHtml(r.done_today)}</p></div>
-        <div><span class="font-bold text-navy-900 block mb-1">🚀 Tomorrow:</span><p class="text-slate-600 whitespace-pre-line">${escapeHtml(r.plan_tomorrow)}</p></div>
+        <div><span class="font-bold text-navy-900 block mb-1">✅ Accomplished:</span><p class="text-slate-600 whitespace-pre-line">${escapeHtml(r.done_today)}</p></div>
+        <div><span class="font-bold text-navy-900 block mb-1">🚀 Tomorrow's Plan:</span><p class="text-slate-600 whitespace-pre-line">${escapeHtml(r.plan_tomorrow)}</p></div>
       </div>
       ${r.blockers && r.blockers !== 'None' ? `<div class="mt-2 text-xs text-red-700 bg-red-50 p-2 rounded-lg border border-red-100">⚠️ <b>Blocker:</b> ${escapeHtml(r.blockers)}</div>` : ''}
       ${r.drive_link ? `<a href="${r.drive_link}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 font-bold hover:underline">📁 Open Drive Proof-of-Work ↗</a>` : ''}
@@ -408,7 +745,7 @@ async function loadReports() {
 }
 
 // ─────────────────────────────────────────────
-// 6. OKRS (with Roles & Department support)
+// 7. OKRS (Structured List View)
 // ─────────────────────────────────────────────
 async function loadOKRs() {
   const container = document.getElementById('okrs-container');
@@ -427,7 +764,7 @@ async function loadOKRs() {
   const { data: okrs } = await query;
 
   if (!okrs || okrs.length === 0) {
-    container.innerHTML = '<div class="col-span-2 text-center p-10 bg-white rounded-3xl border text-xs text-slate-400">No OKRs found. Click "+ New OKR" to set goals for your team or roles.</div>';
+    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No OKRs found. Click "+ Add OKR" to set team objectives.</div>';
     return;
   }
 
@@ -439,47 +776,53 @@ async function loadOKRs() {
       : `<span class="pill bg-slate-100 text-slate-600">Company-wide</span>`;
 
     return `
-    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
+    <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div class="flex items-center gap-2">
           <span class="pill bg-brand-50 text-brand-700 border border-brand-200">${escapeHtml(o.quarter)} Goal</span>
           ${roleTag}
         </div>
-        <span class="text-xs font-semibold text-slate-400">👤 ${escapeHtml(o.profiles?.full_name || 'Team')}</span>
+        <div class="text-xs text-slate-400">Owner: <b class="text-slate-600">${escapeHtml(o.profiles?.full_name || 'Team')}</b></div>
       </div>
-      <div>
-        <h3 class="font-bold text-sm text-navy-900">${escapeHtml(o.objective)}</h3>
+      <div class="mb-3">
+        <h4 class="font-bold text-sm text-navy-900">${escapeHtml(o.objective)}</h4>
         <p class="text-xs text-slate-500 mt-1">🎯 <b>Key Result:</b> ${escapeHtml(o.key_result)}</p>
       </div>
       <div>
         <div class="flex justify-between text-xs font-bold mb-1.5">
           <span class="text-slate-500">${o.current} / ${o.target} ${o.unit || ''}</span>
-          <span class="${progress >= 80 ? 'text-emerald-600' : 'text-brand-600'}">${progress}%</span>
+          <span class="${progress >= 80 ? 'text-emerald-600' : 'text-brand-600'}">${progress}% Completed</span>
         </div>
         <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
           <div class="${progColor} h-2 rounded-full transition-all duration-700" style="width:${progress}%"></div>
         </div>
       </div>
-      ${o.drive_link ? `<a href="${o.drive_link}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:underline pt-1 border-t border-slate-100 w-full">📁 Strategy in Drive ↗</a>` : ''}
+      ${o.drive_link ? `
+        <div class="mt-3 pt-2 border-t border-slate-100">
+          <a href="${o.drive_link}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:underline">
+            📁 View Strategy in Google Drive ↗
+          </a>
+        </div>
+      ` : ''}
     </div>`;
   }).join('');
 }
 
 // ─────────────────────────────────────────────
-// 7. MEETINGS
+// 8. MEETINGS (List View)
 // ─────────────────────────────────────────────
 async function loadMeetings() {
   const container = document.getElementById('meetings-container');
   const { data: meetings } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
   if (!meetings || meetings.length === 0) {
-    container.innerHTML = '<div class="p-10 text-center bg-white rounded-3xl border text-xs text-slate-400">No meetings scheduled. Click "+ New Meeting" to add one.</div>';
+    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No meetings scheduled. Click "+ New Meeting" to schedule one.</div>';
     return;
   }
   const today = new Date().toISOString().slice(0, 10);
   container.innerHTML = meetings.map(m => {
     const isPast = m.meeting_date < today;
     return `
-    <div class="card-hover bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isPast ? 'opacity-60' : ''}">
+    <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isPast ? 'opacity-60' : ''}">
       <div class="flex gap-4 items-start">
         <div class="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-2xl flex flex-col items-center justify-center border border-slate-200">
           <span class="text-[9px] font-black text-slate-500 uppercase">${new Date(m.meeting_date+'T00:00').toLocaleString('en',{month:'short'})}</span>
@@ -510,87 +853,102 @@ async function deleteMeeting(id) {
 }
 
 // ─────────────────────────────────────────────
-// 8. IDEAS
+// 9. IDEAS (List View)
 // ─────────────────────────────────────────────
 async function loadIdeas() {
   const container = document.getElementById('ideas-container');
   const { data: ideas } = await sbClient.from('ideas').select('*, profiles:user_id(full_name, avatar_url)').order('created_at', { ascending: false });
   if (!ideas || ideas.length === 0) {
-    container.innerHTML = '<div class="col-span-3 text-center p-10 bg-white rounded-3xl border text-xs text-slate-400">No ideas yet. Have an initiative? Click "+ New Idea"!</div>';
+    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No ideas pitched yet. Have an initiative? Click "+ Pitch Idea"!</div>';
     return;
   }
   const statusColors = { 'Proposed':'bg-amber-50 text-amber-800 border-amber-200', 'Approved':'bg-emerald-50 text-emerald-800 border-emerald-200', 'In Review':'bg-blue-50 text-blue-800 border-blue-200', 'Rejected':'bg-red-50 text-red-700 border-red-200' };
+
   container.innerHTML = ideas.map(i => `
-    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-      <div class="flex items-center justify-between">
-        <span class="pill border ${statusColors[i.status] || statusColors['Proposed']}">${i.status || 'Proposed'}</span>
-        <span class="text-[11px] text-slate-400">by ${escapeHtml(i.profiles?.full_name || 'Member')}</span>
+    <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="pill border ${statusColors[i.status] || statusColors['Proposed']}">${i.status || 'Proposed'}</span>
+          <span class="font-bold text-sm text-navy-900">${escapeHtml(i.title)}</span>
+        </div>
+        <span class="text-xs text-slate-400">by ${escapeHtml(i.profiles?.full_name || 'Member')}</span>
       </div>
-      <h4 class="font-bold text-sm text-navy-900">${escapeHtml(i.title)}</h4>
-      <p class="text-xs text-slate-600 leading-relaxed">${escapeHtml(i.description)}</p>
-      ${i.expected_impact ? `<div class="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100"><b>💡 Impact:</b> ${escapeHtml(i.expected_impact)}</div>` : ''}
-      ${i.drive_link ? `<a href="${i.drive_link}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:underline pt-2 border-t border-slate-100 w-full">📁 Pitch Deck ↗</a>` : ''}
+      <p class="text-xs text-slate-600 leading-relaxed mb-3">${escapeHtml(i.description)}</p>
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        ${i.expected_impact ? `<div class="text-[11px] text-slate-500"><b>💡 Expected Impact:</b> ${escapeHtml(i.expected_impact)}</div>` : '<div></div>'}
+        ${i.drive_link ? `<a href="${i.drive_link}" target="_blank" rel="noopener" class="text-xs font-bold text-brand-600 hover:underline">📁 Pitch Deck in Drive ↗</a>` : ''}
+      </div>
     </div>`).join('');
 }
 
 // ─────────────────────────────────────────────
-// 9. TEAM (Add User, Assign Role, Switch to Admin)
+// 10. TEAM (Enterprise Table / List View)
 // ─────────────────────────────────────────────
 async function loadTeam() {
-  const container = document.getElementById('team-container');
-  container.innerHTML = loadingHTML('col-span-4');
+  const tableBody = document.getElementById('team-table-body');
+  tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
+
   const { data: team } = await sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
 
   const countEl = document.getElementById('team-count-text');
-  if (countEl) countEl.textContent = `${(team || []).length} Team Members`;
+  if (countEl) countEl.textContent = `Team Directory (${(team || []).length} Members)`;
 
   if (!team || team.length === 0) {
-    container.innerHTML = '<div class="col-span-4 text-center p-10 text-xs text-slate-400">No team members found.</div>';
+    tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
     return;
   }
 
   const isAdmin = currentProfile?.access_level === 'Admin';
 
-  container.innerHTML = team.map(u => {
+  tableBody.innerHTML = team.map(u => {
     const name = u.full_name || u.email || 'Member';
     const initials = name.charAt(0).toUpperCase();
     const userIsAdmin = u.access_level === 'Admin';
-    const roleTag = u.roles ? `<span class="pill mt-1" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>` : '';
+    const roleTag = u.roles
+      ? `<span class="pill" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>`
+      : `<span class="text-slate-400 text-[11px]">${escapeHtml(u.role || 'Member')}</span>`;
 
     return `
-    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm text-center relative flex flex-col justify-between">
-      <div>
-        <div class="absolute top-3 right-3 flex items-center gap-1">
+      <tr class="hover:bg-slate-50/70 transition">
+        <td class="py-3 px-4">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+              ${u.avatar_url
+                ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" alt="">`
+                : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-sm flex items-center justify-center">${initials}</div>`}
+            </div>
+            <div>
+              <div class="font-bold text-navy-900">${escapeHtml(name)}</div>
+              <div class="text-[11px] text-slate-400">${escapeHtml(u.email)}</div>
+            </div>
+          </div>
+        </td>
+        <td class="py-3 px-4">${roleTag}</td>
+        <td class="py-3 px-4">
           ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600">Member</span>'}
-        </div>
-        <div class="w-16 h-16 rounded-2xl mx-auto mb-3 overflow-hidden shadow-md">
-          ${u.avatar_url
-            ? `<img src="${u.avatar_url}" class="w-full h-full object-cover" alt="${escapeHtml(name)}">`
-            : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-2xl flex items-center justify-center">${initials}</div>`}
-        </div>
-        <h4 class="font-bold text-sm text-navy-900">${escapeHtml(name)}</h4>
-        <div class="text-xs text-brand-600 font-semibold mt-0.5">${escapeHtml(u.role || 'Member')}</div>
-        <div class="text-[11px] text-slate-400 truncate mt-1">${escapeHtml(u.email)}</div>
-        <div class="mt-1">${roleTag}</div>
-        ${u.phone ? `<div class="text-[11px] text-slate-400 mt-1">📞 ${escapeHtml(u.phone)}</div>` : ''}
-      </div>
-
-      ${isAdmin ? `
-      <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-center gap-2">
-        <button onclick="openEditUserModal('${u.id}')" class="px-3 py-1.5 text-[11px] font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition">
-          ✏️ Edit & Role
-        </button>
-        ${u.id !== currentUser.id ? `
-          <button onclick="toggleUserAdminRole('${u.id}', '${u.access_level}')" class="px-2.5 py-1.5 text-[10px] font-bold ${userIsAdmin ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'} rounded-xl transition" title="Switch role">
-            ${userIsAdmin ? 'Set Member' : 'Promote Admin'}
-          </button>
-        ` : ''}
-      </div>` : ''}
-    </div>`;
+        </td>
+        <td class="py-3 px-4 text-slate-500 font-medium">
+          ${u.phone ? `📞 ${escapeHtml(u.phone)}` : '<span class="text-slate-300">—</span>'}
+        </td>
+        <td class="py-3 px-4 text-right">
+          ${isAdmin ? `
+            <div class="flex items-center justify-end gap-2">
+              <button onclick="openEditUserModal('${u.id}')" class="px-3 py-1 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition">
+                ✏️ Edit & Role
+              </button>
+              ${u.id !== currentUser.id ? `
+                <button onclick="toggleUserAdminRole('${u.id}', '${u.access_level}')" class="px-2.5 py-1 text-[11px] font-bold ${userIsAdmin ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'} rounded-lg transition">
+                  ${userIsAdmin ? 'Set Member' : 'Promote Admin'}
+                </button>
+              ` : ''}
+            </div>
+          ` : '<span class="text-slate-300 text-xs">—</span>'}
+        </td>
+      </tr>
+    `;
   }).join('');
 }
 
-// Quick toggle between Admin & Member
 async function toggleUserAdminRole(userId, currentLevel) {
   const newLevel = currentLevel === 'Admin' ? 'Member' : 'Admin';
   if (!confirm(`Switch this user's access level to ${newLevel}?`)) return;
@@ -602,7 +960,6 @@ async function toggleUserAdminRole(userId, currentLevel) {
   loadTeam();
 }
 
-// Add User Modal (for Admins)
 function openAddUserModal() {
   const modal = document.getElementById('action-modal');
   document.getElementById('modal-title').textContent = 'Add New Team Member';
@@ -661,7 +1018,6 @@ function openAddUserModal() {
     const job_title = document.getElementById('u-title').value.trim() || (selectedRole ? selectedRole.name : 'Member');
 
     try {
-      // Create isolated client to avoid overwriting admin session
       const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
         auth: { persistSession: false, autoRefreshToken: false }
       });
@@ -678,7 +1034,6 @@ function openAddUserModal() {
 
       const newUserId = authData.user?.id;
       if (newUserId) {
-        // Upsert profile with role and access level
         await sbClient.from('profiles').upsert({
           id: newUserId,
           email,
@@ -700,7 +1055,6 @@ function openAddUserModal() {
   };
 }
 
-// Edit existing user modal (change role, switch to admin, edit details)
 async function openEditUserModal(userId) {
   const { data: user } = await sbClient.from('profiles').select('*').eq('id', userId).single();
   if (!user) return;
@@ -773,73 +1127,67 @@ async function openEditUserModal(userId) {
 }
 
 // ─────────────────────────────────────────────
-// 10. ROLES (Create Role, Assign Members)
+// 11. ROLES (List View)
 // ─────────────────────────────────────────────
 async function loadRoles() {
   const container = document.getElementById('roles-container');
   if (!container) return;
-  container.innerHTML = loadingHTML('col-span-3');
+  container.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">Loading roles…</div>`;
 
   await fetchAllRoles();
   const roles = allRoles;
 
   const countEl = document.getElementById('roles-count-text');
-  if (countEl) countEl.textContent = `${roles.length} Active Roles`;
+  if (countEl) countEl.textContent = `Roles & Permissions (${roles.length} Active Roles)`;
 
-  // Count members per role
-  const { data: profiles } = await sbClient.from('profiles').select('role_id');
-  const memberCount = {};
-  (profiles || []).forEach(p => { if (p.role_id) memberCount[p.role_id] = (memberCount[p.role_id] || 0) + 1; });
+  const { data: profiles } = await sbClient.from('profiles').select('id, full_name, email, role_id, avatar_url');
+  const allProfs = profiles || [];
 
   if (!roles || roles.length === 0) {
-    container.innerHTML = `<div class="col-span-3 text-center p-10 bg-white rounded-3xl border border-dashed border-slate-200">
-      <div class="text-4xl mb-3">🏷️</div>
-      <div class="text-sm font-bold text-navy-900 mb-1">No roles created yet</div>
-      <p class="text-xs text-slate-400 mb-4">Create roles to organize your team and assign tasks.</p>
-      ${currentProfile?.access_level === 'Admin' ? '<button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Role</button>' : ''}
+    container.innerHTML = `<div class="p-10 text-center text-xs text-slate-400">
+      No roles created yet.
+      ${currentProfile?.access_level === 'Admin' ? '<div class="mt-3"><button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Role</button></div>' : ''}
     </div>`;
     return;
   }
 
-  container.innerHTML = roles.map(r => `
-    <div class="card-hover bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-11 h-11 rounded-2xl flex-shrink-0 shadow-sm" style="background:${r.color || '#FE8A03'}22;border:2px solid ${r.color || '#FE8A03'}44;">
-          <div class="w-full h-full flex items-center justify-center font-black text-lg" style="color:${r.color || '#FE8A03'}">${(r.name||'R').charAt(0).toUpperCase()}</div>
-        </div>
-        <div class="flex-1 min-w-0">
-          <h4 class="font-bold text-sm text-navy-900 truncate">${escapeHtml(r.name)}</h4>
-          <div class="text-[11px] text-slate-400">${memberCount[r.id] || 0} member${memberCount[r.id] !== 1 ? 's' : ''}</div>
-        </div>
-        ${currentProfile?.access_level === 'Admin' ? `<button onclick="deleteRole('${r.id}')" class="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition" title="Delete Role"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>` : ''}
-      </div>
-      ${r.description ? `<p class="text-xs text-slate-500 mb-3 leading-relaxed">${escapeHtml(r.description)}</p>` : ''}
-      <div class="pt-3 border-t border-slate-100">
-        <div class="text-[10px] font-black text-slate-400 uppercase mb-2">Assigned Members</div>
-        <div id="role-members-${r.id}" class="space-y-1"></div>
-        ${currentProfile?.access_level === 'Admin' ? `<button onclick="openAssignMemberModal('${r.id}','${escapeHtml(r.name)}')" class="mt-2 w-full py-1.5 text-[11px] font-bold text-brand-600 border border-brand-200 hover:bg-brand-50 rounded-xl transition">+ Assign Member</button>` : ''}
-      </div>
-    </div>`).join('');
+  container.innerHTML = roles.map(r => {
+    const assigned = allProfs.filter(p => p.role_id === r.id);
 
-  // Load members for each role
-  roles.forEach(async r => {
-    const { data: members } = await sbClient.from('profiles').select('id, full_name, email, avatar_url').eq('role_id', r.id);
-    const el = document.getElementById(`role-members-${r.id}`);
-    if (!el) return;
-    if (!members || members.length === 0) { el.innerHTML = '<div class="text-[10px] text-slate-300">No members assigned</div>'; return; }
-    el.innerHTML = members.map(m => {
-      const n = m.full_name || m.email || 'Member';
-      return `<div class="flex items-center justify-between py-1 group/m">
-        <div class="flex items-center gap-2 truncate">
-          ${m.avatar_url ? `<img src="${m.avatar_url}" class="w-5 h-5 rounded-full object-cover">` : `<div class="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white text-[8px] font-black flex items-center justify-center">${n.charAt(0).toUpperCase()}</div>`}
-          <span class="text-[11px] text-slate-600 font-semibold truncate">${escapeHtml(n)}</span>
+    return `
+      <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm flex-shrink-0" style="background:${r.color || '#FE8A03'}22;color:${r.color || '#FE8A03'};border:1px solid ${r.color || '#FE8A03'}44;">
+              ${(r.name || 'R').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h4 class="font-bold text-sm text-navy-900">${escapeHtml(r.name)}</h4>
+              <p class="text-xs text-slate-500">${escapeHtml(r.description || 'No description provided.')}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="pill bg-slate-100 text-slate-600 font-bold">${assigned.length} member${assigned.length !== 1 ? 's' : ''}</span>
+            ${currentProfile?.access_level === 'Admin' ? `
+              <button onclick="openAssignMemberModal('${r.id}','${escapeHtml(r.name)}')" class="px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition">+ Assign</button>
+              <button onclick="deleteRole('${r.id}')" class="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition" title="Delete Role">🗑</button>
+            ` : ''}
+          </div>
         </div>
-        ${currentProfile?.access_level === 'Admin' ? `
-          <button onclick="unassignRoleMember('${m.id}')" class="text-[10px] text-slate-300 hover:text-red-500 opacity-0 group-hover/m:opacity-100 transition" title="Remove from role">&times;</button>
-        ` : ''}
-      </div>`;
-    }).join('');
-  });
+
+        <div class="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+          <span class="text-[10px] font-black text-slate-400 uppercase">Assigned Members:</span>
+          ${assigned.length > 0 ? assigned.map(m => `
+            <div class="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-full text-[11px] font-semibold text-slate-700">
+              ${m.avatar_url ? `<img src="${m.avatar_url}" class="w-4 h-4 rounded-full object-cover">` : `<span class="w-4 h-4 rounded-full bg-brand-500 text-white text-[8px] flex items-center justify-center font-bold">${(m.full_name || m.email).charAt(0).toUpperCase()}</span>`}
+              <span>${escapeHtml(m.full_name || m.email)}</span>
+              ${currentProfile?.access_level === 'Admin' ? `<button onclick="unassignRoleMember('${m.id}')" class="text-slate-400 hover:text-red-500 text-xs ml-0.5 leading-none" title="Remove">&times;</button>` : ''}
+            </div>
+          `).join('') : '<span class="text-slate-300 text-xs">No members currently assigned</span>'}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function unassignRoleMember(userId) {
@@ -893,7 +1241,7 @@ function resetModalSubmit() {
 }
 
 // ─────────────────────────────────────────────
-// 11. PROFILE PAGE
+// 12. PROFILE PAGE
 // ─────────────────────────────────────────────
 function loadProfilePage() {
   if (!currentProfile) return;
@@ -906,7 +1254,6 @@ function loadProfilePage() {
   document.getElementById('profile-access-badge').textContent = p.access_level || 'Member';
   document.getElementById('profile-access-badge').className = `pill mt-2 ${p.access_level === 'Admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`;
 
-  // Large avatar
   const largeAvatar = document.getElementById('profile-avatar-large');
   if (p.avatar_url) {
     largeAvatar.innerHTML = `<img src="${p.avatar_url}" class="w-full h-full object-cover" alt="Avatar">`;
@@ -986,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─────────────────────────────────────────────
-// 12. NOTIFICATIONS
+// 13. NOTIFICATIONS
 // ─────────────────────────────────────────────
 async function loadNotifBadge() {
   if (!currentUser) return;
@@ -1043,7 +1390,7 @@ async function createNotification(userId, title, message, type = 'info', link_ta
 }
 
 // ─────────────────────────────────────────────
-// 13. ACTION MODALS (Tasks with Admin Work, OKRs with Roles)
+// 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles)
 // ─────────────────────────────────────────────
 async function openActionModal() {
   const modal = document.getElementById('action-modal');
@@ -1091,7 +1438,7 @@ async function openActionModal() {
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role / Department</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role / Dept</label>
           <select id="f-okr-role" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <option value="">Company-wide</option>
             ${allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}
@@ -1228,7 +1575,6 @@ function closeActionModal() {
   document.getElementById('action-modal').classList.add('hidden');
 }
 
-// Edit task modal (includes admin task toggle)
 async function openEditTaskModal(id) {
   const { data: t } = await sbClient.from('tasks').select('*').eq('id', id).single();
   if (!t) return;
@@ -1275,7 +1621,7 @@ async function openEditTaskModal(id) {
 }
 
 // ─────────────────────────────────────────────
-// 14. AUTH & HELPERS
+// 15. AUTH & HELPERS
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const toggleBtn = document.getElementById('toggle-pw');
