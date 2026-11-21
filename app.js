@@ -9,7 +9,7 @@ let currentProfile = null;
 let activeTab = 'tasks';
 
 // 1. Initialize Supabase
-const DEFAULT_SB_URL = 'https://xzrczuoxlujzmztkupbz.sbClient.co';
+const DEFAULT_SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const DEFAULT_SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
 
 function initSupabase() {
