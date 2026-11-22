@@ -628,6 +628,8 @@
 <div id="toast" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 bg-navy-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl transition-all opacity-0 pointer-events-none flex items-center gap-2 max-w-xs"></div>
 
 <script type="module" src="./js/app.improved.js"></script>
+<script src="./js/task.updates.js"></script>
+<script src="./js/meeting.scoring.js"></script>
 <script src="./js/app.legacy.js"></script>
 <script>
 function handleGlobalSearch(q){
@@ -642,6 +644,84 @@ function handleGlobalSearch(q){
     });
   }
 }
+</script>
+
+<script>
+// Patch: Enhance meetings with scoring buttons (v3.1)
+(function(){
+  const origLoadMeetings = window.loadMeetings;
+  if(!origLoadMeetings) return;
+  window.loadMeetings = async function(){
+    await origLoadMeetings();
+    const container = document.getElementById('meetings-container');
+    if(!container) return;
+    // Add Score buttons to each meeting row
+    const ids = [];
+    // Extract meeting ids from existing deleteMeeting calls
+    container.innerHTML = container.innerHTML.replace(/deleteMeeting\('([^']+)'\)/g, (m, id)=>{
+      ids.push(id);
+      return `viewMeetingScores('${id}'); deleteMeeting('${id}'`
+    });
+    // Inject Score Attendance buttons
+    container.querySelectorAll('[class*="p-4 sm:p-5"]').forEach((el, idx)=>{
+      if(el.querySelector('.score-btn')) return;
+      const id = ids[idx];
+      if(!id) return;
+      const actionDiv = el.querySelector('.flex.flex-wrap');
+      if(actionDiv){
+        const scoreBtn = document.createElement('button');
+        scoreBtn.className = 'score-btn px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl transition';
+        scoreBtn.textContent = '📊 Score';
+        scoreBtn.onclick = (e)=>{ e.stopPropagation(); openMeetingScoring(id, el.querySelector('h4')?.textContent || ''); };
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs rounded-xl transition';
+        viewBtn.textContent = '👁 View Scores';
+        viewBtn.onclick = (e)=>{ e.stopPropagation(); viewMeetingScores(id); };
+        actionDiv.prepend(viewBtn);
+        actionDiv.prepend(scoreBtn);
+      }
+    });
+  };
+  // Patch task cards to add Daily Update
+  const origTaskCard = window.taskCard;
+  if(origTaskCard){
+    window.taskCard = function(t){
+      let base = origTaskCard(t);
+      // Inject daily update buttons before status select
+      const inject = `
+        <div class="flex gap-1 mt-2">
+          <button onclick="event.stopPropagation(); openTaskDailyUpdate('${t.id}', \'${(t.title||'').replace(/'/g, "\\'")}\')" class="flex-1 py-1.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-lg transition">+ Daily Update</button>
+          <button onclick="event.stopPropagation(); showTaskHistory('${t.id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-lg transition">🕒 History</button>
+        </div>
+      `;
+      base = base.replace('</select>', '</select>' + inject);
+      return base;
+    };
+  }
+  // Also patch List view rows
+  const origLoadTasks = window.loadTasks;
+  if(origLoadTasks){
+    window.loadTasks = async function(){
+      await origLoadTasks();
+      // Add daily update to list rows
+      document.querySelectorAll('#tasks-table-body tr').forEach(tr=>{
+        if(tr.querySelector('.daily-btn')) return;
+        const onclick = tr.innerHTML.match(/openEditTaskModal\('([^']+)'\)/);
+        const id = onclick ? onclick[1] : null;
+        if(!id) return;
+        const actionCell = tr.querySelector('td:last-child div');
+        if(actionCell){
+          const btn = document.createElement('button');
+          btn.className = 'daily-btn p-1 text-brand-600 hover:text-brand-700 font-bold text-xs';
+          btn.textContent = '📝 Log';
+          btn.title = 'Daily update';
+          btn.onclick = (e)=>{ e.stopPropagation(); const title = tr.querySelector('td:first-child div')?.textContent || 'Task'; openTaskDailyUpdate(id, title); };
+          actionCell.prepend(btn);
+        }
+      });
+    };
+  }
+})();
 </script>
 </body>
 </html>
