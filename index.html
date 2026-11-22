@@ -35,6 +35,7 @@
   <!-- Built Tailwind (Vite) — run npm run build; fallback CDN removed for prod -->
   <link rel="stylesheet" href="./css/app.built.css">
   <link rel="stylesheet" href="./css/app.css">
+  <link rel="stylesheet" href="./css/mobile-shell.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Mon-Sat 10-4 + Calendar + Shared Tasks -->
   <script src="./js/calendar.js"></script>
@@ -74,10 +75,17 @@
     .kanban-col { min-height:120px; }
 
     /* Global Viewport Containment & Smooth Scrolling */
-    html, body {
+    html {
       max-width: 100vw;
       width: 100%;
       overflow-x: hidden;
+      overscroll-behavior-y: none;
+    }
+    /* body and app-shell use clip, not hidden: hidden makes them scroll containers and breaks the sticky top bar */
+    body {
+      max-width: 100vw;
+      width: 100%;
+      overflow-x: clip;
       overscroll-behavior-y: none;
       -webkit-font-smoothing: antialiased;
     }
@@ -87,6 +95,7 @@
       min-height: 100vh;
       min-height: 100dvh;
       overflow-x: hidden;
+      overflow-x: clip;
     }
     #main-content {
       width: 100%;
@@ -123,12 +132,6 @@
       body.sidebar-collapsed #sidebar-collapse-btn svg { transform: rotate(180deg); }
     }
 
-    .bottom-nav { display: none !important; }
-    #app-shell.hidden,
-    #app-shell.hidden .bottom-nav,
-    #auth-screen:not(.hidden) ~ #app-shell .bottom-nav {
-      display: none !important;
-    }
     @media (max-width:767px) {
       #sidebar {
         display: flex !important;
@@ -176,19 +179,6 @@
         z-index: 45 !important;
         backdrop-filter: blur(2px);
       }
-      #app-shell:not(.hidden) .bottom-nav {
-        display: flex !important;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        z-index: 40;
-        padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
-        height: calc(56px + max(env(safe-area-inset-bottom, 0px), 8px));
-      }
-      #main-content {
-        padding-bottom: calc(76px + max(env(safe-area-inset-bottom, 0px), 8px)) !important;
-      }
       input[type="text"],
       input[type="email"],
       input[type="password"],
@@ -202,6 +192,31 @@
   </style>
 </head>
 <body class="min-h-screen antialiased">
+<!-- Icon sprite: Lucide v0.460.0 (ISC licence), 24px grid, 2px stroke. Use: <svg class="ic"><use href="#i-name"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /> <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></symbol>
+    <symbol id="i-messages-square" viewBox="0 0 24 24"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" /> <path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" /></symbol>
+    <symbol id="i-square-check-big" viewBox="0 0 24 24"><path d="M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5" /> <path d="m9 11 3 3L22 4" /></symbol>
+    <symbol id="i-calendar-days" viewBox="0 0 24 24"><path d="M8 2v4" /> <path d="M16 2v4" /> <rect width="18" height="18" x="3" y="4" rx="2" /> <path d="M3 10h18" /> <path d="M8 14h.01" /> <path d="M12 14h.01" /> <path d="M16 14h.01" /> <path d="M8 18h.01" /> <path d="M12 18h.01" /> <path d="M16 18h.01" /></symbol>
+    <symbol id="i-clipboard-list" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /> <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /> <path d="M12 11h4" /> <path d="M12 16h4" /> <path d="M8 11h.01" /> <path d="M8 16h.01" /></symbol>
+    <symbol id="i-ellipsis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1" /> <circle cx="19" cy="12" r="1" /> <circle cx="5" cy="12" r="1" /></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12" /> <line x1="4" x2="20" y1="6" y2="6" /> <line x1="4" x2="20" y1="18" y2="18" /></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /> <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="M12 5v14" /></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /> <path d="m21 21-4.3-4.3" /></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" /> <rect x="2" y="6" width="14" height="12" rx="2" /></symbol>
+    <symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
+    <symbol id="i-message-circle" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <circle cx="9" cy="7" r="4" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <path d="M16 3.13a4 4 0 0 1 0 7.75" /></symbol>
+    <symbol id="i-award" viewBox="0 0 24 24"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" /> <circle cx="12" cy="8" r="6" /></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <circle cx="12" cy="12" r="6" /> <circle cx="12" cy="12" r="2" /></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /> <path d="m9 12 2 2 4-4" /></symbol>
+    <symbol id="i-user-round" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5" /> <path d="M20 21a8 8 0 0 0-16 0" /></symbol>
+    <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /> <polyline points="16 17 21 12 16 7" /> <line x1="21" x2="9" y1="12" y2="12" /></symbol>
+  </defs>
+</svg>
 <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-navy-900 focus:px-4 focus:py-2 focus:rounded-xl focus:shadow">Skip to content</a>
 
 <!-- ==================== AUTH SCREEN (ENTERPRISE APP LAYOUT) ==================== -->
@@ -557,49 +572,43 @@
   <!-- MAIN CONTENT -->
   <div class="flex-1 flex flex-col min-w-0">
 
-    <!-- TOP BAR -->
-    <header class="bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-        <!-- Mobile App Brand Icon (tap to open menu) -->
-        <button onclick="openMobileSidebar()" class="md:hidden flex items-center justify-center p-0.5 rounded-xl hover:bg-slate-100 active:scale-95 transition flex-shrink-0" aria-label="Open workspace navigation" title="Menu">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-500 to-amber-400 p-0.5 shadow-sm flex items-center justify-center">
-            <div class="w-full h-full bg-[#07192F] rounded-[9px] flex items-center justify-center p-1">
-              <img src="./assets/icon_small.png" alt="Nodaar" class="w-full h-full object-contain">
-            </div>
-          </div>
-        </button>
-        <div class="min-w-0 pr-2">
-          <h1 id="page-title" class="font-extrabold text-navy-900 text-base sm:text-lg leading-tight truncate">Overview & Insights</h1>
-          <p id="page-subtitle" class="text-xs text-slate-400 hidden sm:block truncate">Team velocity, performance metrics and activity</p>
-        </div>
+    <!-- TOP BAR (header): menu · title · role · search · notifications · new · profile -->
+    <header id="topbar" class="topbar">
+      <button type="button" id="tb-menu" class="tb-btn tb-mobile-only" onclick="openMobileSidebar()" aria-label="Open navigation menu" title="Menu">
+        <svg class="ic ic-lg" aria-hidden="true"><use href="#i-menu"/></svg>
+      </button>
+
+      <div class="tb-title">
+        <h1 id="page-title">Overview &amp; Insights</h1>
+        <p id="page-subtitle">Team velocity, performance metrics and activity</p>
       </div>
 
-      <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-        <!-- ADMIN QUICK ROLE SWITCHER -->
-        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl max-w-[125px] overflow-hidden">
-          <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
-          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-[11px] font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer max-w-[85px] truncate">
+      <div class="tb-actions">
+        <!-- Admin quick role switcher (app.legacy.js shows it for Admins) -->
+        <div id="admin-role-switcher-box" class="tb-role hidden">
+          <span class="tb-role-label">Role</span>
+          <select id="admin-active-role-select" class="tb-role-select" onchange="switchAdminRole(this.value)" aria-label="Active role">
             <option value="">Admin / Founder</option>
           </select>
         </div>
 
-        <!-- Notification bell -->
-        <div class="relative">
-          <button id="notif-bell" onclick="toggleNotifPanel()" class="relative p-2 rounded-xl hover:bg-slate-100 transition">
-            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-            <span id="notif-badge" class="notif-dot hidden"></span>
-          </button>
-        </div>
+        <label class="tb-search">
+          <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="global-search" type="search" placeholder="Search tasks, members…" aria-label="Search tasks and members" oninput="handleGlobalSearch(this.value)">
+        </label>
 
-        <!-- Search (improved) -->
-        <div class="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
-          <input id="global-search" type="search" placeholder="Search tasks, members..." class="bg-transparent text-xs w-40 focus:outline-none" oninput="handleGlobalSearch(this.value)">
-        </div>
-        <!-- Primary Action button -->
-        <button id="primary-action-btn" onclick="openActionModal()" class="px-3 md:px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
-          <span class="text-base leading-none">+</span>
-          <span id="action-btn-text" class="hidden sm:inline">New Task</span>
+        <button id="notif-bell" type="button" class="tb-btn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications">
+          <svg class="ic ic-lg" aria-hidden="true"><use href="#i-bell"/></svg>
+          <span id="notif-badge" class="notif-dot hidden"></span>
+        </button>
+
+        <button id="primary-action-btn" type="button" class="tb-primary" onclick="openActionModal()" aria-label="New task" title="New task">
+          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>
+          <span id="action-btn-text" class="tb-primary-text">New Task</span>
+        </button>
+
+        <button id="tb-avatar" type="button" class="tb-avatar" onclick="navigate('profile')" aria-label="My profile" title="My profile">
+          <span id="tb-avatar-inner" class="tb-avatar-inner">?</span>
         </button>
       </div>
     </header>
@@ -607,7 +616,7 @@
     <!-- NOTIFICATION PANEL (slide-out) -->
     <div id="notif-panel" class="hidden fixed inset-y-0 right-0 w-80 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
       <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-        <span class="font-bold text-sm text-navy-900">🔔 Notifications</span>
+        <span class="notif-title"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>Notifications</span>
         <div class="flex gap-2">
           <button onclick="markAllNotifsRead()" class="text-xs text-brand-600 font-semibold hover:text-brand-700">Mark all read</button>
           <button onclick="toggleNotifPanel()" class="text-slate-400 hover:text-slate-600 text-lg font-bold leading-none">&times;</button>
@@ -1016,31 +1025,108 @@
     </main>
   </div>
 
-  <!-- BOTTOM NAV (mobile - 5 thumb-friendly items - ONLY rendered when app-shell is active) -->
-  <nav class="bottom-nav fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 py-2 px-1 justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)] md:hidden">
-    <button onclick="navigate('channels')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-channels">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Channels</span>
+  <!-- BOTTOM TAB BAR (mobile footer): five main tabs + More. Styled in css/mobile-shell.css -->
+  <nav id="mtabbar" class="mtabbar" aria-label="Main navigation">
+    <button type="button" id="bn-overview" class="mtab" onclick="navigate('overview')">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-house"/></svg></span>
+      <span class="mtab-label">Home</span>
     </button>
-    <button onclick="navigate('tasks')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-tasks">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Tasks</span>
+    <button type="button" id="bn-channels" class="mtab" onclick="navigate('channels')">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-messages-square"/></svg></span>
+      <span class="mtab-label">Channels</span>
     </button>
-    <button onclick="navigate('reports')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-reports">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Standup</span>
+    <button type="button" id="bn-tasks" class="mtab" onclick="navigate('tasks')">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-square-check-big"/></svg></span>
+      <span class="mtab-label">Tasks</span>
     </button>
-    <button onclick="navigate('team')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-team">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Team</span>
+    <button type="button" id="bn-calendar" class="mtab" onclick="navigate('calendar')">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-calendar-days"/></svg></span>
+      <span class="mtab-label">Calendar</span>
     </button>
-    <button onclick="openMobileSidebar()" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-navy-900 transition active:scale-95" id="bn-menu" aria-label="More navigation options">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">More</span>
+    <button type="button" id="bn-reports" class="mtab" onclick="navigate('reports')">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-clipboard-list"/></svg></span>
+      <span class="mtab-label">Standups</span>
+    </button>
+    <button type="button" id="bn-more" class="mtab" onclick="openMoreSheet()" aria-haspopup="dialog" aria-controls="more-sheet" aria-expanded="false">
+      <span class="mtab-pill"><svg class="ic" aria-hidden="true"><use href="#i-ellipsis"/></svg></span>
+      <span class="mtab-label">More</span>
     </button>
   </nav>
 
 </div><!-- end app-shell -->
+
+<!-- MORE SHEET (mobile): every tab that is not on the tab bar. Driven by js/mobile.nav.js -->
+<div id="more-overlay" class="more-overlay" onclick="closeMoreSheet()" aria-hidden="true"></div>
+<section id="more-sheet" class="more-sheet" role="dialog" aria-modal="true" aria-labelledby="more-title" aria-hidden="true">
+  <div class="more-grab" aria-hidden="true"></div>
+  <div class="more-head">
+    <div class="more-titles">
+      <h2 id="more-title">More</h2>
+      <p>Everything else in your workspace</p>
+    </div>
+    <button type="button" class="tb-btn more-close" onclick="closeMoreSheet()" aria-label="Close menu">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="#i-x"/></svg>
+    </button>
+  </div>
+
+  <div class="more-user">
+    <div class="tb-avatar more-user-av" aria-hidden="true"><span id="more-avatar-inner" class="tb-avatar-inner">?</span></div>
+    <div class="more-who">
+      <p id="more-user-name" class="more-user-name">Signed in</p>
+      <p id="more-user-role" class="more-user-role"></p>
+    </div>
+  </div>
+
+  <p class="more-group">Collaboration</p>
+  <div class="more-grid">
+    <button type="button" class="more-tile" data-more-tab="whatsapp" onclick="navigate('whatsapp')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-message-circle"/></svg></span>
+      <span>WhatsApp Groups</span>
+    </button>
+    <button type="button" class="more-tile" data-more-tab="meetings" onclick="navigate('meetings')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg></span>
+      <span>Meetings &amp; Notes</span>
+    </button>
+    <button type="button" class="more-tile" data-more-tab="ideas" onclick="navigate('ideas')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-lightbulb"/></svg></span>
+      <span>Ideas &amp; Decks</span>
+    </button>
+  </div>
+
+  <p class="more-group">Management</p>
+  <div class="more-grid">
+    <button type="button" class="more-tile" data-more-tab="team" onclick="navigate('team')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg></span>
+      <span>Team Directory</span>
+    </button>
+    <button type="button" class="more-tile" data-more-tab="scores" data-sync-from="scores-nav-btn" onclick="navigate('scores')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-award"/></svg></span>
+      <span>Team Scores</span>
+    </button>
+    <button type="button" class="more-tile" data-more-tab="okrs" onclick="navigate('okrs')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg></span>
+      <span>OKRs &amp; Targets</span>
+    </button>
+    <button type="button" class="more-tile" data-more-tab="roles" data-sync-from="roles-nav-btn" onclick="navigate('roles')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-shield-check"/></svg></span>
+      <span>Roles &amp; Permissions</span>
+    </button>
+  </div>
+
+  <p class="more-group">Account</p>
+  <div class="more-grid">
+    <button type="button" class="more-tile" data-more-tab="profile" onclick="navigate('profile')">
+      <span class="more-ico"><svg class="ic" aria-hidden="true"><use href="#i-user-round"/></svg></span>
+      <span>Profile &amp; Settings</span>
+    </button>
+  </div>
+
+  <button type="button" class="more-signout" onclick="logout()">
+    <svg class="ic" aria-hidden="true"><use href="#i-log-out"/></svg>
+    <span>Sign out</span>
+  </button>
+</section>
+
 
 <!-- ===== GENERIC MODAL ===== -->
 <div id="action-modal" class="fixed inset-0 z-50 bg-navy-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
@@ -1068,6 +1154,7 @@
 <script src="./js/task.updates.js"></script>
 <script src="./js/meeting.scoring.js"></script>
 <script src="./js/app.legacy.js"></script>
+<script src="./js/mobile.nav.js"></script>
 <script src="./js/team.scoring.js"></script>
 <script src="./js/channels.js"></script>
 <script src="./js/whatsapp.groups.js"></script>

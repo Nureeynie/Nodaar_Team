@@ -1,11 +1,13 @@
 // Nodaar Team Hub — Service Worker (PWA)
-const CACHE_NAME = 'nodaar-hub-v3.4';
+const CACHE_NAME = 'nodaar-hub-v3.5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/css/app.built.css',
   '/css/app.css',
+  '/css/mobile-shell.css',
+  '/js/mobile.nav.js',
   '/assets/favicon.png',
   '/assets/icon-192.png',
   '/assets/icon-512.png',

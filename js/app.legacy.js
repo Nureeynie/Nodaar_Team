@@ -234,6 +234,7 @@ const TAB_META = {
   channels:{ title:'Channels & Broadcasts', sub:'MS Teams style team collaboration, URL links and announcements', btn:'New Post' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
+  calendar:{ title:'Team Calendar', sub:'Mon-Sat, 10am-4pm · meetings sync automatically · add to Google, Outlook or .ics', btn:'' },
 };
 
 function navigate(tab) {
@@ -248,21 +249,8 @@ function navigate(tab) {
     if (parentDetails) parentDetails.open = true;
   }
 
-  document.querySelectorAll('.bottom-nav button').forEach(btn => {
-    btn.classList.remove('text-brand-500', 'font-extrabold');
-    btn.classList.add('text-slate-500');
-  });
-  const bnBtn = document.getElementById(`bn-${tab}`);
-  if (bnBtn) {
-    bnBtn.classList.add('text-brand-500', 'font-extrabold');
-    bnBtn.classList.remove('text-slate-500');
-  } else {
-    const bnMenu = document.getElementById('bn-menu');
-    if (bnMenu) {
-      bnMenu.classList.add('text-brand-500', 'font-extrabold');
-      bnMenu.classList.remove('text-slate-500');
-    }
-  }
+  // Mobile tab bar and "More" sheet state (see js/mobile.nav.js)
+  if (typeof syncMobileTabbar === 'function') syncMobileTabbar(tab);
 
   const section = document.getElementById(`view-${tab}`);
   if (section) section.classList.remove('hidden');
@@ -282,6 +270,7 @@ function navigate(tab) {
 
   loadTabData(tab);
   closeMobileSidebar();
+  if (typeof closeMoreSheet === 'function') closeMoreSheet({ restoreFocus: false });
   document.getElementById('notif-panel').classList.add('hidden');
 }
 
@@ -299,6 +288,7 @@ async function loadTabData(tab) {
     case 'channels': if (window.loadChannels) await window.loadChannels(); break;
     case 'roles':   await loadRoles(); break;
     case 'profile': loadProfilePage(); break;
+    case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
   }
 }
 
