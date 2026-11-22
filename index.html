@@ -18,6 +18,9 @@
   <!-- Built Tailwind (Vite) — run npm run build; fallback CDN removed for prod -->
   <link rel="stylesheet" href="./css/app.built.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Mon-Sat 10-4 + Calendar + Shared Tasks -->
+  <script src="./js/calendar.js"></script>
+  <script src="./js/shared.tasks.js"></script>
   <!-- Env config must load before app logic -->
   <script type="module" src="./js/config.js"></script>
   <script>
@@ -163,6 +166,11 @@
       <button onclick="navigate('ideas')" data-tab="ideas" title="Ideas & Decks" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.5 17.5A6 6 0 0112 6a6 6 0 015.5 11.5"/></svg>
         <span class="sidebar-text truncate">Ideas & Decks</span>
+      </button>
+
+      <button onclick="navigate('calendar')" data-tab="calendar" title="Team Calendar (Teams-like)" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="sidebar-text truncate">Team Calendar</span>
       </button>
 
       <div class="sidebar-header-title text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 pt-4 mb-2">People</div>
@@ -462,6 +470,22 @@
         </div>
       </section>
 
+      <!-- ===== SECTION: CALENDAR (Teams-like, Mon-Sat 10-4) ===== -->
+      <section id="view-calendar" class="view-section hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="font-black text-navy-900">Team Calendar — Mon-Sat 10am-4pm</h3>
+            <p class="text-xs text-slate-400">10-member team • Meetings auto-sync • Add to Google / Outlook • Export .ics</p>
+          </div>
+          <button onclick="loadCalendar()" class="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl">🔄 Refresh</button>
+        </div>
+        <div id="calendar-container" class="min-h-[400px]"></div>
+        <div class="mt-4 bg-brand-50 border border-brand-200 rounded-2xl p-3 flex flex-wrap items-center gap-2 text-xs">
+          <span class="font-bold text-brand-700">Work Hours:</span> <span class="text-slate-600">Mon-Sat 10:00-16:00 Lagos • Sun Off (overtime needs approval)</span>
+          <span class="ml-auto font-bold text-navy-900" id="calendar-stats">10 members max</span>
+        </div>
+      </section>
+
       <!-- ===== SECTION: TEAM (Enterprise Table/List View) ===== -->
       <section id="view-team" class="view-section hidden">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -596,6 +620,10 @@
   <button onclick="navigate('team')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-team">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
     <span class="text-[9px] font-bold">Team</span>
+  </button>
+  <button onclick="navigate('calendar')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-calendar">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <span class="text-[9px] font-bold">Calendar</span>
   </button>
   <button onclick="navigate('okrs')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-okrs">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>

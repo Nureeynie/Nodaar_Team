@@ -199,6 +199,7 @@ const TAB_META = {
   ideas:   { title:'Ideas & Innovation Decks', sub:'Pitch initiatives with Google Docs / Slides attachments', btn:'New Idea' },
   team:    { title:'Team Directory', sub:'View members, roles, permissions and contact info', btn:'' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
+  calendar:{ title:'Team Calendar', sub:'Mon-Sat 10am-4pm • Meetings auto-sync • Teams-like', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
 };
 
@@ -248,6 +249,7 @@ async function loadTabData(tab) {
     case 'ideas':   await loadIdeas(); break;
     case 'team':    await loadTeam(); break;
     case 'roles':   await loadRoles(); break;
+    case 'calendar': await loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
   }
 }
