@@ -395,3 +395,19 @@ html, body {
   /* page header title: keep readable on narrow screens */
   #page-title { font-size: 15px !important; }
 }
+
+/* ===== v3.7 vertical scrolling hardening (profile & all views on mobile) ===== */
+html { overflow-y: auto; overscroll-behavior-y: auto; }
+body { overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-y; }
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; overflow-y: auto !important; overscroll-behavior-y: auto !important; }
+  #app-shell:not(.hidden) { display: block; min-height: 100vh; min-height: 100dvh; }
+  #main-content { overflow: visible !important; -webkit-overflow-scrolling: touch; }
+  /* profile page: guarantee full vertical scroll + clearance above bottom nav */
+  #view-profile { padding-bottom: 24px; }
+  #view-profile .max-w-2xl { padding-bottom: 8px; }
+}
+@media (min-width: 768px) {
+  #app-shell:not(.hidden) { display: flex; }
+  #main-content { overflow-y: auto; }
+}
