@@ -211,7 +211,12 @@
       return;
     }
 
-    const isAdmin = window.currentProfile?.access_level === 'Admin';
+    const isAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
 
     // Summary statistics
     const totalMembers = evaluations.length;

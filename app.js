@@ -38,8 +38,9 @@ async function checkAuth() {
   }
 
   const { data: { session } } = await sbClient.auth.getSession();
-  if (session) {
+  if (session && session.user) {
     currentUser = session.user;
+    window.currentUser = currentUser;
     await fetchProfile();
     await fetchAllRoles();
     showApp();
@@ -48,14 +49,17 @@ async function checkAuth() {
   }
 
   sbClient.auth.onAuthStateChange(async (event, session) => {
-    if (session) {
+    if (session && session.user) {
       currentUser = session.user;
+      window.currentUser = currentUser;
       await fetchProfile();
       await fetchAllRoles();
       showApp();
     } else {
       currentUser = null;
       currentProfile = null;
+      window.currentUser = null;
+      window.currentProfile = null;
       showAuth();
     }
   });
@@ -87,6 +91,8 @@ async function fetchProfile() {
       prof.role = prof.role || 'Founder / Admin';
     }
     currentProfile = prof;
+    window.currentProfile = prof;
+    window.currentUser = currentUser;
     updateSidebarUser();
   } catch (err) { console.error('fetchProfile:', err); }
 }
@@ -150,6 +156,7 @@ async function switchAdminRole(roleId) {
 
   currentProfile.role_id = roleId || null;
   currentProfile.role = newRoleName;
+  window.currentProfile = currentProfile;
 
   await sbClient.from('profiles').update({
     role_id: roleId || null,
@@ -222,11 +229,20 @@ function navigate(tab) {
   }
 
   document.querySelectorAll('.bottom-nav button').forEach(btn => {
-    btn.classList.remove('text-brand-500');
+    btn.classList.remove('text-brand-500', 'font-extrabold');
     btn.classList.add('text-slate-500');
   });
   const bnBtn = document.getElementById(`bn-${tab}`);
-  if (bnBtn) { bnBtn.classList.add('text-brand-500'); bnBtn.classList.remove('text-slate-500'); }
+  if (bnBtn) {
+    bnBtn.classList.add('text-brand-500', 'font-extrabold');
+    bnBtn.classList.remove('text-slate-500');
+  } else {
+    const bnMenu = document.getElementById('bn-menu');
+    if (bnMenu) {
+      bnMenu.classList.add('text-brand-500', 'font-extrabold');
+      bnMenu.classList.remove('text-slate-500');
+    }
+  }
 
   const section = document.getElementById(`view-${tab}`);
   if (section) section.classList.remove('hidden');
@@ -257,7 +273,7 @@ async function loadTabData(tab) {
     case 'okrs':    await loadOKRs(); break;
     case 'meetings':await loadMeetings(); break;
     case 'ideas':   await loadIdeas(); break;
-    case 'team':    await loadTeam(); break;
+    case 'team':    await (window.loadTeam ? window.loadTeam() : loadTeam()); break;
     case 'roles':   await loadRoles(); break;
     case 'calendar': await loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
@@ -577,11 +593,11 @@ async function loadTasks() {
 
   if (error || !tasks || tasks.length === 0) {
     const emptyMsg = `
-      <div class="col-span-3 text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+      <div class="w-full col-span-1 md:col-span-3 text-center py-12 sm:py-16 px-4 bg-white rounded-2xl sm:rounded-3xl border border-dashed border-slate-200 shadow-sm">
         <div class="text-4xl mb-3">📋</div>
-        <div class="text-sm font-bold text-navy-900 mb-1">No tasks found</div>
-        <p class="text-xs text-slate-400 mb-4">Create your first task or change your filters above.</p>
-        <button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 text-white font-bold text-xs rounded-xl shadow">+ Create Task</button>
+        <div class="text-base font-bold text-navy-900 mb-1">No tasks found</div>
+        <p class="text-xs sm:text-sm text-slate-400 mb-4 max-w-sm mx-auto">Create your first task or change your filters above.</p>
+        <button onclick="openActionModal()" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow transition">+ Create Task</button>
       </div>`;
     boardContainer.innerHTML = emptyMsg;
     tableBody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-xs text-slate-400">No tasks found. Click "+ New Task" above.</td></tr>`;
@@ -596,9 +612,9 @@ async function loadTasks() {
   const colHeaders = { 'To Do': '⬜ To Do', 'In Progress': '🔵 In Progress', 'Done': '✅ Done' };
 
   boardContainer.innerHTML = ['To Do', 'In Progress', 'Done'].map(col => `
-    <div class="bg-white rounded-3xl border-2 ${colColors[col]} p-4">
+    <div class="w-full bg-white rounded-2xl sm:rounded-3xl border-2 ${colColors[col]} p-4 shadow-sm">
       <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-black text-navy-900">${colHeaders[col]}</span>
+        <span class="text-xs sm:text-sm font-black text-navy-900">${colHeaders[col]}</span>
         <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">${columns[col].length}</span>
       </div>
       <div class="space-y-3 kanban-col">
@@ -897,6 +913,9 @@ async function loadIdeas() {
 // 10. TEAM (Enterprise Table / List View)
 // ─────────────────────────────────────────────
 async function loadTeam() {
+  if (window.loadTeam && window.loadTeam !== loadTeam) {
+    return window.loadTeam();
+  }
   const tableBody = document.getElementById('team-table-body');
   tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
 
@@ -1737,11 +1756,43 @@ function closeMobileSidebar() {
 
 function showToast(msg, isErr = false) {
   const t = document.getElementById('toast');
-  t.innerHTML = (isErr ? '❌ ' : '✅ ') + escapeHtml(msg);
-  t.className = `fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 text-xs font-semibold px-4 py-3 rounded-xl shadow-xl transition-all duration-300 flex items-center gap-2 max-w-xs ${isErr ? 'bg-red-600 text-white' : 'bg-navy-900 text-white'} opacity-100`;
+  if (!t) return;
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.classList.add('opacity-0'); }, 3200);
+  clearTimeout(t._hideTimer);
+
+  t.innerHTML = `
+    <span class="text-base flex-shrink-0">${isErr ? '❌' : '✅'}</span>
+    <span class="flex-1 text-xs sm:text-sm font-semibold leading-snug">${escapeHtml(msg)}</span>
+    <button type="button" onclick="hideToast()" class="ml-2 text-white/70 hover:text-white p-1 rounded-lg text-base font-bold leading-none transition" aria-label="Dismiss">&times;</button>
+  `;
+
+  t.className = `fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 text-xs sm:text-sm font-semibold px-4 py-3 rounded-2xl shadow-2xl transition-all duration-300 flex items-center gap-2.5 max-w-sm ${isErr ? 'bg-red-600 text-white' : 'bg-navy-900 text-white border border-white/10'}`;
+  t.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+  t.classList.add('opacity-100', 'pointer-events-auto');
+  t.style.display = 'flex';
+  t.style.opacity = '1';
+  t.style.pointerEvents = 'auto';
+
+  t._timer = setTimeout(() => {
+    hideToast();
+  }, 3500);
 }
+
+function hideToast() {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  clearTimeout(t._timer);
+  t.style.opacity = '0';
+  t.classList.remove('opacity-100', 'pointer-events-auto');
+  t.classList.add('opacity-0', 'pointer-events-none');
+  t.style.pointerEvents = 'none';
+  t._hideTimer = setTimeout(() => {
+    t.classList.add('hidden');
+    t.style.display = 'none';
+  }, 320);
+}
+window.showToast = showToast;
+window.hideToast = hideToast;
 
 function loadingHTML(span = '') {
   return `<div class="${span} flex items-center justify-center py-12 text-xs text-slate-400 gap-2">

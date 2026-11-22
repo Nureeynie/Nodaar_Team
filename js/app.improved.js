@@ -3,12 +3,13 @@
 
 import { CONFIG } from './config.js';
 import { getSupabase } from './supabase.js';
-import { escapeHtml, loadingHTML, showToast } from './utils.js';
+import { escapeHtml, loadingHTML, showToast, hideToast } from './utils.js';
 
 // Re-export for legacy app.js compatibility (so old code that expects globals still works)
 window.escapeHtml = escapeHtml;
 window.loadingHTML = loadingHTML;
 window.showToast = showToast;
+window.hideToast = hideToast;
 window.CONFIG = CONFIG;
 
 // Patch: Inject config into legacy app.js expectation

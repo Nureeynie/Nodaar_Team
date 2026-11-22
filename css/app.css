@@ -59,8 +59,10 @@ button, a, input, select, textarea {
 #sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
 
 /* Horizontal Scroller Component */
-.horizontal-scroller {
+.horizontal-scroller:not(.grid) {
   display: flex;
+}
+.horizontal-scroller {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -76,8 +78,24 @@ button, a, input, select, textarea {
 
 .card-hover { transition: transform .15s, box-shadow .15s; }
 .card-hover:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,0,0,.06); }
-.pill { display:inline-flex; align-items:center; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; }
+.pill { display:inline-flex; align-items:center; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; line-height: 1.2; }
 .kanban-col { min-height:120px; }
+
+/* PWA Standalone & Mobile Safe Areas */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header.sticky {
+    padding-top: max(env(safe-area-inset-top, 0px), 0.75rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .horizontal-scroller {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    scroll-padding: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
 /* Desktop Sidebar Collapse Logic (Fixed Centering, Logo, & Spacing) */
 #sidebar {

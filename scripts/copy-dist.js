@@ -41,9 +41,12 @@ const redirectsContent = '/*    /index.html   200\n';
 fs.writeFileSync(path.join(distDir, '_redirects'), redirectsContent);
 fs.writeFileSync(path.join(rootDir, '_redirects'), redirectsContent);
 
-// 5. Copy manifest.json -> dist/manifest.json
+// 5. Copy manifest.json & sw.js -> dist/
 if (fs.existsSync(path.join(rootDir, 'manifest.json'))) {
   fs.copyFileSync(path.join(rootDir, 'manifest.json'), path.join(distDir, 'manifest.json'));
 }
+if (fs.existsSync(path.join(rootDir, 'sw.js'))) {
+  fs.copyFileSync(path.join(rootDir, 'sw.js'), path.join(distDir, 'sw.js'));
+}
 
-console.log('✓ Successfully copied all js, css, assets, and redirects to dist/');
+console.log('✓ Successfully copied all js, css, assets, sw.js, and redirects to dist/');

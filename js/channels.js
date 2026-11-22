@@ -122,14 +122,22 @@
     }
   }
 
-  // Access check
+  // Admin & Access check
+  function isCurrentAdmin() {
+    return Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
+  }
+
   function canUserAccessChannel(channel) {
     if (!channel) return false;
-    const isUserAdmin = window.currentProfile?.access_level === 'Admin' || window.currentUser?.email === 'nodaarltd@gmail.com';
-    if (isUserAdmin) return true;
+    if (isCurrentAdmin()) return true;
     if (!channel.is_private) return true;
 
-    const uid = window.currentUser?.id;
+    const uid = window.currentUser?.id || (typeof currentUser !== 'undefined' && currentUser?.id);
     if (!uid) return false;
     const assignedIds = channelMemberships[channel.id] || channel.member_ids || [];
     return assignedIds.includes(uid);
@@ -197,7 +205,12 @@
     if (!container) return;
 
     const accessible = getAccessibleChannels();
-    const isUserAdmin = window.currentProfile?.access_level === 'Admin';
+    const isUserAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
 
     if (!channelsList.some(c => c.id === currentActiveChannelId)) {
       currentActiveChannelId = accessible[0]?.id || 'ch_announcements';
@@ -207,7 +220,7 @@
     const hasAccess = canUserAccessChannel(activeChannel);
 
     container.innerHTML = `
-      <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 min-h-[680px]">
+      <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 min-h-[680px] w-full">
         
         <!-- LEFT COLUMN: Channels Directory (4 cols on md/lg) -->
         <div id="channel-nav-column" class="${mobileActiveView === 'channels' ? 'flex' : 'hidden'} md:flex md:col-span-4 lg:col-span-3 border-r border-slate-100 flex-col bg-slate-50/70 select-none">
@@ -268,8 +281,13 @@
   };
 
   function renderChannelsNavItems(accessible) {
-    const currentUid = window.currentUser?.id;
-    const isUserAdmin = window.currentProfile?.access_level === 'Admin';
+    const currentUid = window.currentUser?.id || (typeof currentUser !== 'undefined' && currentUser?.id);
+    const isUserAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
 
     return accessible.map(c => {
       const isActive = c.id === currentActiveChannelId;
@@ -371,12 +389,12 @@
       </div>
 
       <!-- Updates Feed Area -->
-      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5" id="channel-feed-container">
+      <div class="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 overscroll-contain" id="channel-feed-container" style="-webkit-overflow-scrolling: touch;">
         <!-- Rendered by renderChannelUpdatesFeed -->
       </div>
 
       <!-- DOCKED BOTTOM COMPOSER (Like Teams & Slack) -->
-      <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 sticky bottom-0 z-10 mb-14 md:mb-0">
+      <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 sticky bottom-0 z-10">
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-500/10 transition">
           <!-- Textarea -->
           <textarea id="docked-post-body" rows="2" placeholder="Send a message to #${escapeHtml(channel.name)}… (use **bold**, *italic*, \`code\`, quote, #tags)" class="w-full text-xs text-navy-900 focus:outline-none resize-none"></textarea>
@@ -697,7 +715,7 @@
   window.setTagFilter = function (tag) {
     activeTagFilter = tag;
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   window.toggleTagMenu = function () {
@@ -792,7 +810,7 @@
     }
 
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   window.sendDraftNow = function (updateId) {
@@ -803,7 +821,7 @@
     saveChannelsState();
     if (typeof showToast === 'function') showToast('Draft sent to channel! 🚀');
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   window.togglePinUpdate = function (updateId) {
@@ -813,7 +831,7 @@
     saveChannelsState();
     if (typeof showToast === 'function') showToast(upd.is_pinned ? 'Post pinned to top! 📌' : 'Post unpinned.');
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   // ─────────────────────────────────────────────
@@ -1028,7 +1046,7 @@
     saveChannelsState();
     if (typeof showToast === 'function') showToast('Post deleted! 🗑️');
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   window.toggleUpdateReaction = function (updateId, emoji) {
@@ -1046,7 +1064,7 @@
     }
     saveChannelsState();
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   window.toggleReplyThread = function (updateId) {
@@ -1075,7 +1093,7 @@
     saveChannelsState();
     input.value = '';
     const ch = channelsList.find(c => c.id === currentActiveChannelId);
-    renderChannelUpdatesFeed(ch, window.currentProfile?.access_level === 'Admin');
+    renderChannelUpdatesFeed(ch, isCurrentAdmin());
   };
 
   // ─────────────────────────────────────────────
@@ -1605,7 +1623,8 @@
   // ─────────────────────────────────────────────
   window.loadTeam = async function () {
     const tableBody = document.getElementById('team-table-body');
-    if (!tableBody) return;
+    const mobileCards = document.getElementById('team-cards-mobile');
+    if (!tableBody && !mobileCards) return;
 
     loadChannelsState();
 
@@ -1627,7 +1646,14 @@
     const countEl = document.getElementById('team-count-text');
     if (countEl) countEl.textContent = `Team Directory (${team.length} Members)`;
 
-    const isAdmin = window.currentProfile?.access_level === 'Admin';
+    const isAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
+    const currentUid = window.currentUser?.id || (typeof currentUser !== 'undefined' && currentUser?.id);
+
     const teamAddUserBtn = document.getElementById('team-add-user-btn');
     if (teamAddUserBtn) {
       if (isAdmin) teamAddUserBtn.classList.remove('hidden');
@@ -1635,79 +1661,206 @@
     }
 
     if (team.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
+      if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
+      if (mobileCards) mobileCards.innerHTML = `<div class="py-8 text-center text-xs text-slate-400">No team profiles found.</div>`;
       return;
     }
 
-    tableBody.innerHTML = team.map(u => {
-      const name = u.full_name || u.email || 'Member';
-      const initials = name.charAt(0).toUpperCase();
-      const userIsAdmin = u.access_level === 'Admin';
-      const isDraft = u.status === 'draft';
-      const isInactive = u.status === 'inactive';
+    // Render Desktop Table Rows
+    if (tableBody) {
+      tableBody.innerHTML = team.map(u => {
+        const name = u.full_name || u.email || 'Member';
+        const initials = name.charAt(0).toUpperCase();
+        const userIsAdmin = u.access_level === 'Admin';
+        const isDraft = u.status === 'draft';
+        const isInactive = u.status === 'inactive';
+        const isSelf = currentUid && u.id === currentUid;
+        const canEdit = isAdmin || isSelf;
+        const canDelete = isAdmin && !isSelf;
+        const cleanPhone = (u.phone || '').replace(/[^0-9+]/g, '');
+        const waLink = cleanPhone ? `https://wa.me/${cleanPhone.replace('+', '')}` : null;
 
-      const roleTag = u.roles
-        ? `<span class="pill" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>`
-        : `<span class="text-slate-400 text-[11px]">${escapeHtml(u.role || 'Member')}</span>`;
+        const roleTag = u.roles
+          ? `<span class="pill" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>`
+          : `<span class="text-slate-400 text-xs font-semibold">${escapeHtml(u.role || 'Member')}</span>`;
 
-      const statusPill = isDraft
-        ? `<span class="pill bg-amber-50 text-amber-700 border border-amber-200">📝 Draft</span>`
-        : isInactive
-        ? `<span class="pill bg-slate-100 text-slate-600 border border-slate-200">⏸️ Inactive</span>`
-        : `<span class="pill bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Active</span>`;
+        const statusPill = isDraft
+          ? `<span class="pill bg-amber-50 text-amber-700 border border-amber-200 text-xs">📝 Draft</span>`
+          : isInactive
+          ? `<span class="pill bg-slate-100 text-slate-600 border border-slate-200 text-xs">⏸️ Inactive</span>`
+          : `<span class="pill bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs">🟢 Active</span>`;
 
-      const assignedChannels = channelsList.filter(ch => {
-        const ids = channelMemberships[ch.id] || ch.member_ids || [];
-        return ids.includes(u.id);
-      });
+        const assignedChannels = channelsList.filter(ch => {
+          const ids = channelMemberships[ch.id] || ch.member_ids || [];
+          return ids.includes(u.id);
+        });
 
-      return `
-        <tr class="hover:bg-slate-50/70 transition">
-          <td class="py-3 px-4">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-                ${u.avatar_url
-                  ? `<img src="${u.avatar_url}" class="w-full h-full object-cover">`
-                  : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-sm flex items-center justify-center">${initials}</div>`}
-              </div>
-              <div>
-                <div class="font-bold text-navy-900 flex items-center gap-1.5">
-                  <span>${escapeHtml(name)}</span>
-                  ${statusPill}
+        return `
+          <tr class="hover:bg-slate-50/70 transition">
+            <td class="py-3 px-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+                  ${u.avatar_url
+                    ? `<img src="${u.avatar_url}" class="w-full h-full object-cover">`
+                    : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-sm flex items-center justify-center">${initials}</div>`}
                 </div>
-                <div class="text-[11px] text-slate-400">${escapeHtml(u.email)}</div>
+                <div>
+                  <div class="font-bold text-navy-900 text-sm flex items-center gap-1.5">
+                    <span>${escapeHtml(name)}</span>
+                    ${statusPill}
+                  </div>
+                  <div class="text-xs text-slate-400">${escapeHtml(u.email)}</div>
+                </div>
               </div>
-            </div>
-          </td>
-          <td class="py-3 px-4">${roleTag}</td>
-          <td class="py-3 px-4">
-            ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600">Member</span>'}
-          </td>
-          <td class="py-3 px-4">
-            <div class="flex flex-wrap gap-1 max-w-[180px]">
-              ${assignedChannels.length > 0 ? assignedChannels.map(c => `
-                <span class="pill bg-slate-100 text-slate-700 text-[9px] font-semibold">#${escapeHtml(c.name)}</span>
-              `).join('') : '<span class="text-slate-300 text-[10px]">—</span>'}
-            </div>
-          </td>
-          <td class="py-3 px-4 text-slate-500 font-medium">
-            ${u.phone ? `📞 ${escapeHtml(u.phone)}` : '<span class="text-slate-300">—</span>'}
-          </td>
-          <td class="py-3 px-4 text-right">
-            ${isAdmin ? `
+            </td>
+            <td class="py-3 px-4">${roleTag}</td>
+            <td class="py-3 px-4">
+              ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200 text-xs">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600 text-xs">Member</span>'}
+            </td>
+            <td class="py-3 px-4">
+              <div class="flex flex-wrap gap-1 max-w-[180px]">
+                ${assignedChannels.length > 0 ? assignedChannels.map(c => `
+                  <span class="pill bg-slate-100 text-slate-700 text-xs font-semibold">#${escapeHtml(c.name)}</span>
+                `).join('') : '<span class="text-slate-300 text-xs">—</span>'}
+              </div>
+            </td>
+            <td class="py-3 px-4 text-slate-600 font-medium text-xs">
+              ${u.phone ? `
+                <div class="flex items-center gap-1.5">
+                  <span>📞 ${escapeHtml(u.phone)}</span>
+                  ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener" class="text-emerald-600 hover:text-emerald-700 text-xs font-bold" title="WhatsApp">💬</a>` : ''}
+                </div>
+              ` : '<span class="text-slate-300 text-xs">—</span>'}
+            </td>
+            <td class="py-3 px-4 text-right">
               <div class="flex items-center justify-end gap-1.5">
-                <button onclick="window.openEditUserModal('${u.id}')" class="px-2.5 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-xl transition" title="Edit User">
-                  ✏️ Edit
-                </button>
-                <button onclick="window.deleteUser('${u.id}', '${escapeHtml(name.replace(/'/g, "\\'"))}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition" title="Delete User">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                </button>
+                ${waLink ? `
+                  <a href="${waLink}" target="_blank" rel="noopener" class="px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition inline-flex items-center gap-1" title="WhatsApp Message">
+                    <span>💬</span>
+                  </a>
+                ` : ''}
+                <a href="mailto:${escapeHtml(u.email)}" class="px-2.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition inline-flex items-center gap-1" title="Send Email">
+                  <span>✉️</span>
+                </a>
+                ${canEdit ? `
+                  <button onclick="window.openEditUserModal('${u.id}')" class="px-2.5 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-xl transition inline-flex items-center gap-1" title="Edit User">
+                    <span>✏️</span><span>Edit</span>
+                  </button>
+                ` : ''}
+                ${canDelete ? `
+                  <button onclick="window.deleteUser('${u.id}', '${escapeHtml(name.replace(/'/g, "\\'"))}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition inline-flex items-center justify-center" title="Delete User">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                ` : ''}
               </div>
-            ` : '<span class="text-slate-300 text-xs">—</span>'}
-          </td>
-        </tr>
-      `;
-    }).join('');
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Render Mobile Cards View
+    if (mobileCards) {
+      mobileCards.innerHTML = team.map(u => {
+        const name = u.full_name || u.email || 'Member';
+        const initials = name.charAt(0).toUpperCase();
+        const userIsAdmin = u.access_level === 'Admin';
+        const isDraft = u.status === 'draft';
+        const isInactive = u.status === 'inactive';
+        const isSelf = currentUid && u.id === currentUid;
+        const canEdit = isAdmin || isSelf;
+        const canDelete = isAdmin && !isSelf;
+        const cleanPhone = (u.phone || '').replace(/[^0-9+]/g, '');
+        const waLink = cleanPhone ? `https://wa.me/${cleanPhone.replace('+', '')}` : null;
+
+        const roleTag = u.roles
+          ? `<span class="pill" style="background:${u.roles.color}22;color:${u.roles.color};border:1px solid ${u.roles.color}44;">${escapeHtml(u.roles.name)}</span>`
+          : `<span class="text-slate-500 font-semibold text-xs">${escapeHtml(u.role || 'Member')}</span>`;
+
+        const statusPill = isDraft
+          ? `<span class="pill bg-amber-50 text-amber-700 border border-amber-200 text-xs">📝 Draft</span>`
+          : isInactive
+          ? `<span class="pill bg-slate-100 text-slate-600 border border-slate-200 text-xs">⏸️ Inactive</span>`
+          : `<span class="pill bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs">🟢 Active</span>`;
+
+        const assignedChannels = channelsList.filter(ch => {
+          const ids = channelMemberships[ch.id] || ch.member_ids || [];
+          return ids.includes(u.id);
+        });
+
+        return `
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-2xl overflow-hidden flex-shrink-0 shadow-sm">
+                  ${u.avatar_url
+                    ? `<img src="${u.avatar_url}" class="w-full h-full object-cover">`
+                    : `<div class="w-full h-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-base flex items-center justify-center">${initials}</div>`}
+                </div>
+                <div class="min-w-0">
+                  <div class="font-extrabold text-navy-900 text-sm flex items-center gap-1.5 truncate">
+                    <span class="truncate">${escapeHtml(name)}</span>
+                  </div>
+                  <div class="text-xs text-slate-500 truncate mt-0.5">${escapeHtml(u.email)}</div>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600 text-xs font-bold">Member</span>'}
+                ${statusPill}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+              <div class="flex items-center gap-1 text-slate-600">
+                <span class="font-bold text-slate-400">Role:</span>
+                ${roleTag}
+              </div>
+              ${u.phone ? `
+                <div class="flex items-center gap-1 text-slate-600">
+                  <span class="font-bold text-slate-400">Phone:</span>
+                  <a href="tel:${escapeHtml(u.phone)}" class="text-brand-600 font-semibold hover:underline">${escapeHtml(u.phone)}</a>
+                </div>
+              ` : ''}
+            </div>
+
+            ${assignedChannels.length > 0 ? `
+              <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span class="text-slate-400 text-xs font-bold mr-0.5">Channels:</span>
+                ${assignedChannels.map(c => `
+                  <span class="pill bg-slate-100 text-slate-700 text-xs font-semibold">#${escapeHtml(c.name)}</span>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- Mobile Actions Row (Always Available!) -->
+            <div class="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+              <div class="flex items-center gap-2 flex-wrap">
+                ${waLink ? `
+                  <a href="${waLink}" target="_blank" rel="noopener" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition flex items-center gap-1">
+                    <span>💬</span> WhatsApp
+                  </a>
+                ` : ''}
+                <a href="mailto:${escapeHtml(u.email)}" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center gap-1">
+                  <span>✉️</span> Email
+                </a>
+              </div>
+              <div class="flex items-center gap-1.5">
+                ${canEdit ? `
+                  <button onclick="window.openEditUserModal('${u.id}')" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold rounded-xl transition flex items-center gap-1">
+                    <span>✏️</span> Edit
+                  </button>
+                ` : ''}
+                ${canDelete ? `
+                  <button onclick="window.deleteUser('${u.id}', '${escapeHtml(name.replace(/'/g, "\\'"))}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition flex items-center justify-center" title="Delete User">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
   };
 
   // Register Navigation TAB_META

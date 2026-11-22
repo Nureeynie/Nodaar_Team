@@ -109,7 +109,12 @@
     const container = document.getElementById('view-whatsapp');
     if (!container) return;
 
-    const isAdmin = window.currentProfile?.access_level === 'Admin';
+    const isAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
     const categories = ['all', ...new Set(whatsappGroups.map(g => g.category))];
 
     // Filter by Category
@@ -424,7 +429,12 @@
 
   window.searchWhatsAppGroups = function (query) {
     const q = (query || '').toLowerCase().trim();
-    const isAdmin = window.currentProfile?.access_level === 'Admin';
+    const isAdmin = Boolean(
+      window.currentProfile?.access_level === 'Admin' ||
+      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+      window.currentUser?.email === 'nodaarltd@gmail.com' ||
+      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+    );
     const grid = document.getElementById('whatsapp-groups-grid');
     if (!grid) return;
 
