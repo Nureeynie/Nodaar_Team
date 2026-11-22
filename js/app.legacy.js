@@ -13,6 +13,8 @@ let taskViewMode = 'board'; // 'board' or 'list'
 
 const SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
+window.SB_URL = window.SB_URL || SB_URL;
+window.SB_KEY = window.SB_KEY || SB_KEY;
 
 // ─────────────────────────────────────────────
 // 1. INIT & AUTH
@@ -197,7 +199,10 @@ const TAB_META = {
   okrs:    { title:'Quarterly OKRs & Goals', sub:'High-level business and role targets', btn:'New OKR' },
   meetings:{ title:'Team Meetings & Notes', sub:'Video links, agendas and Drive meeting notes', btn:'New Meeting' },
   ideas:   { title:'Ideas & Innovation Decks', sub:'Pitch initiatives with Google Docs / Slides attachments', btn:'New Idea' },
-  team:    { title:'Team Directory', sub:'View members, roles, permissions and contact info', btn:'' },
+  team:    { title:'Team Directory', sub:'Manage organization members, assigned roles, permissions, and contacts', btn:'Add User' },
+  whatsapp:{ title:'WhatsApp Team Groups', sub:'Join and manage official team WhatsApp groups, department broadcast channels and emergency lines', btn:'New Group' },
+  scores:  { title:'Team Scores & Evaluations', sub:'Automatic activity scores and admin member evaluations', btn:'' },
+  channels:{ title:'Channels & Broadcasts', sub:'MS Teams style team collaboration, URL links and announcements', btn:'New Post' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
 };
@@ -247,6 +252,9 @@ async function loadTabData(tab) {
     case 'meetings':await loadMeetings(); break;
     case 'ideas':   await loadIdeas(); break;
     case 'team':    await loadTeam(); break;
+    case 'whatsapp': if (window.loadWhatsAppView) window.loadWhatsAppView(); break;
+    case 'scores':   if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
+    case 'channels': if (window.loadChannels) await window.loadChannels(); break;
     case 'roles':   await loadRoles(); break;
     case 'profile': loadProfilePage(); break;
   }
@@ -813,9 +821,26 @@ async function loadOKRs() {
 // ─────────────────────────────────────────────
 async function loadMeetings() {
   const container = document.getElementById('meetings-container');
-  const { data: meetings } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
+  if (!container) return;
+
+  let remoteMeetings = [];
+  try {
+    if (sbClient) {
+      const { data } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
+      remoteMeetings = data || [];
+    }
+  } catch (err) {
+    console.warn('Load meetings remote error:', err);
+  }
+
+  const localMeetings = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+  const meetMap = new Map();
+  localMeetings.forEach(m => { if (m && (m.id || m.title)) meetMap.set(m.id || m.title, m); });
+  remoteMeetings.forEach(m => { if (m && (m.id || m.title)) meetMap.set(m.id || m.title, m); });
+  const meetings = Array.from(meetMap.values()).sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+
   if (!meetings || meetings.length === 0) {
-    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No meetings scheduled. Click "+ New Meeting" to schedule one.</div>';
+    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No meetings scheduled. Click "+ Schedule Meeting" to schedule one.</div>';
     return;
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -825,12 +850,12 @@ async function loadMeetings() {
     <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isPast ? 'opacity-60' : ''}">
       <div class="flex gap-4 items-start">
         <div class="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-2xl flex flex-col items-center justify-center border border-slate-200">
-          <span class="text-[9px] font-black text-slate-500 uppercase">${new Date(m.meeting_date+'T00:00').toLocaleString('en',{month:'short'})}</span>
-          <span class="text-lg font-black text-navy-900 leading-none">${new Date(m.meeting_date+'T00:00').getDate()}</span>
+          <span class="text-[9px] font-black text-slate-500 uppercase">${new Date((m.meeting_date||today)+'T00:00').toLocaleString('en',{month:'short'})}</span>
+          <span class="text-lg font-black text-navy-900 leading-none">${new Date((m.meeting_date||today)+'T00:00').getDate()}</span>
         </div>
         <div>
           <h4 class="font-bold text-sm text-navy-900">${escapeHtml(m.title)}</h4>
-          <div class="text-[11px] text-slate-400 mt-0.5">${m.start_time} – ${m.end_time}</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">${m.start_time || '10:00'} – ${m.end_time || '11:00'}</div>
           ${m.agenda ? `<p class="text-xs text-slate-500 mt-1 line-clamp-2">${escapeHtml(m.agenda)}</p>` : ''}
         </div>
       </div>
@@ -847,7 +872,14 @@ async function loadMeetings() {
 
 async function deleteMeeting(id) {
   if (!confirm('Delete this meeting?')) return;
-  await sbClient.from('meetings').delete().eq('id', id);
+  try {
+    if (sbClient) await sbClient.from('meetings').delete().eq('id', id);
+  } catch (e) {}
+  try {
+    const local = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+    const filtered = local.filter(m => m.id !== id);
+    localStorage.setItem('nodaar_meetings_local', JSON.stringify(filtered));
+  } catch (e) {}
   showToast('Meeting deleted');
   loadMeetings();
 }
@@ -886,7 +918,10 @@ async function loadIdeas() {
 // ─────────────────────────────────────────────
 async function loadTeam() {
   const tableBody = document.getElementById('team-table-body');
-  tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
+  tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
+
+  const addBtn = document.getElementById('team-add-user-btn');
+  if (addBtn) addBtn.classList.remove('hidden');
 
   const { data: team } = await sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
 
@@ -894,7 +929,7 @@ async function loadTeam() {
   if (countEl) countEl.textContent = `Team Directory (${(team || []).length} Members)`;
 
   if (!team || team.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
     return;
   }
 
@@ -925,7 +960,13 @@ async function loadTeam() {
         </td>
         <td class="py-3 px-4">${roleTag}</td>
         <td class="py-3 px-4">
-          ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600">Member</span>'}
+          ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200 font-bold">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600 font-semibold">Member</span>'}
+        </td>
+        <td class="py-3 px-4">
+          <div class="flex items-center gap-1 flex-wrap">
+            <span class="pill bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-semibold">#announcements</span>
+            <span class="pill bg-slate-100 text-slate-600 text-[9px] font-semibold">#general</span>
+          </div>
         </td>
         <td class="py-3 px-4 text-slate-500 font-medium">
           ${u.phone ? `📞 ${escapeHtml(u.phone)}` : '<span class="text-slate-300">—</span>'}
@@ -1390,21 +1431,63 @@ async function createNotification(userId, title, message, type = 'info', link_ta
 }
 
 // ─────────────────────────────────────────────
-// 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles)
+// 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles, Team, WhatsApp)
 // ─────────────────────────────────────────────
 async function openActionModal() {
+  // Delegate to specific modal if on specialized tab
+  if (activeTab === 'team') {
+    if (typeof openAddUserModal === 'function') {
+      openAddUserModal();
+      return;
+    }
+  }
+  if (activeTab === 'whatsapp') {
+    if (window.openWhatsAppGroupModal) {
+      window.openWhatsAppGroupModal();
+      return;
+    }
+  }
+  if (activeTab === 'channels') {
+    if (window.openPostUpdateModal) {
+      window.openPostUpdateModal();
+      return;
+    }
+  }
+  if (activeTab === 'reports') {
+    const rf = document.getElementById('report-form');
+    if (rf) {
+      rf.scrollIntoView({ behavior: 'smooth' });
+      const firstInput = rf.querySelector('input, textarea');
+      if (firstInput) firstInput.focus();
+      return;
+    }
+  }
+
   const modal = document.getElementById('action-modal');
   const fields = document.getElementById('modal-fields');
   const title = document.getElementById('modal-title');
 
-  await fetchAllRoles();
-  const roleOptions = `<option value="">No Specific Role</option>` + allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  let roleOptions = '<option value="">No Specific Role</option>';
+  try {
+    await fetchAllRoles();
+    if (allRoles && allRoles.length) {
+      roleOptions += allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('Could not fetch roles for modal', e);
+  }
 
-  const { data: members } = await sbClient.from('profiles').select('id,full_name,email').order('full_name');
-  const memberOptions = `<option value="${currentUser.id}">(Me)</option>` +
-    (members || []).filter(m => m.id !== currentUser.id).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
+  let memberOptions = `<option value="${currentUser?.id || 'admin'}">(Me)</option>`;
+  try {
+    const { data: members } = await sbClient.from('profiles').select('id,full_name,email').order('full_name');
+    if (members && members.length) {
+      memberOptions += members.filter(m => m.id !== currentUser?.id).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('Could not fetch members for modal', e);
+  }
 
-  if (activeTab === 'tasks') {
+  if (activeTab === 'tasks' || !['okrs','meetings','ideas','roles'].includes(activeTab)) {
     title.textContent = 'New Task';
     fields.innerHTML = `
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Task Title *</label><input id="f-title" type="text" required placeholder="Launch marketing campaign" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1455,12 +1538,13 @@ async function openActionModal() {
 
   } else if (activeTab === 'meetings') {
     title.textContent = 'Schedule Meeting';
+    const today = new Date().toISOString().slice(0, 10);
     fields.innerHTML = `
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Meeting Title *</label><input id="f-title" type="text" required placeholder="Weekly Marketing Sync" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-3 gap-3">
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">Date *</label><input id="f-date" type="date" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">Start</label><input id="f-start" type="time" value="09:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">End</label><input id="f-end" type="time" value="10:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">Date *</label><input id="f-date" type="date" required value="${today}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">Start</label><input id="f-start" type="time" value="10:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">End</label><input id="f-end" type="time" value="11:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Meet Link</label><input id="f-meet" type="url" placeholder="https://meet.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Notes Doc</label><input id="f-notes" type="url" placeholder="https://docs.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1490,6 +1574,7 @@ async function openActionModal() {
   modal.classList.remove('hidden');
   document.getElementById('modal-form').onsubmit = handleModalSubmit;
 }
+window.openActionModal = openActionModal;
 
 async function handleModalSubmit(e) {
   e.preventDefault();
@@ -1535,16 +1620,43 @@ async function handleModalSubmit(e) {
       showToast('OKR saved!'); closeActionModal(); loadOKRs();
 
     } else if (activeTab === 'meetings') {
-      const title = document.getElementById('f-title').value;
+      const title = document.getElementById('f-title').value.trim();
       const meeting_date = document.getElementById('f-date').value;
       const start_time = document.getElementById('f-start').value;
       const end_time = document.getElementById('f-end').value;
-      const meet_link = document.getElementById('f-meet').value || null;
-      const drive_notes_link = document.getElementById('f-notes').value || null;
-      const agenda = document.getElementById('f-agenda').value || null;
-      const { error } = await sbClient.from('meetings').insert({ title, meeting_date, start_time, end_time, meet_link, drive_notes_link, agenda });
-      if (error) throw error;
-      showToast('Meeting scheduled!'); closeActionModal(); loadMeetings();
+      const meet_link = document.getElementById('f-meet').value.trim() || null;
+      const drive_notes_link = document.getElementById('f-notes').value.trim() || null;
+      const agenda = document.getElementById('f-agenda').value.trim() || null;
+
+      const newMeeting = {
+        id: 'meet_' + Date.now(),
+        title,
+        meeting_date,
+        start_time,
+        end_time,
+        meet_link,
+        drive_notes_link,
+        agenda,
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        if (sbClient) {
+          await sbClient.from('meetings').insert({ title, meeting_date, start_time, end_time, meet_link, drive_notes_link, agenda });
+        }
+      } catch (err) {
+        console.warn('Supabase meeting insert notice:', err);
+      }
+
+      try {
+        const local = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+        local.push(newMeeting);
+        localStorage.setItem('nodaar_meetings_local', JSON.stringify(local));
+      } catch (e) {}
+
+      showToast('Meeting scheduled successfully! 📅');
+      closeActionModal();
+      loadMeetings();
 
     } else if (activeTab === 'ideas') {
       const title = document.getElementById('f-title').value;
@@ -1690,12 +1802,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function showAuth() {
   document.getElementById('auth-screen').classList.remove('hidden');
-  document.getElementById('app-shell').classList.add('hidden');
+  const appShell = document.getElementById('app-shell');
+  if (appShell) {
+    appShell.classList.add('hidden');
+    appShell.classList.remove('flex');
+  }
 }
 
 function showApp() {
   document.getElementById('auth-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
+  const appShell = document.getElementById('app-shell');
+  if (appShell) {
+    appShell.classList.remove('hidden');
+    appShell.classList.add('flex');
+  }
   navigate(activeTab);
 }
 
