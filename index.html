@@ -54,15 +54,51 @@
     .pill { display:inline-flex; align-items:center; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; }
     .kanban-col { min-height:120px; }
 
-    /* Desktop Sidebar Collapse */
+    /* Global Viewport Containment */
+    html, body {
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+      width: 100% !important;
+    }
+    #app-shell {
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+      width: 100% !important;
+    }
+    #main-content {
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+    }
+    .view-section {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      width: 100% !important;
+    }
+
+    /* Nav Accordion (Clean Grouping) */
+    .nav-accordion summary {
+      list-style: none !important;
+    }
+    .nav-accordion summary::-webkit-details-marker {
+      display: none !important;
+    }
+    .nav-accordion[open] .accordion-chevron {
+      transform: rotate(180deg);
+    }
+
+    /* Desktop Sidebar Collapse (Desktop >= 768px only) */
     #sidebar { transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-    body.sidebar-collapsed #sidebar { width: 4.5rem; }
-    body.sidebar-collapsed .sidebar-text { display: none !important; }
-    body.sidebar-collapsed .sidebar-logo-text { display: none !important; }
-    body.sidebar-collapsed .sidebar-header-title { display: none !important; }
-    body.sidebar-collapsed .sidebar-user-info { display: none !important; }
-    body.sidebar-collapsed .nav-btn { justify-content: center; padding-left: 0; padding-right: 0; }
-    body.sidebar-collapsed #sidebar-collapse-btn svg { transform: rotate(180deg); }
+    @media (min-width: 768px) {
+      body.sidebar-collapsed #sidebar { width: 5.25rem !important; }
+      body.sidebar-collapsed .sidebar-text { display: none !important; }
+      body.sidebar-collapsed .sidebar-logo-text { display: none !important; }
+      body.sidebar-collapsed .sidebar-header-title { display: none !important; }
+      body.sidebar-collapsed .sidebar-user-info { display: none !important; }
+      body.sidebar-collapsed .nav-accordion summary { display: none !important; }
+      body.sidebar-collapsed .nav-accordion > div { border-left: none !important; padding-left: 0 !important; margin-left: 0 !important; }
+      body.sidebar-collapsed .nav-btn { justify-content: center !important; padding-left: 0 !important; padding-right: 0 !important; width: 3rem !important; height: 3rem !important; margin: 0.25rem auto !important; border-radius: 1rem !important; }
+      body.sidebar-collapsed #sidebar-collapse-btn svg { transform: rotate(180deg); }
+    }
 
     .bottom-nav { display: none !important; }
     #app-shell.hidden,
@@ -85,6 +121,27 @@
         transform: translateX(-100%);
         visibility: hidden;
         transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+      }
+      body.sidebar-collapsed #sidebar {
+        width: 280px !important;
+      }
+      body.sidebar-collapsed .sidebar-text {
+        display: inline !important;
+      }
+      body.sidebar-collapsed .sidebar-logo-text {
+        display: block !important;
+      }
+      body.sidebar-collapsed .sidebar-header-title {
+        display: block !important;
+      }
+      body.sidebar-collapsed .sidebar-user-info {
+        display: block !important;
+      }
+      body.sidebar-collapsed .nav-btn {
+        justify-content: flex-start !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 0.5rem 0.75rem !important;
       }
       #sidebar.mobile-open {
         transform: translateX(0) !important;
@@ -293,9 +350,9 @@
     </div>
 
     <!-- Navigation -->
-    <nav id="sidebar-nav" class="px-3 py-3 space-y-1 flex-1 overflow-y-auto">
-      <!-- Group 1: Workspace -->
-      <div class="sidebar-header-title text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-2 pb-1.5">Workspace</div>
+    <nav id="sidebar-nav" class="px-3 py-3 space-y-1.5 flex-1 overflow-y-auto">
+      <!-- Group 1: Core Daily Operations -->
+      <div class="sidebar-header-title text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-1 pb-1">Workspace</div>
 
       <button onclick="navigate('overview')" data-tab="overview" title="Overview & Insights" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
         <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
@@ -318,16 +375,6 @@
         <span class="sidebar-text truncate">Daily Standups</span>
       </button>
 
-      <button onclick="navigate('okrs')" data-tab="okrs" title="OKRs & Targets" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-        </div>
-        <span class="sidebar-text truncate">OKRs & Targets</span>
-      </button>
-
-      <!-- Group 2: Collaboration -->
-      <div class="sidebar-header-title text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-4 pb-1.5">Collaboration</div>
-
       <!-- Channels (MS Teams style) -->
       <button onclick="navigate('channels')" data-tab="channels" title="Channels & Broadcasts" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="channels-nav-btn">
         <div class="flex items-center gap-3 min-w-0">
@@ -339,65 +386,99 @@
         <span class="sidebar-text pill bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] px-1.5 py-0.2">Teams</span>
       </button>
 
-      <!-- WhatsApp Groups -->
-      <button onclick="navigate('whatsapp')" data-tab="whatsapp" title="Team WhatsApp Groups" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="whatsapp-nav-btn">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:bg-emerald-500/30 transition flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 21a9 9 0 10-9-9c0 1.488.36 2.891 1 4.127L3 21l4.873-1c1.236.64 2.639 1 4.127 1z"/><path d="M9 10a.5.5 0 000 1h.01a.5.5 0 000-1H9zm3 0a.5.5 0 000 1h.01a.5.5 0 000-1H12zm3 0a.5.5 0 000 1h.01a.5.5 0 000-1H15z"/></svg>
+      <!-- Group 2: Collaboration & Communications (Clean Collapsible Accordion) -->
+      <details open class="nav-accordion group mb-1.5">
+        <summary class="flex items-center justify-between px-3 py-2 text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-wider cursor-pointer select-none rounded-xl hover:bg-white/5 transition list-none">
+          <span class="flex items-center gap-2">
+            <span class="text-xs">💬</span>
+            <span class="sidebar-text">Collaboration</span>
+          </span>
+          <div class="sidebar-text flex items-center gap-1.5">
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">4</span>
+            <svg class="w-3.5 h-3.5 text-slate-400 accordion-chevron transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </div>
-          <span class="sidebar-text truncate">WhatsApp Groups</span>
+        </summary>
+        <div class="pl-2 pt-1 pb-1 space-y-1 border-l border-white/10 ml-3.5 mt-0.5">
+          <!-- WhatsApp Groups -->
+          <button onclick="navigate('whatsapp')" data-tab="whatsapp" title="Team WhatsApp Groups" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="whatsapp-nav-btn">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:bg-emerald-500/30 transition flex-shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 21a9 9 0 10-9-9c0 1.488.36 2.891 1 4.127L3 21l4.873-1c1.236.64 2.639 1 4.127 1z"/><path d="M9 10a.5.5 0 000 1h.01a.5.5 0 000-1H9zm3 0a.5.5 0 000 1h.01a.5.5 0 000-1H12zm3 0a.5.5 0 000 1h.01a.5.5 0 000-1H15z"/></svg>
+              </div>
+              <span class="sidebar-text truncate">WhatsApp Groups</span>
+            </div>
+            <span class="sidebar-text pill bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-1.5 py-0.2">Chat</span>
+          </button>
+
+          <button onclick="navigate('calendar')" data-tab="calendar" title="Team Calendar" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Team Calendar</span>
+          </button>
+
+          <button onclick="navigate('meetings')" data-tab="meetings" title="Meetings & Notes" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Meetings & Notes</span>
+          </button>
+
+          <button onclick="navigate('ideas')" data-tab="ideas" title="Ideas & Decks" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.5 17.5A6 6 0 0112 6a6 6 0 015.5 11.5"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Ideas & Decks</span>
+          </button>
         </div>
-        <span class="sidebar-text pill bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] px-1.5 py-0.2">Chat</span>
-      </button>
+      </details>
 
-      <button onclick="navigate('calendar')" data-tab="calendar" title="Team Calendar" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        </div>
-        <span class="sidebar-text truncate">Team Calendar</span>
-      </button>
-
-      <button onclick="navigate('meetings')" data-tab="meetings" title="Meetings & Notes" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-        </div>
-        <span class="sidebar-text truncate">Meetings & Notes</span>
-      </button>
-
-      <button onclick="navigate('ideas')" data-tab="ideas" title="Ideas & Decks" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.5 17.5A6 6 0 0112 6a6 6 0 015.5 11.5"/></svg>
-        </div>
-        <span class="sidebar-text truncate">Ideas & Decks</span>
-      </button>
-
-      <!-- Group 3: People & Management -->
-      <div class="sidebar-header-title text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 pt-4 pb-1.5">Management</div>
-
-      <button onclick="navigate('team')" data-tab="team" title="Team Directory" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-        </div>
-        <span class="sidebar-text truncate">Team Directory</span>
-      </button>
-
-      <!-- Team Scores nav item with Auto/Admin pill -->
-      <button onclick="navigate('scores')" data-tab="scores" title="Team Scores & Evaluations" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="scores-nav-btn">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+      <!-- Group 3: Organization & Management (Clean Collapsible Accordion) -->
+      <details open class="nav-accordion group mb-1.5">
+        <summary class="flex items-center justify-between px-3 py-2 text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-wider cursor-pointer select-none rounded-xl hover:bg-white/5 transition list-none">
+          <span class="flex items-center gap-2">
+            <span class="text-xs">👥</span>
+            <span class="sidebar-text">Management</span>
+          </span>
+          <div class="sidebar-text flex items-center gap-1.5">
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300">4</span>
+            <svg class="w-3.5 h-3.5 text-slate-400 accordion-chevron transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
           </div>
-          <span class="sidebar-text truncate">Team Scores</span>
-        </div>
-        <span class="sidebar-text pill bg-brand-500/20 text-brand-400 border border-brand-500/30 text-[9px] px-1.5 py-0.5">Auto</span>
-      </button>
+        </summary>
+        <div class="pl-2 pt-1 pb-1 space-y-1 border-l border-white/10 ml-3.5 mt-0.5">
+          <button onclick="navigate('team')" data-tab="team" title="Team Directory" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Team Directory</span>
+          </button>
 
-      <button onclick="navigate('roles')" data-tab="roles" title="Roles & Permissions" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="roles-nav-btn">
-        <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <!-- Team Scores nav item with Auto/Admin pill -->
+          <button onclick="navigate('scores')" data-tab="scores" title="Team Scores & Evaluations" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="scores-nav-btn">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+              </div>
+              <span class="sidebar-text truncate">Team Scores</span>
+            </div>
+            <span class="sidebar-text pill bg-brand-500/20 text-brand-400 border border-brand-500/30 text-[9px] px-1.5 py-0.5">Auto</span>
+          </button>
+
+          <button onclick="navigate('okrs')" data-tab="okrs" title="OKRs & Targets" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            </div>
+            <span class="sidebar-text truncate">OKRs & Targets</span>
+          </button>
+
+          <button onclick="navigate('roles')" data-tab="roles" title="Roles & Permissions" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="roles-nav-btn">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Roles & Permissions</span>
+          </button>
         </div>
-        <span class="sidebar-text truncate">Roles & Permissions</span>
-      </button>
+      </details>
     </nav>
 
     <!-- User Profile Footer Card -->

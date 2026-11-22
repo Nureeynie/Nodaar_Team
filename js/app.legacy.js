@@ -43,9 +43,11 @@ async function checkAuth() {
     return;
   }
 
-  // Restore sidebar collapsed preference
-  if (localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
+  // Restore sidebar collapsed preference only on desktop (screen width >= 768px)
+  if (window.innerWidth >= 768 && localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
     document.body.classList.add('sidebar-collapsed');
+  } else {
+    document.body.classList.remove('sidebar-collapsed');
   }
 
   try {
@@ -78,6 +80,10 @@ async function checkAuth() {
 }
 
 function toggleSidebarCollapse() {
+  if (window.innerWidth < 768) {
+    closeMobileSidebar();
+    return;
+  }
   const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
   localStorage.setItem('nodaar_sidebar_collapsed', isCollapsed);
 }
@@ -229,7 +235,11 @@ function navigate(tab) {
 
   document.querySelectorAll('#sidebar-nav .nav-btn').forEach(btn => btn.classList.remove('active'));
   const target = document.querySelector(`[data-tab="${tab}"]`);
-  if (target) target.classList.add('active');
+  if (target) {
+    target.classList.add('active');
+    const parentDetails = target.closest('details');
+    if (parentDetails) parentDetails.open = true;
+  }
 
   document.querySelectorAll('.bottom-nav button').forEach(btn => {
     btn.classList.remove('text-brand-500');

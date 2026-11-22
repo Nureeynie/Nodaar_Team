@@ -292,7 +292,7 @@
       <!-- 2. Controls & Search Bar -->
       <div class="bg-white rounded-3xl border border-slate-200 p-4 mb-6 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2 flex-1">
-          <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[220px]">
+          <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 w-full sm:w-auto sm:min-w-[220px]">
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
             <input type="text" id="score-search-input" placeholder="Search member scorecard…" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.filterScorecards()">
           </div>
@@ -346,7 +346,7 @@
       <div class="scorecard-card bg-white rounded-3xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition" data-name="${escapeHtml((member.full_name || member.email || '').toLowerCase())}" data-mode="${saved.mode || 'auto'}" data-score="${finalScore}">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <!-- Member Avatar & Info -->
-          <div class="flex items-center gap-3.5 min-w-[260px]">
+          <div class="flex items-center gap-3.5 w-full lg:w-auto min-w-0">
             <div class="relative flex-shrink-0">
               <div class="w-12 h-12 rounded-2xl overflow-hidden shadow-sm border border-slate-100">
                 ${member.avatar_url
@@ -421,7 +421,7 @@
           </div>
 
           <!-- Score Rating Gauge & Admin Action -->
-          <div class="flex items-center justify-between lg:justify-end gap-4 min-w-[200px]">
+          <div class="flex items-center justify-between lg:justify-end gap-3 sm:gap-4 w-full lg:w-auto min-w-0">
             <div class="text-right">
               <div class="flex items-baseline justify-end gap-1.5">
                 <span class="text-3xl font-black text-navy-900">${finalScore}%</span>

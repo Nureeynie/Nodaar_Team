@@ -70,54 +70,8 @@
   ];
 
   // Default Seed Updates with URL attachments & Tags
-  const DEFAULT_UPDATES = [
-    {
-      id: 'upd_1',
-      channel_id: 'ch_announcements',
-      author_id: 'admin',
-      author_name: 'Founder / Admin',
-      author_avatar: '',
-      author_role: 'Founder',
-      title: '🚀 Nodaar Enterprise Workspace v3.4 Deployed',
-      body: 'Welcome to the newly upgraded **Nodaar Hub**!\n\nWe have implemented Microsoft Teams-style channel architecture with:\n• **Role-based channel access**\n• **Rich text formatting & tags**\n• **Draft & Send workflows**\n• **Google Drive deliverable URL integration**\n\nReview the strategic roadmap attached below.',
-      tags: ['#announcement', '#sprint', '#deliverable'],
-      update_type: 'announcement',
-      status: 'published',
-      is_pinned: true,
-      url_link: 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
-      reactions: { '🚀': ['admin'], '🔥': ['admin'], '👏': ['admin'] },
-      replies: [
-        {
-          id: 'rep_1',
-          author_name: 'Team Lead',
-          author_avatar: '',
-          body: 'The live text formatting and in-app Google Drive preview work seamlessly!',
-          created_at: new Date(Date.now() - 3600000).toISOString()
-        }
-      ],
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-      updated_at: null
-    },
-    {
-      id: 'upd_2',
-      channel_id: 'ch_engineering',
-      author_id: 'admin',
-      author_name: 'Founder / Admin',
-      author_avatar: '',
-      author_role: 'Founder',
-      title: '⚡ Mon–Sat 10:00–16:00 Lagos Work Shift Sync & Database RLS',
-      body: 'All database policies for user channel memberships and daily task updates are active.\n\nCheck `supabase/schema.v7.channels-and-users.sql` for the complete migration schema.',
-      tags: ['#urgent', '#operations'],
-      update_type: 'priority',
-      status: 'published',
-      is_pinned: false,
-      url_link: 'https://drive.google.com/drive/folders/1abc98765XYZ',
-      reactions: { '👍': ['admin'], '💻': ['admin'] },
-      replies: [],
-      created_at: new Date(Date.now() - 14400000).toISOString(),
-      updated_at: null
-    }
-  ];
+  // All AI seed updates cleared - start with clean workspace feeds
+  const DEFAULT_UPDATES = [];
 
   let currentActiveChannelId = 'ch_announcements';
   let activeTagFilter = 'all';
@@ -137,7 +91,15 @@
       if (!channelsList || channelsList.length === 0) channelsList = DEFAULT_CHANNELS;
 
       const rawUpd = localStorage.getItem(UPDATES_STORAGE_KEY);
-      channelUpdates = rawUpd ? JSON.parse(rawUpd) : DEFAULT_UPDATES;
+      const loaded = rawUpd ? JSON.parse(rawUpd) : [];
+      // Clean and purge any legacy AI-generated seed updates
+      channelUpdates = (Array.isArray(loaded) ? loaded : []).filter(u => {
+        if (!u || !u.id) return false;
+        if (u.id === 'upd_1' || u.id === 'upd_2') return false;
+        if (typeof u.title === 'string' && (u.title.includes('Nodaar Enterprise Workspace') || u.title.includes('Lagos Work Shift Sync'))) return false;
+        return true;
+      });
+      localStorage.setItem(UPDATES_STORAGE_KEY, JSON.stringify(channelUpdates));
       if (!channelUpdates || channelUpdates.length === 0) channelUpdates = DEFAULT_UPDATES;
 
       const rawMem = localStorage.getItem(MEMBERSHIPS_KEY);
@@ -520,10 +482,10 @@
 
     if (updates.length === 0) {
       container.innerHTML = `
-        <div class="p-12 text-center text-slate-400 bg-slate-50/50 rounded-3xl border border-slate-100">
+        <div class="p-8 sm:p-12 text-center text-slate-400 bg-slate-50/60 rounded-3xl border border-slate-100">
           <div class="text-3xl mb-2">${channel.icon || '💬'}</div>
-          <h4 class="font-bold text-navy-900 text-sm">No posts matching filter in #${escapeHtml(channel.name)}</h4>
-          <p class="text-xs text-slate-400 mt-1">Use the composer below to draft or send the first update.</p>
+          <h4 class="font-bold text-navy-900 text-sm">Welcome to #${escapeHtml(channel.name)}</h4>
+          <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">No announcements or updates posted yet. Use the composer below to share a post, deliverable link, or discussion.</p>
         </div>
       `;
       return;
