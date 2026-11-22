@@ -373,3 +373,25 @@ html, body {
 /* Fix flex children that overflow their container */
 .flex.items-center, .flex.items-start { min-width: 0; }
 .flex.items-center > *, .flex.items-start > * { min-width: 0; }
+
+/* ===== v3.6 mobile table fix: headers must not wrap mid-word; table scrolls horizontally ===== */
+.view-section th {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  font-size: 10px;
+  letter-spacing: .04em;
+  padding: 10px 12px !important;
+}
+.view-section td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  padding: 10px 12px !important;
+}
+/* ensure the scroll wrapper actually scrolls on mobile */
+.view-section .overflow-x-auto { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+@media (max-width: 767px) {
+  .view-section table { min-width: 640px; }
+  /* page header title: keep readable on narrow screens */
+  #page-title { font-size: 15px !important; }
+}
