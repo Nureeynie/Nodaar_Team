@@ -233,6 +233,7 @@ const TAB_META = {
   scores:  { title:'Team Scores & Evaluations', sub:'Automatic activity scores and admin member evaluations', btn:'' },
   channels:{ title:'Channels & Broadcasts', sub:'MS Teams style team collaboration, URL links and announcements', btn:'New Post' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
+  calendar:{ title:'Team Calendar', sub:'Mon–Sat 10:00–16:00 (Lagos) · meetings, deadlines and Google/Outlook sync', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
 };
 
@@ -298,6 +299,7 @@ async function loadTabData(tab) {
     case 'scores':   if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
     case 'channels': if (window.loadChannels) await window.loadChannels(); break;
     case 'roles':   await loadRoles(); break;
+    case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
   }
 }

@@ -35,6 +35,7 @@
   <!-- Built Tailwind (Vite) — run npm run build; fallback CDN removed for prod -->
   <link rel="stylesheet" href="./css/app.built.css">
   <link rel="stylesheet" href="./css/app.css">
+  <link rel="stylesheet" href="./css/shell.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Mon-Sat 10-4 + Calendar + Shared Tasks -->
   <script src="./js/calendar.js"></script>
@@ -543,12 +544,8 @@
         </button>
 
         <div class="sidebar-text mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-          <button onclick="navigate('profile')" class="text-[11px] text-slate-400 hover:text-white transition flex items-center gap-1 font-semibold">
-            <span>⚙️</span> Settings
-          </button>
-          <button onclick="logout()" class="text-[11px] text-slate-400 hover:text-red-400 transition flex items-center gap-1 font-semibold">
-            <span>🚪</span> Sign Out
-          </button>
+          <button onclick="navigate('profile')" class="nh-side-link"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg> Settings</button>
+          <button onclick="logout()" class="nh-side-link danger"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg> Sign Out</button>
         </div>
       </div>
     </div>
@@ -557,50 +554,62 @@
   <!-- MAIN CONTENT -->
   <div class="flex-1 flex flex-col min-w-0">
 
-    <!-- TOP BAR -->
-    <header class="bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-        <!-- Mobile App Brand Icon (tap to open menu) -->
-        <button onclick="openMobileSidebar()" class="md:hidden flex items-center justify-center p-0.5 rounded-xl hover:bg-slate-100 active:scale-95 transition flex-shrink-0" aria-label="Open workspace navigation" title="Menu">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-500 to-amber-400 p-0.5 shadow-sm flex items-center justify-center">
-            <div class="w-full h-full bg-[#07192F] rounded-[9px] flex items-center justify-center p-1">
-              <img src="./assets/icon_small.png" alt="Nodaar" class="w-full h-full object-contain">
-            </div>
+    <!-- TOP BAR (app shell header) -->
+    <header class="nh-header" role="banner">
+      <div class="nh-header-row">
+        <div class="nh-h-left">
+          <button class="nh-brand-btn" onclick="openMobileSidebar()" aria-label="Open navigation menu" title="Menu">
+            <div class="nh-brand-mark"><div><img src="./assets/icon_small.png" alt="Nodaar"></div></div>
+          </button>
+          <div class="nh-title-wrap">
+            <h1 id="page-title" class="nh-title">Overview &amp; Insights</h1>
+            <p id="page-subtitle" class="nh-subtitle">Team velocity, performance metrics and activity</p>
           </div>
-        </button>
-        <div class="min-w-0 pr-2">
-          <h1 id="page-title" class="font-extrabold text-navy-900 text-base sm:text-lg leading-tight truncate">Overview & Insights</h1>
-          <p id="page-subtitle" class="text-xs text-slate-400 hidden sm:block truncate">Team velocity, performance metrics and activity</p>
+        </div>
+
+        <div class="nh-h-right">
+          <!-- Desktop search -->
+          <label class="nh-search" for="global-search">
+            <svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="global-search" type="search" placeholder="Search tasks, members…" autocomplete="off" oninput="nhSearchInput(this.value)">
+            <kbd>Ctrl K</kbd>
+          </label>
+          <!-- Mobile search toggle -->
+          <button class="nh-ibtn nh-search-mbtn" onclick="toggleMobileSearch()" aria-label="Search" title="Search"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+
+          <!-- Admin role switcher -->
+          <div id="admin-role-switcher-box" class="nh-role" style="display:none">
+            <span>Role</span>
+            <select id="admin-active-role-select" onchange="switchAdminRole(this.value)"><option value="">Admin / Founder</option></select>
+          </div>
+
+          <!-- Notifications -->
+          <button id="notif-bell" class="nh-ibtn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications">
+            <svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span id="nh-notif-dot" class="nh-dot"></span>
+            <span id="notif-badge" class="notif-dot hidden" style="display:none"></span>
+          </button>
+
+          <!-- Primary action -->
+          <button id="primary-action-btn" class="nh-primary" onclick="openActionModal()">
+            <svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="action-btn-text">New Task</span>
+          </button>
+
+          <span class="nh-vsep"></span>
+
+          <!-- Profile -->
+          <div class="nh-avatar-wrap">
+            <button id="nh-h-avatar" class="nh-avatar" onclick="navigate('profile')" aria-label="My profile" title="Profile &amp; Settings">?</button>
+            <span class="nh-online"></span>
+          </div>
         </div>
       </div>
-
-      <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-        <!-- ADMIN QUICK ROLE SWITCHER -->
-        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl max-w-[125px] overflow-hidden">
-          <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
-          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-[11px] font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer max-w-[85px] truncate">
-            <option value="">Admin / Founder</option>
-          </select>
-        </div>
-
-        <!-- Notification bell -->
-        <div class="relative">
-          <button id="notif-bell" onclick="toggleNotifPanel()" class="relative p-2 rounded-xl hover:bg-slate-100 transition">
-            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-            <span id="notif-badge" class="notif-dot hidden"></span>
-          </button>
-        </div>
-
-        <!-- Search (improved) -->
-        <div class="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
-          <input id="global-search" type="search" placeholder="Search tasks, members..." class="bg-transparent text-xs w-40 focus:outline-none" oninput="handleGlobalSearch(this.value)">
-        </div>
-        <!-- Primary Action button -->
-        <button id="primary-action-btn" onclick="openActionModal()" class="px-3 md:px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
-          <span class="text-base leading-none">+</span>
-          <span id="action-btn-text" class="hidden sm:inline">New Task</span>
-        </button>
+      <!-- Mobile search drawer -->
+      <div id="nh-msearch" class="nh-msearch">
+        <label class="nh-search" for="nh-msearch-input">
+          <svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="nh-msearch-input" type="search" placeholder="Search tasks, members…" autocomplete="off" oninput="nhSearchInput(this.value)">
+        </label>
       </div>
     </header>
 
@@ -1014,31 +1023,68 @@
       </section>
 
     </main>
+
+    <!-- DESKTOP FOOTER -->
+    <footer class="nh-footer" role="contentinfo">
+      <div class="nh-footer-inner">
+        <div class="nh-footer-brand">
+          <div class="mini"><div><img src="./assets/icon_small.png" alt=""></div></div>
+          <div>Nodaar Team Hub<small>© <span id="nh-year">2026</span> Nodaar Ltd · Lagos HQ</small></div>
+        </div>
+        <div class="nh-footer-links">
+          <button onclick="navigate('calendar')"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><path d="M8 15h2M14 15h2"/></svg> Mon–Sat 10:00–16:00</button>
+          <button onclick="navigate('roles')" id="nh-footer-roles"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg> Roles &amp; Access</button>
+          <button onclick="navigate('profile')"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg> Settings</button>
+          <a href="https://github.com/Nureeynie/Nodaar_Team" target="_blank" rel="noopener"><svg class="nh-ico xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg> Source</a>
+        </div>
+        <div class="nh-footer-status">
+          <span class="pulse"></span><span id="nh-footer-clock"><b>Workspace</b></span>
+          <span class="ver">v3.3</span>
+        </div>
+      </div>
+    </footer>
   </div>
 
-  <!-- BOTTOM NAV (mobile - 5 thumb-friendly items - ONLY rendered when app-shell is active) -->
-  <nav class="bottom-nav fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 py-2 px-1 justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)] md:hidden">
-    <button onclick="navigate('channels')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-channels">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Channels</span>
-    </button>
-    <button onclick="navigate('tasks')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-tasks">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Tasks</span>
-    </button>
-    <button onclick="navigate('reports')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-reports">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Standup</span>
-    </button>
-    <button onclick="navigate('team')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-team">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">Team</span>
-    </button>
-    <button onclick="openMobileSidebar()" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-navy-900 transition active:scale-95" id="bn-menu" aria-label="More navigation options">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-      <span class="text-xs font-bold mt-0.5 tracking-tight">More</span>
-    </button>
+  <!-- BOTTOM NAV (mobile · 5 tabs · line icons) -->
+  <nav class="nh-bottom" aria-label="Primary">
+    <div class="nh-bottom-inner">
+    <button id="nh-tab-overview" class="nh-tab" onclick="navigate('overview')" aria-label="Home"><span class="nh-pill"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg></span><span>Home</span></button>
+    <button id="nh-tab-tasks" class="nh-tab" onclick="navigate('tasks')" aria-label="Tasks"><span class="nh-pill"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v2h6V3"/><path d="m8.5 13 2.5 2.5 5-5"/></svg></span><span>Tasks</span></button>
+    <button id="nh-tab-channels" class="nh-tab" onclick="navigate('channels')" aria-label="Channels"><span class="nh-pill"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H6l-3 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/><path d="M9 12h.01M13 12h.01M17 12h.01"/></svg></span><span>Channels</span></button>
+    <button id="nh-tab-calendar" class="nh-tab" onclick="navigate('calendar')" aria-label="Calendar"><span class="nh-pill"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><path d="M8 15h2M14 15h2"/></svg></span><span>Calendar</span></button>
+    <button id="nh-tab-more" class="nh-tab" onclick="toggleMoreSheet()" aria-label="More"><span class="nh-pill"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span><span>More</span></button>
+    </div>
   </nav>
+
+  <!-- MORE SHEET (mobile) -->
+  <div id="nh-more-backdrop" class="nh-sheet-backdrop" onclick="closeMoreSheet()"></div>
+  <div id="nh-more-sheet" class="nh-sheet" role="dialog" aria-modal="true" aria-label="More navigation" aria-hidden="true">
+    <div class="nh-sheet-grip"></div>
+    <button class="nh-sheet-user" onclick="sheetGo('profile')" style="width:100%;text-align:left">
+      <span id="nh-sheet-avatar" class="nh-avatar">?</span>
+      <span style="min-width:0"><span id="nh-sheet-name" class="name" style="display:block">Loading…</span><span id="nh-sheet-role" class="role">Member</span></span>
+      <span class="go"><svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+    </button>
+
+    <div class="nh-sheet-label">Workspace</div>
+    <div class="nh-grid">
+      <button class="nh-gitem" data-tab="reports" onclick="sheetGo('reports')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span>Standups</button>
+      <button class="nh-gitem" data-tab="meetings" onclick="sheetGo('meetings')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 11 5-3v8l-5-3"/></svg></span>Meetings</button>
+      <button class="nh-gitem" data-tab="team" onclick="sheetGo('team')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M15.5 3.13a3.5 3.5 0 0 1 0 6.75"/></svg></span>Team</button>
+      <button class="nh-gitem" data-tab="scores" onclick="sheetGo('scores')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>Scores</button>
+      <button class="nh-gitem" data-tab="okrs" onclick="sheetGo('okrs')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></span>OKRs</button>
+      <button class="nh-gitem" data-tab="ideas" onclick="sheetGo('ideas')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5.9 1.1 1 1.8l.1.9h5l.1-.9c.1-.7.4-1.3 1-1.8A6 6 0 0 0 12 3Z"/></svg></span>Ideas</button>
+      <button class="nh-gitem" data-tab="whatsapp" onclick="sheetGo('whatsapp')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-13.4 7.8L3 21l1.3-4.4A9 9 0 1 1 21 12Z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1a4 4 0 0 1-2-2l1-1-1-2Z"/></svg></span>WhatsApp</button>
+      <button class="nh-gitem" data-tab="roles" onclick="sheetGo('roles')"><span class="ic"><svg class="nh-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>Roles</button>
+    </div>
+
+    <div class="nh-sheet-row">
+      <button class="nh-sheet-btn" onclick="sheetFullMenu()"><svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> Full menu</button>
+      <button class="nh-sheet-btn" onclick="sheetGo('profile')"><svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg> Settings</button>
+      <button class="nh-sheet-btn danger" onclick="sheetLogout()"><svg class="nh-ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg> Sign out</button>
+    </div>
+    <div class="nh-sheet-hours"><span class="pulse"></span><span id="nh-sheet-clock"><b>Workspace</b></span></div>
+  </div>
 
 </div><!-- end app-shell -->
 
@@ -1071,6 +1117,7 @@
 <script src="./js/team.scoring.js"></script>
 <script src="./js/channels.js"></script>
 <script src="./js/whatsapp.groups.js"></script>
+<script src="./js/shell.js"></script>
 <script>
 function handleGlobalSearch(q){
   if(!q) return;
