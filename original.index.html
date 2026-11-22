@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nodaar Team Hub — Enterprise Workspace</title>
+  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#fff7ed', 100:'#ffedd5', 200:'#fed7aa', 500:'#FE8A03', 600:'#E67700', 700:'#c2410c' },
+            navy:  { 800:'#0a2140', 900:'#07192F', 950:'#030c17' }
+          },
+          fontFamily: { sans: ['"Plus Jakarta Sans"','system-ui','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family:'Plus Jakarta Sans',system-ui,sans-serif; background:#F8FAFC; color:#0F172A; }
+    .nav-btn.active { background:#FE8A03; color:#fff; font-weight:700; }
+    .nav-btn.active svg { stroke:#fff; }
+    .modal-anim { animation: slideUp .22s cubic-bezier(.34,1.56,.64,1) both; }
+    @keyframes slideUp { from { transform:translateY(28px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+    .notif-dot { width:8px;height:8px;background:#EF4444;border-radius:50%;position:absolute;top:4px;right:4px;border:2px solid #fff; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:99px; }
+    .card-hover { transition: transform .15s, box-shadow .15s; }
+    .card-hover:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,0,0,.06); }
+    .pill { display:inline-flex; align-items:center; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; }
+    .kanban-col { min-height:120px; }
+
+    /* Desktop Sidebar Collapse */
+    #sidebar { transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+    body.sidebar-collapsed #sidebar { width: 4.5rem; }
+    body.sidebar-collapsed .sidebar-text { display: none !important; }
+    body.sidebar-collapsed .sidebar-logo-text { display: none !important; }
+    body.sidebar-collapsed .sidebar-header-title { display: none !important; }
+    body.sidebar-collapsed .sidebar-user-info { display: none !important; }
+    body.sidebar-collapsed .nav-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+    body.sidebar-collapsed #sidebar-collapse-btn svg { transform: rotate(180deg); }
+
+    .bottom-nav { display:none; }
+    @media (max-width:767px) {
+      #sidebar { display:none; }
+      #sidebar.mobile-open { display:flex; position:fixed; inset:0; z-index:40; width:260px; }
+      .bottom-nav { display:flex; }
+      #main-content { padding-bottom:80px; }
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased">
+
+<!-- ==================== AUTH SCREEN ==================== -->
+<div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy-950 via-navy-900 to-[#0F2742] p-4">
+  <div class="bg-white/95 backdrop-blur-xl rounded-3xl p-8 sm:p-10 max-w-sm w-full shadow-2xl border border-white/20">
+    <div class="text-center mb-8">
+      <img src="./assets/logo.png" alt="Nodaar" class="h-14 w-auto object-contain mx-auto mb-3">
+      <h1 class="text-2xl font-black text-navy-900">Nodaar <span class="text-brand-500">Team Hub</span></h1>
+      <p class="text-xs text-slate-400 mt-1">Enterprise Workspace</p>
+    </div>
+    <div class="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 mb-6 text-center">
+      <p class="text-xs text-amber-900 font-bold">🔐 Organization Portal</p>
+      <p class="text-[11px] text-amber-700 mt-0.5">Sign in with credentials provided by management</p>
+    </div>
+    <form id="auth-form" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Email</label>
+        <input id="auth-email" type="email" placeholder="you@nodaar.com" required
+          class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-xs font-bold text-slate-700 uppercase">Password</label>
+          <button type="button" id="toggle-pw" class="text-xs font-semibold text-brand-600 hover:text-brand-700 focus:outline-none">Show</button>
+        </div>
+        <input id="auth-password" type="password" placeholder="••••••••" required
+          class="w-full text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+      <div id="auth-error" class="text-xs text-red-600 font-semibold hidden text-center rounded-xl bg-red-50 py-2 px-3"></div>
+      <button id="auth-submit-btn" type="submit" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition">
+        Sign In
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP SHELL ==================== -->
+<div id="app-shell" class="min-h-screen flex hidden">
+
+  <!-- SIDEBAR OVERLAY (mobile) -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-navy-950/60 z-30 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="hidden md:flex w-64 bg-navy-900 text-slate-300 flex-col flex-shrink-0 h-screen sticky top-0 overflow-y-auto z-40 border-r border-navy-800/60">
+    <!-- Logo & Collapse Toggle -->
+    <div class="p-4 flex items-center justify-between border-b border-navy-800/60">
+      <div class="flex items-center gap-3 overflow-hidden">
+        <div class="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shadow-sm flex-shrink-0">
+          <img src="./assets/icon_small.png" alt="Nodaar" class="w-full h-full object-contain">
+        </div>
+        <div class="sidebar-logo-text min-w-0">
+          <div class="font-extrabold text-white text-sm leading-tight truncate">Nodaar Hub</div>
+          <div class="text-[10px] text-brand-500 font-semibold uppercase tracking-wider truncate">Enterprise</div>
+        </div>
+      </div>
+      <!-- Desktop collapse toggle button -->
+      <button id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" class="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition flex-shrink-0" title="Collapse Sidebar">
+        <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+      </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="sidebar-nav" class="px-3 py-4 space-y-1 flex-1">
+      <div class="sidebar-header-title text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 mb-2">Workspace</div>
+
+      <button onclick="navigate('overview')" data-tab="overview" title="Overview & Insights" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="sidebar-text truncate">Overview & Insights</span>
+      </button>
+
+      <button onclick="navigate('tasks')" data-tab="tasks" title="Tasks & Deliverables" class="nav-btn active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <span class="sidebar-text truncate">Tasks & Deliverables</span>
+      </button>
+
+      <button onclick="navigate('reports')" data-tab="reports" title="Daily Standups" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="sidebar-text truncate">Daily Standups</span>
+      </button>
+
+      <button onclick="navigate('okrs')" data-tab="okrs" title="OKRs & Targets" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span class="sidebar-text truncate">OKRs & Targets</span>
+      </button>
+
+      <button onclick="navigate('meetings')" data-tab="meetings" title="Meetings & Notes" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="sidebar-text truncate">Meetings & Notes</span>
+      </button>
+
+      <button onclick="navigate('ideas')" data-tab="ideas" title="Ideas & Decks" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.5 17.5A6 6 0 0112 6a6 6 0 015.5 11.5"/></svg>
+        <span class="sidebar-text truncate">Ideas & Decks</span>
+      </button>
+
+      <div class="sidebar-header-title text-[10px] font-black text-slate-500 uppercase tracking-wider px-3 pt-4 mb-2">People</div>
+
+      <button onclick="navigate('team')" data-tab="team" title="Team Directory" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span class="sidebar-text truncate">Team Directory</span>
+      </button>
+
+      <button onclick="navigate('roles')" data-tab="roles" title="Roles & Permissions" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left" id="roles-nav-btn">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        <span class="sidebar-text truncate">Roles & Permissions</span>
+      </button>
+    </nav>
+
+    <!-- User footer -->
+    <div class="p-3 border-t border-navy-800/60">
+      <button onclick="navigate('profile')" title="My Profile & Settings" class="w-full flex items-center gap-3 hover:bg-white/5 rounded-xl p-2 transition text-left group">
+        <div id="sidebar-avatar" class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-xs flex items-center justify-center flex-shrink-0 overflow-hidden">?</div>
+        <div class="sidebar-user-info flex-1 min-w-0">
+          <div id="user-display-name" class="text-xs font-bold text-white truncate">Loading…</div>
+          <div id="user-display-role" class="text-[10px] text-slate-400 truncate">Member</div>
+        </div>
+        <svg class="sidebar-user-info w-4 h-4 text-slate-500 group-hover:text-brand-500 flex-shrink-0 transition" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <button onclick="logout()" title="Sign Out" class="mt-1 w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition font-semibold">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span class="sidebar-text truncate">Sign Out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- TOP BAR -->
+    <header class="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <div class="flex items-center gap-3">
+        <!-- Mobile hamburger -->
+        <button onclick="openMobileSidebar()" class="md:hidden p-1.5 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5 text-navy-900" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div>
+          <h1 id="page-title" class="font-extrabold text-navy-900 text-base md:text-lg leading-tight">Overview & Insights</h1>
+          <p id="page-subtitle" class="text-[11px] text-slate-400 hidden sm:block">Team velocity, performance metrics and activity</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- ADMIN QUICK ROLE SWITCHER -->
+        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
+          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-xs font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer">
+            <option value="">Admin / Founder</option>
+          </select>
+        </div>
+
+        <!-- Notification bell -->
+        <div class="relative">
+          <button id="notif-bell" onclick="toggleNotifPanel()" class="relative p-2 rounded-xl hover:bg-slate-100 transition">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            <span id="notif-badge" class="notif-dot hidden"></span>
+          </button>
+        </div>
+
+        <!-- Primary Action button -->
+        <button id="primary-action-btn" onclick="openActionModal()" class="px-3 md:px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
+          <span class="text-base leading-none">+</span>
+          <span id="action-btn-text" class="hidden sm:inline">New Task</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION PANEL (slide-out) -->
+    <div id="notif-panel" class="hidden fixed inset-y-0 right-0 w-80 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+        <span class="font-bold text-sm text-navy-900">🔔 Notifications</span>
+        <div class="flex gap-2">
+          <button onclick="markAllNotifsRead()" class="text-xs text-brand-600 font-semibold hover:text-brand-700">Mark all read</button>
+          <button onclick="toggleNotifPanel()" class="text-slate-400 hover:text-slate-600 text-lg font-bold leading-none">&times;</button>
+        </div>
+      </div>
+      <div id="notif-list" class="flex-1 overflow-y-auto divide-y divide-slate-50"></div>
+    </div>
+
+    <!-- VIEW CONTAINERS -->
+    <main id="main-content" class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+
+      <!-- ===== SECTION: OVERVIEW & PERFORMANCE INSIGHTS ===== -->
+      <section id="view-overview" class="view-section">
+        <!-- 1. KPI Metric Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="overview-kpi-cards">
+          <!-- Loaded dynamically -->
+        </div>
+
+        <!-- 2. Blockers Alert Watchlist (if any active blockers) -->
+        <div id="overview-blockers-container" class="mb-6 hidden"></div>
+
+        <!-- 3. Member Performance & Accountability List Table -->
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-sm text-navy-900">Member Performance & Productivity Insights</h3>
+              <p class="text-xs text-slate-400">Tracking task delivery rates, logged hours, mood morale, and latest Google Drive proofs</p>
+            </div>
+            <button onclick="loadOverviewData()" class="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">
+              <span>🔄</span> Refresh Metrics
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                  <th class="py-3 px-4">Team Member</th>
+                  <th class="py-3 px-4">Role / Dept</th>
+                  <th class="py-3 px-4">Task Completion</th>
+                  <th class="py-3 px-4">Standups & Hours</th>
+                  <th class="py-3 px-4">Team Morale</th>
+                  <th class="py-3 px-4">Latest Drive Work</th>
+                  <th class="py-3 px-4 text-right">Status Rating</th>
+                </tr>
+              </thead>
+              <tbody id="overview-performance-table" class="divide-y divide-slate-100 text-xs">
+                <!-- Dynamically loaded rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 4. Department & Role Velocity Breakdown -->
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-sm text-navy-900">Department / Role Velocity Breakdown</h3>
+            <span class="text-xs text-slate-400">Progress by functional unit</span>
+          </div>
+          <div id="overview-roles-breakdown" class="divide-y divide-slate-100">
+            <!-- Dynamically loaded rows -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: TASKS ===== -->
+      <section id="view-tasks" class="view-section hidden">
+        <!-- Filter & View Switcher Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="task-filter" onchange="loadTasks()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="all">All Tasks</option>
+              <option value="mine">My Tasks</option>
+              <option value="role">My Role's Tasks</option>
+              <option value="admin">🔒 Admin Work</option>
+            </select>
+            <select id="task-role-filter" onchange="loadTasks()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="all">All Roles</option>
+            </select>
+            <select id="task-priority-filter" onchange="loadTasks()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="all">All Priorities</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+
+          <!-- View mode toggle: List vs Board -->
+          <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button id="task-view-board-btn" onclick="setTaskViewMode('board')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-navy-900 shadow-sm transition">
+              📋 Board
+            </button>
+            <button id="task-view-list-btn" onclick="setTaskViewMode('list')" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-navy-900 transition">
+              ☰ List View
+            </button>
+          </div>
+        </div>
+
+        <!-- Task containers: Board or List -->
+        <div id="tasks-board-container" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+        <div id="tasks-list-container" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                  <th class="py-3 px-4">Task</th>
+                  <th class="py-3 px-4">Priority</th>
+                  <th class="py-3 px-4">Role / Dept</th>
+                  <th class="py-3 px-4">Assignee</th>
+                  <th class="py-3 px-4">Due Date</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-table-body" class="divide-y divide-slate-100 text-xs"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: REPORTS ===== -->
+      <section id="view-reports" class="view-section hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-5 shadow-sm">
+          <h3 class="font-bold text-sm text-navy-900 mb-4 flex items-center gap-2">
+            <span class="bg-brand-500 text-white rounded-lg p-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg></span>
+            Submit Today's Standup
+          </h3>
+          <form id="report-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">✅ What did you accomplish today?</label>
+                <textarea id="rep-done" rows="3" required placeholder="Finished campaign designs..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">🚀 Plan for tomorrow?</label>
+                <textarea id="rep-plan" rows="3" required placeholder="Launch marketing ads..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">⚠️ Blockers?</label>
+                <input id="rep-blockers" type="text" placeholder="None / describe..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">📁 Drive Deliverable Link</label>
+                <input id="rep-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Hours & Mood</label>
+                <div class="flex gap-2">
+                  <input id="rep-hours" type="number" step="0.5" value="8" class="w-20 text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                  <select id="rep-mood" class="flex-1 text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <option>🔥 Great</option><option>👍 Good</option><option>😐 Neutral</option><option>😴 Tired</option><option>🛑 Blocked</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Submit Daily Standup</button>
+          </form>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 font-bold text-sm text-navy-900">Recent Team Standups (List)</div>
+          <div id="reports-list" class="divide-y divide-slate-100"></div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: OKRS (Structured List View) ===== -->
+      <section id="view-okrs" class="view-section hidden">
+        <!-- OKR Filter bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="okr-role-filter" onchange="loadOKRs()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="all">All Roles & Departments</option>
+            </select>
+            <select id="okr-quarter-filter" onchange="loadOKRs()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="all">All Quarters</option>
+              <option value="Q1">Q1</option>
+              <option value="Q2">Q2</option>
+              <option value="Q3">Q3</option>
+              <option value="Q4">Q4</option>
+            </select>
+          </div>
+          <button onclick="openActionModal()" class="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-sm transition">
+            + Add OKR
+          </button>
+        </div>
+        <!-- List container -->
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden" id="okrs-list-wrapper">
+          <div id="okrs-container" class="divide-y divide-slate-100"></div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: MEETINGS (Structured List) ===== -->
+      <section id="view-meetings" class="view-section hidden">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <span class="font-bold text-sm text-navy-900">Scheduled Team Meetings & Agendas</span>
+            <button onclick="openActionModal()" class="text-xs font-bold text-brand-600 hover:text-brand-700">+ New Meeting</button>
+          </div>
+          <div class="divide-y divide-slate-100" id="meetings-container"></div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: IDEAS (Structured List) ===== -->
+      <section id="view-ideas" class="view-section hidden">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <span class="font-bold text-sm text-navy-900">Innovation Decks & Pitches</span>
+              <p class="text-xs text-slate-400">Team initiatives and Google Drive proposal links</p>
+            </div>
+            <button onclick="openActionModal()" class="px-3.5 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-sm transition">+ Pitch Idea</button>
+          </div>
+          <div class="divide-y divide-slate-100" id="ideas-container"></div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: TEAM (Enterprise Table/List View) ===== -->
+      <section id="view-team" class="view-section hidden">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-sm text-navy-900" id="team-count-text">Team Directory</h3>
+              <p class="text-xs text-slate-400">Manage organization members, assigned roles, permissions, and contacts</p>
+            </div>
+            <button id="team-add-user-btn" onclick="openAddUserModal()" class="hidden px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <span>+</span> Add New User
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                  <th class="py-3 px-4">Member</th>
+                  <th class="py-3 px-4">Role / Department</th>
+                  <th class="py-3 px-4">Access Level</th>
+                  <th class="py-3 px-4">Contact Phone</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="team-table-body" class="divide-y divide-slate-100 text-xs">
+                <!-- Dynamically loaded list rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: ROLES (Structured List View) ===== -->
+      <section id="view-roles" class="view-section hidden">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-sm text-navy-900" id="roles-count-text">Roles & Permissions Directory</h3>
+              <p class="text-xs text-slate-400">Define functional roles and group team members</p>
+            </div>
+            <button onclick="openActionModal()" class="px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+              <span>+</span> Create New Role
+            </button>
+          </div>
+          <div class="divide-y divide-slate-100" id="roles-container"></div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: PROFILE ===== -->
+      <section id="view-profile" class="view-section hidden">
+        <div class="max-w-2xl mx-auto space-y-5">
+          <!-- Avatar card -->
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row items-center gap-6">
+            <div class="relative">
+              <div id="profile-avatar-large" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-3xl flex items-center justify-center overflow-hidden shadow-lg">?</div>
+              <label for="avatar-upload" class="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-500 hover:bg-brand-600 text-white rounded-full flex items-center justify-center cursor-pointer shadow-md transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.172a2 2 0 001.414-.586l.828-.828A2 2 0 019 5h6a2 2 0 011.414.586l.828.828A2 2 0 0018.828 7H21a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+              </label>
+              <input type="file" id="avatar-upload" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
+            </div>
+            <div class="text-center sm:text-left">
+              <div id="profile-name-display" class="font-black text-xl text-navy-900">Loading…</div>
+              <div id="profile-role-display" class="text-xs text-brand-600 font-semibold mt-1"></div>
+              <div id="profile-email-display" class="text-xs text-slate-400 mt-1"></div>
+              <span id="profile-access-badge" class="pill mt-2 bg-purple-100 text-purple-700">Member</span>
+            </div>
+          </div>
+          <!-- Edit form -->
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+            <h3 class="font-bold text-sm text-navy-900 mb-4">Edit Profile</h3>
+            <form id="profile-form" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Full Name</label>
+                  <input id="pf-name" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
+                  <input id="pf-role" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Assigned Role</label>
+                  <select id="pf-role-id" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <option value="">No Role</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label>
+                  <input id="pf-phone" type="tel" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+              </div>
+              <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Save Profile</button>
+            </form>
+          </div>
+          <!-- Change password -->
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+            <h3 class="font-bold text-sm text-navy-900 mb-4">Change Password</h3>
+            <form id="pw-form" class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">New Password</label>
+                <input id="pf-newpw" type="password" placeholder="Min 6 characters" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Confirm New Password</label>
+                <input id="pf-confirmpw" type="password" placeholder="Re-enter password" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <button type="submit" class="px-5 py-2.5 bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs rounded-xl shadow transition">Update Password</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div><!-- end app-shell -->
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 py-1.5 px-2 justify-around items-center shadow-xl">
+  <button onclick="navigate('overview')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-overview">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    <span class="text-[9px] font-bold">Insights</span>
+  </button>
+  <button onclick="navigate('tasks')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-tasks">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+    <span class="text-[9px] font-bold">Tasks</span>
+  </button>
+  <button onclick="navigate('reports')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-reports">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    <span class="text-[9px] font-bold">Standup</span>
+  </button>
+  <button onclick="navigate('team')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-team">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    <span class="text-[9px] font-bold">Team</span>
+  </button>
+  <button onclick="navigate('profile')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-profile">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="text-[9px] font-bold">Profile</span>
+  </button>
+</nav>
+
+<!-- ===== GENERIC MODAL ===== -->
+<div id="action-modal" class="fixed inset-0 z-50 bg-navy-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+  <div class="modal-anim bg-white rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-5">
+      <h3 id="modal-title" class="font-extrabold text-navy-900 text-lg">New Task</h3>
+      <button onclick="closeActionModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 text-xl font-bold leading-none transition">&times;</button>
+    </div>
+    <form id="modal-form" class="space-y-4">
+      <div id="modal-fields" class="space-y-3"></div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeActionModal()" class="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">Cancel</button>
+        <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 bg-navy-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl transition-all opacity-0 pointer-events-none flex items-center gap-2 max-w-xs"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>

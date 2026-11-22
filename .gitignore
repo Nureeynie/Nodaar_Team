@@ -1,0 +1,16 @@
+# Env
+.env
+.env.local
+
+# Build
+dist/
+node_modules/
+.vite/
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

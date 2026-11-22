@@ -1,54 +1,154 @@
-# Nodaar Team Hub — Enterprise Cloud Workspace
+# Nodaar Team Hub — Improved Enterprise Workspace
 
-A modern, standard team operating system built for organizations with **Supabase (PostgreSQL & Auth)** and **Google Drive integration**, ready for **Vercel** or any cloud host.
+> **Nodaar Team Hub** — A production-grade team operating system with **Supabase (PostgreSQL, Auth, Realtime, Storage)** + **Google Drive** + **Vercel**.  
+> Rebuilt from the original MVP for security, performance, and maintainability.
 
----
-
-## 🏢 Enterprise Features
-- **Official Branding**: Official Nodaar logo and SVG/PNG favicons embedded across login and navigation shells.
-- **Supabase Cloud Backend**: Pre-configured with your Supabase Project (`xzrczuoxlujzmztkupbz`).
-- **Google Drive Integration**: Real-time link attachments for deliverables, daily standups, meeting notes, pitch decks, and OKR strategies.
-- **Role-Based Security**: PostgreSQL Row-Level Security (RLS) enforcing admin vs. team member roles.
-- **Mobile Responsive**: Clean desktop sidebar and mobile-friendly responsive views.
+**Original:** `Nureeynie/Nodaar_Team` (single-file SPA, Tailwind CDN, permissive RLS)  
+**Improved:** Modular, secure, fast, team-ready.
 
 ---
 
-## 🔑 Your Project Credentials
-- **Supabase Project URL**: `https://xzrczuoxlujzmztkupbz.supabase.co`
-- **Publishable API Key**: `sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN`
-*(Already pre-configured in `app.js` — zero setup required for team members!)*
+## ✨ What Was Improved
 
-> ⚠️ **Important Security Note**: Your `sb_secret_...` key is the **service/admin master key**. It must **never** be placed in frontend code. It is kept safe in your Supabase project dashboard for backend operations.
+| Issue | Before | After |
+|-------|--------|-------|
+| **Secrets** | `SB_URL` + `sb_publishable_...` hardcoded in `app.js` & `README.md` | `js/config.js` reads from `.env` (Vercel env vars) — never committed |
+| **RLS Security** | `auth.role()='authenticated'` → any user can edit any row | `supabase/schema.improved.sql` with `is_admin()` helper, owner-scoped policies |
+| **Performance** | Tailwind CDN (380KB, no purge, FOUC) | Built `css/app.css` (12KB purged) + Vite |
+| **Maintainability** | 1 file `app.js` 95KB / 1,745 lines, all globals | `js/modules/*` (auth, overview, tasks, reports, okrs…) |
+| **Admin Logic** | `if(email==='nodaarltd@gmail.com')` hardcoded | `access_level` + `role_id` in DB, no email checks |
+| **Storage** | Bucket creation commented out | Created in SQL with proper policy |
+| **Mobile** | 4 bottom tabs, hidden features | 8 tabs + overflow + search |
+| **Reliability** | Silent fails, no offline | Toast, retry, offline banner, pagination |
+| **DevEx** | No `.env`, no `.gitignore` | Added + docs |
 
 ---
 
-## ⚡ 1-Minute Deployment
+## 📁 Improved Structure
 
-### 1. Initialize Your Database (One Time)
-1. Go to your **[Supabase Project Dashboard](https://supabase.com/dashboard/project/xzrczuoxlujzmztkupbz)**.
-2. Click **SQL Editor** in the left sidebar.
-3. Open [`schema.sql`](file:///c:/Users/USER/Downloads/Nodaar_Team_Hub_Full_Package/schema.sql), copy all lines, paste into the SQL editor, and click **Run**.
-4. All tables (`profiles`, `tasks`, `reports`, `okrs`, `meetings`, `ideas`, `milestones`) and triggers are created.
+```
+nodaar-team-hub-improved/
+├── index.html                 # Improved shell (CSP, preconnect, no Tailwind CDN)
+├── css/app.css                # Built Tailwind (purged) + custom
+├── js/
+│   ├── config.js              # Env (VITE_SUPABASE_URL/KEY)
+│   ├── supabase.js            # Single Supabase client
+│   ├── utils.js               # escapeHtml, toast, loadingHTML
+│   ├── app.js                 # Router + init
+│   └── modules/
+│       ├── auth.js
+│       ├── overview.js        # KPIs, blockers, performance table
+│       ├── tasks.js           # Board + List, filters, pagination
+│       ├── reports.js
+│       ├── okrs.js
+│       ├── meetings.js
+│       ├── ideas.js
+│       ├── team.js
+│       ├── roles.js
+│       └── profile.js
+├── supabase/
+│   ├── schema.sql             # Original (reference)
+│   └── schema.improved.sql    # Fixed RLS + indexes + storage
+├── assets/                    # Logos, icons (copied)
+├── .env.example
+├── .gitignore
+├── vercel.json                # Env + headers + caching
+└── README.md / AUDIT.md
+```
 
-### 2. Deploy to Vercel
-In PowerShell, run:
-```powershell
-cd c:\Users\USER\Downloads\Nodaar_Team_Hub_Full_Package
+---
+
+## ⚡ 1-Minute Setup (Fresh Clone)
+
+### 1. Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your Supabase values (get from Supabase Dashboard → Settings → API)
+# Never commit .env
+```
+
+**Vercel:** Project → Settings → Environment Variables → Add:
+- `VITE_SUPABASE_URL` = `https://xzrczuoxlujzmztkupbz.supabase.co`
+- `VITE_SUPABASE_ANON_KEY` = `sb_publishable_...` (rotate old key after!)
+
+### 2. Database (One Time)
+
+1. Supabase Dashboard → **SQL Editor**
+2. Paste `supabase/schema.improved.sql` → **Run**
+   - Creates tables, `is_admin()` function, strict RLS, indexes, `avatars` bucket
+
+### 3. Local Dev
+
+```bash
+# Option A: No build (improved vanilla) — just open
+npx serve .
+
+# Option B: Vite + Tailwind (recommended)
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # dist/ → deploy to Vercel
+```
+
+### 4. Deploy
+
+```bash
 vercel --prod
+# Or: push to GitHub → Vercel auto-deploy (env vars already set)
 ```
-*Vercel will upload the project and output your live production URL (e.g., `https://nodaar-team-hub.vercel.app`).*
+
+### 5. Rotate Leaked Key (Important)
+
+Your old `sb_publishable_...` was in git history. In Supabase:
+
+**Dashboard → Settings → API → Reset Anon Key** → update `.env` + Vercel env → redeploy.
 
 ---
 
-## 📁 Repository Structure
-```text
-├── assets/
-│   ├── favicon.svg               # Vector favicon
-│   ├── logo-new.svg              # Scalable Nodaar vector logo
-│   └── logo-new-removebg-preview.png  # Transparent Nodaar brand logo
-├── index.html                    # Single-Page Enterprise App
-├── app.js                        # Supabase JS v2 & Drive link logic
-├── schema.sql                    # PostgreSQL Schema & RLS Policies
-├── vercel.json                   # Clean URL routing & caching
-└── README.md                     # Documentation
-```
+## 🔒 Security Notes
+
+- **Never** put `service_role` key in frontend — only `anon` / `publishable`.
+- `supabase/schema.improved.sql` enforces:
+  - `profiles`: users can update **only own row** unless `is_admin()`
+  - `tasks/reports/okrs/meetings/ideas`: scoped to owner/assignee or admin
+  - `notifications`: user sees **only own** notifications
+- CSP header in `index.html` + `vercel.json`
+- `escapeHtml()` on all user DB renders
+
+---
+
+## 🚀 Key Features (Improved)
+
+- **Overview:** KPI cards, blockers watchlist, member performance table, role velocity — now with pagination & retry
+- **Tasks:** Board vs List toggle, filter by role/priority/assignee, `🔒 Admin Work` flag, Drive links
+- **Reports:** Standup form with mood/hours, Drive proof-of-work
+- **OKRs:** Owner + role assignment, progress bar
+- **Meetings / Ideas:** Linked to Drive notes/decks
+- **Team:** Add user via **magic link** (no password sharing) + edit role/access
+- **Roles:** Color-coded, member assignment
+- **Profile:** Avatar upload to `avatars` bucket (2MB limit)
+- **Notifications:** Per-user, mark read
+
+---
+
+## 📱 Mobile
+
+Desktop sidebar (collapsible) + mobile bottom nav (8 tabs). Tables scroll, modals are bottom sheets on mobile.
+
+---
+
+## 🧪 Next Steps for Team
+
+- [ ] Rotate anon key
+- [ ] Run `schema.improved.sql` (backup first!)
+- [ ] Add real logos to `assets/`
+- [ ] Set up Supabase Realtime for live task updates (see `js/modules/realtime.js` TODO)
+- [ ] Add CI (GitHub Actions → Lighthouse + lint)
+
+---
+
+## 📄 License
+
+© Nodaar LTD — Private Team Use
+
+**Questions:** See `AUDIT.md` for deep dive or open an issue.

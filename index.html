@@ -4,14 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Nodaar Team Hub — Enterprise Workspace</title>
+  <meta name="description" content="Nodaar Team Hub — Enterprise workspace for tasks, standups, OKRs, meetings and team operations. Secure, fast, mobile-ready.">
+  <meta name="theme-color" content="#07192F">
+  <meta name="color-scheme" content="light">
+  <link rel="canonical" href="https://nodaar-team.vercel.app/">
+  <link rel="manifest" href="./manifest.json">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://*.supabase.co wss://*.supabase.co; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co;">
   <link rel="icon" type="image/png" href="./assets/favicon.png">
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Built Tailwind (Vite) — run npm run build; fallback CDN removed for prod -->
+  <link rel="stylesheet" href="./css/app.built.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Env config must load before app logic -->
+  <script type="module" src="./js/config.js"></script>
   <script>
-    tailwind.config = {
+    // Legacy tailwind config retained for preview without build (will be ignored when css/app.css loads)
+    if(typeof tailwind !== 'undefined') tailwind.config = {
       theme: {
         extend: {
           colors: {
@@ -59,6 +70,7 @@
   </style>
 </head>
 <body class="min-h-screen antialiased">
+<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-navy-900 focus:px-4 focus:py-2 focus:rounded-xl focus:shadow">Skip to content</a>
 
 <!-- ==================== AUTH SCREEN ==================== -->
 <div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy-950 via-navy-900 to-[#0F2742] p-4">
@@ -216,6 +228,11 @@
           </button>
         </div>
 
+        <!-- Search (improved) -->
+        <div class="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
+          <input id="global-search" type="search" placeholder="Search tasks, members..." class="bg-transparent text-xs w-40 focus:outline-none" oninput="handleGlobalSearch(this.value)">
+        </div>
         <!-- Primary Action button -->
         <button id="primary-action-btn" onclick="openActionModal()" class="px-3 md:px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
           <span class="text-base leading-none">+</span>
@@ -580,6 +597,10 @@
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
     <span class="text-[9px] font-bold">Team</span>
   </button>
+  <button onclick="navigate('okrs')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-okrs">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+    <span class="text-[9px] font-bold">OKRs</span>
+  </button>
   <button onclick="navigate('profile')" class="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 hover:text-brand-500 transition" id="bn-profile">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <span class="text-[9px] font-bold">Profile</span>
@@ -606,6 +627,21 @@
 <!-- Toast -->
 <div id="toast" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 bg-navy-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl transition-all opacity-0 pointer-events-none flex items-center gap-2 max-w-xs"></div>
 
-<script src="./app.js"></script>
+<script type="module" src="./js/app.improved.js"></script>
+<script src="./js/app.legacy.js"></script>
+<script>
+function handleGlobalSearch(q){
+  if(!q) return;
+  console.log('[search]', q);
+  // Filter tasks if on tasks tab
+  if(activeTab==='tasks'){
+    const cards = document.querySelectorAll('#tasks-board-container .card-hover, #tasks-table-body tr');
+    cards.forEach(el=>{
+      const txt = el.textContent.toLowerCase();
+      el.style.display = txt.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+}
+</script>
 </body>
 </html>
