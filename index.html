@@ -445,9 +445,9 @@
 
       <div class="flex items-center gap-2 sm:gap-3">
         <!-- ADMIN QUICK ROLE SWITCHER -->
-        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
-          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
-          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-xs font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer">
+        <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl max-w-[125px] overflow-hidden">
+          <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
+          <select id="admin-active-role-select" onchange="switchAdminRole(this.value)" class="text-[11px] font-bold text-navy-900 bg-transparent focus:outline-none cursor-pointer max-w-[85px] truncate">
             <option value="">Admin / Founder</option>
           </select>
         </div>
@@ -881,7 +881,7 @@
   </div>
 
   <!-- BOTTOM NAV (mobile - 5 thumb-friendly items - ONLY rendered when app-shell is active) -->
-  <nav class="bottom-nav fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 py-1.5 px-2 justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)] md:hidden">
+  <nav class="bottom-nav fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 py-1.5 px-2 justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)] md:hidden">
     <button onclick="navigate('channels')" class="flex flex-col items-center justify-center flex-1 py-1 text-slate-500 hover:text-brand-500 transition active:scale-95" id="bn-channels">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
       <span class="text-[10px] font-bold mt-0.5 tracking-tight">Channels</span>

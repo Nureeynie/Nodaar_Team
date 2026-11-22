@@ -1208,6 +1208,10 @@ video {
   max-width: 120px;
 }
 
+.max-w-\[125px\] {
+  max-width: 125px;
+}
+
 .max-w-\[150px\] {
   max-width: 150px;
 }
@@ -1218,6 +1222,10 @@ video {
 
 .max-w-\[80px\] {
   max-width: 80px;
+}
+
+.max-w-\[85px\] {
+  max-width: 85px;
 }
 
 .max-w-full {
@@ -2910,27 +2918,16 @@ button, a, input, select, textarea {
   display: flex;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   scroll-behavior: smooth;
   gap: 0.75rem;
 }
 
 .horizontal-scroller::-webkit-scrollbar {
-  height: 6px;
-}
-
-.horizontal-scroller::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 99px;
-}
-
-.horizontal-scroller::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 99px;
-}
-
-.horizontal-scroller::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .card-hover {
@@ -3108,13 +3105,23 @@ body.sidebar-collapsed #sidebar-collapse-btn svg {
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 40;
+    z-index: 50 !important;
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
     height: calc(56px + max(env(safe-area-inset-bottom, 0px), 8px));
   }
 
   #main-content {
     padding-bottom: calc(76px + max(env(safe-area-inset-bottom, 0px), 8px)) !important;
+  }
+
+  /* Prevent third-party badges (e.g. Netlify badge) from blocking mobile navigation */
+
+  [class*="netlify"],
+  [id*="netlify"],
+  div[style*="fixed"][style*="bottom"]:not(#toast):not(.bottom-nav),
+  a[href*="netlify.com"] {
+    bottom: calc(66px + max(env(safe-area-inset-bottom, 0px), 8px)) !important;
+    z-index: 30 !important;
   }
 
   /* Prevent iOS Safari auto-zoom on inputs */
