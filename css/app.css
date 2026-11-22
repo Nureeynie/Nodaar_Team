@@ -198,7 +198,19 @@ body.sidebar-collapsed #sidebar-collapse-btn svg { transform: rotate(180deg); }
     height: calc(56px + max(env(safe-area-inset-bottom, 0px), 8px));
   }
   #main-content {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    padding-top: 0.75rem !important;
     padding-bottom: calc(76px + max(env(safe-area-inset-bottom, 0px), 8px)) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .view-section {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .scorecard-card {
+    width: 100% !important;
   }
 
   /* Prevent third-party badges (e.g. Netlify badge) from blocking mobile navigation */

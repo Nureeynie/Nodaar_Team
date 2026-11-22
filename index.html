@@ -431,19 +431,19 @@
   <div class="flex-1 flex flex-col min-w-0">
 
     <!-- TOP BAR -->
-    <header class="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-      <div class="flex items-center gap-3">
+    <header class="bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <!-- Mobile hamburger -->
-        <button onclick="openMobileSidebar()" class="md:hidden p-1.5 rounded-lg hover:bg-slate-100 transition">
+        <button onclick="openMobileSidebar()" class="md:hidden p-1.5 rounded-lg hover:bg-slate-100 transition flex-shrink-0" aria-label="Open navigation menu">
           <svg class="w-5 h-5 text-navy-900" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <div>
-          <h1 id="page-title" class="font-extrabold text-navy-900 text-base md:text-lg leading-tight">Overview & Insights</h1>
-          <p id="page-subtitle" class="text-[11px] text-slate-400 hidden sm:block">Team velocity, performance metrics and activity</p>
+        <div class="min-w-0 pr-2">
+          <h1 id="page-title" class="font-extrabold text-navy-900 text-sm sm:text-base md:text-lg leading-tight truncate">Overview & Insights</h1>
+          <p id="page-subtitle" class="text-[11px] text-slate-400 hidden sm:block truncate">Team velocity, performance metrics and activity</p>
         </div>
       </div>
 
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
         <!-- ADMIN QUICK ROLE SWITCHER -->
         <div id="admin-role-switcher-box" class="hidden sm:flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl max-w-[125px] overflow-hidden">
           <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Role:</span>
@@ -486,21 +486,21 @@
     </div>
 
     <!-- VIEW CONTAINERS -->
-    <main id="main-content" class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+    <main id="main-content" class="flex-1 p-3 sm:p-4 md:p-6 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
 
       <!-- ===== SECTION: OVERVIEW & PERFORMANCE INSIGHTS ===== -->
       <section id="view-overview" class="view-section">
         <!-- 1. KPI Metric Summary Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="overview-kpi-cards">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6" id="overview-kpi-cards">
           <!-- Loaded dynamically -->
         </div>
 
         <!-- 2. Blockers Alert Watchlist (if any active blockers) -->
-        <div id="overview-blockers-container" class="mb-6 hidden"></div>
+        <div id="overview-blockers-container" class="mb-5 sm:mb-6 hidden"></div>
 
         <!-- 3. Member Performance & Accountability List Table -->
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-6">
-          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-5 sm:mb-6">
+          <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 class="font-bold text-sm text-navy-900">Member Performance & Productivity Insights</h3>
               <p class="text-xs text-slate-400">Tracking task delivery rates, logged hours, mood morale, and latest Google Drive proofs</p>
@@ -509,8 +509,8 @@
               <span>🔄</span> Refresh Metrics
             </button>
           </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+          <div class="overflow-x-auto horizontal-scroller">
+            <table class="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr class="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
                   <th class="py-3 px-4">Team Member</th>
@@ -577,9 +577,9 @@
 
         <!-- Task containers: Board or List (with Horizontal Scroller) -->
         <div id="tasks-board-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-x-auto horizontal-scroller pb-2"></div>
-        <div id="tasks-list-container" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="tasks-list-container" class="hidden bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="overflow-x-auto horizontal-scroller">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left border-collapse min-w-[650px]">
               <thead>
                 <tr class="bg-slate-50 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
                   <th class="py-3 px-4">Task</th>
@@ -599,7 +599,7 @@
 
       <!-- ===== SECTION: REPORTS ===== -->
       <section id="view-reports" class="view-section hidden">
-        <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-5 shadow-sm">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-4 sm:p-5 mb-5 shadow-sm">
           <h3 class="font-bold text-sm text-navy-900 mb-4 flex items-center gap-2">
             <span class="bg-brand-500 text-white rounded-lg p-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg></span>
             Submit Today's Standup
@@ -634,7 +634,7 @@
                 </div>
               </div>
             </div>
-            <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Submit Daily Standup</button>
+            <button type="submit" class="w-full sm:w-auto px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Submit Daily Standup</button>
           </form>
         </div>
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -671,13 +671,13 @@
 
       <!-- ===== SECTION: MEETINGS (Structured List) ===== -->
       <section id="view-meetings" class="view-section hidden">
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span class="font-bold text-sm text-navy-900">Scheduled Team Meetings & Agendas</span>
               <p class="text-xs text-slate-400">Google Meet links, drive meeting notes and collaborative sync</p>
             </div>
-            <button onclick="openActionModal()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+            <button onclick="openActionModal()" class="w-full sm:w-auto justify-center px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
               <span class="text-base leading-none">+</span> Schedule Meeting
             </button>
           </div>
@@ -687,13 +687,13 @@
 
       <!-- ===== SECTION: IDEAS (Structured List) ===== -->
       <section id="view-ideas" class="view-section hidden">
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span class="font-bold text-sm text-navy-900">Innovation Decks & Pitches</span>
               <p class="text-xs text-slate-400">Team initiatives and Google Drive proposal links</p>
             </div>
-            <button onclick="openActionModal()" class="px-3.5 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-sm transition">+ Pitch Idea</button>
+            <button onclick="openActionModal()" class="w-full sm:w-auto justify-center px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-xl shadow-sm transition">+ Pitch Idea</button>
           </div>
           <div class="divide-y divide-slate-100" id="ideas-container"></div>
         </div>
@@ -725,35 +725,34 @@
       <!-- ===== SECTION: TEAM (Enterprise Table/List View) ===== -->
       <section id="view-team" class="view-section hidden">
         <!-- Sub-navigation: Members Directory vs Performance Scores -->
-        <div class="flex items-center gap-2 mb-4 bg-slate-100 p-1 rounded-2xl w-fit">
-          <button class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-navy-900 shadow-sm transition">
-            👥 Team Directory
+        <div class="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 mb-4 bg-slate-100 p-1 rounded-2xl w-full sm:w-fit">
+          <button class="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold bg-white text-navy-900 shadow-sm transition text-center justify-center">
+            👥 Directory
           </button>
-          <button onclick="navigate('scores')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-navy-900 transition flex items-center gap-1.5">
-            <span>🏆</span> Team Scores & Evaluations
-            <span class="pill bg-brand-50 text-brand-700 text-[9px] px-1.5 py-0.2">Auto & Manual</span>
+          <button onclick="navigate('scores')" class="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-navy-900 transition flex items-center justify-center gap-1.5 text-center">
+            <span>🏆</span> Scores
+            <span class="pill bg-brand-50 text-brand-700 text-[9px] px-1 py-0.2 hidden sm:inline">Auto</span>
           </button>
         </div>
 
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 class="font-bold text-sm text-navy-900" id="team-count-text">Team Directory</h3>
               <p class="text-xs text-slate-400">Manage organization members, assigned roles, permissions, and contacts</p>
             </div>
-            <div class="flex items-center gap-2">
-              <button id="team-whatsapp-btn" onclick="navigate('whatsapp')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5" title="Manage Team WhatsApp Groups">
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <button id="team-whatsapp-btn" onclick="navigate('whatsapp')" class="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5" title="Manage Team WhatsApp Groups">
                 <span>📱</span>
-                <span class="hidden sm:inline">WhatsApp Groups</span>
-                <span class="sm:hidden">WhatsApp</span>
+                <span>WhatsApp</span>
               </button>
-              <button id="team-add-user-btn" onclick="openAddUserModal()" class="px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
-                <span class="text-base leading-none">+</span> Add New User
+              <button id="team-add-user-btn" onclick="openAddUserModal()" class="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                <span class="text-base leading-none">+</span> Add User
               </button>
             </div>
           </div>
           <div class="overflow-x-auto horizontal-scroller">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr class="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
                   <th class="py-3 px-4">Member</th>
@@ -775,13 +774,13 @@
       <!-- ===== SECTION: TEAM SCORES & PERFORMANCE (Automatic & Admin Managed) ===== -->
       <section id="view-scores" class="view-section hidden">
         <!-- Sub-navigation: Members Directory vs Performance Scores -->
-        <div class="flex items-center gap-2 mb-4 bg-slate-100 p-1 rounded-2xl w-fit">
-          <button onclick="navigate('team')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-navy-900 transition flex items-center gap-1.5">
-            👥 Team Directory
+        <div class="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 mb-4 bg-slate-100 p-1 rounded-2xl w-full sm:w-fit">
+          <button onclick="navigate('team')" class="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-navy-900 transition flex items-center justify-center gap-1.5 text-center">
+            👥 Directory
           </button>
-          <button class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-navy-900 shadow-sm transition flex items-center gap-1.5">
-            <span>🏆</span> Team Scores & Evaluations
-            <span class="pill bg-brand-50 text-brand-700 text-[9px] px-1.5 py-0.2">Auto & Manual</span>
+          <button class="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold bg-white text-navy-900 shadow-sm transition flex items-center justify-center gap-1.5 text-center">
+            <span>🏆</span> Scores
+            <span class="pill bg-brand-50 text-brand-700 text-[9px] px-1 py-0.2 hidden sm:inline">Auto</span>
           </button>
         </div>
 
@@ -792,13 +791,13 @@
 
       <!-- ===== SECTION: ROLES (Structured List View) ===== -->
       <section id="view-roles" class="view-section hidden">
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 class="font-bold text-sm text-navy-900" id="roles-count-text">Roles & Permissions Directory</h3>
               <p class="text-xs text-slate-400">Define functional roles and group team members</p>
             </div>
-            <button onclick="openActionModal()" class="px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <button onclick="openActionModal()" class="w-full sm:w-auto justify-center px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
               <span>+</span> Create New Role
             </button>
           </div>
@@ -808,11 +807,11 @@
 
       <!-- ===== SECTION: PROFILE ===== -->
       <section id="view-profile" class="view-section hidden">
-        <div class="max-w-2xl mx-auto space-y-5">
+        <div class="max-w-2xl mx-auto space-y-4 sm:space-y-5">
           <!-- Avatar card -->
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row items-center gap-6">
+          <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
             <div class="relative">
-              <div id="profile-avatar-large" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-3xl flex items-center justify-center overflow-hidden shadow-lg">?</div>
+              <div id="profile-avatar-large" class="w-20 sm:w-24 h-20 sm:h-24 rounded-2xl bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-2xl sm:text-3xl flex items-center justify-center overflow-hidden shadow-lg">?</div>
               <label for="avatar-upload" class="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-500 hover:bg-brand-600 text-white rounded-full flex items-center justify-center cursor-pointer shadow-md transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.172a2 2 0 001.414-.586l.828-.828A2 2 0 019 5h6a2 2 0 011.414.586l.828.828A2 2 0 0018.828 7H21a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
               </label>
@@ -826,7 +825,7 @@
             </div>
           </div>
           <!-- Edit form -->
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+          <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6">
             <h3 class="font-bold text-sm text-navy-900 mb-4">Edit Profile</h3>
             <form id="profile-form" class="space-y-4">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -851,11 +850,11 @@
                   <input id="pf-phone" type="tel" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
                 </div>
               </div>
-              <button type="submit" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Save Profile</button>
+              <button type="submit" class="w-full sm:w-auto px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition">Save Profile</button>
             </form>
           </div>
           <!-- Change password -->
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+          <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6">
             <h3 class="font-bold text-sm text-navy-900 mb-4">Change Password</h3>
             <form id="pw-form" class="space-y-4">
               <div>
@@ -866,7 +865,7 @@
                 <label class="block text-xs font-bold text-slate-600 mb-1">Confirm New Password</label>
                 <input id="pf-confirmpw" type="password" placeholder="Re-enter password" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
               </div>
-              <button type="submit" class="px-5 py-2.5 bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs rounded-xl shadow transition">Update Password</button>
+              <button type="submit" class="w-full sm:w-auto px-5 py-2.5 bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs rounded-xl shadow transition">Update Password</button>
             </form>
           </div>
         </div>

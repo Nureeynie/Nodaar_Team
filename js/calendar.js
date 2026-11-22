@@ -53,50 +53,58 @@ async function loadCalendar(){
     const days = Array.from({length:6}, (_,i)=> addDays(new Date(start), i)); // Mon-Sat only!
     body = `
       <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="grid grid-cols-6 bg-slate-50 border-b border-slate-200">
-          ${days.map(d=> `<div class="p-3 text-center border-r border-slate-200 last:border-0 ${fmtDate(d)===fmtDate(new Date())?'bg-brand-50':''}">
-            <div class="text-xs font-black text-slate-500 uppercase">${d.toLocaleDateString('en',{weekday:'short'})}</div>
-            <div class="text-lg font-black ${fmtDate(d)===fmtDate(new Date())?'text-brand-600': 'text-navy-900'}">${d.getDate()}</div>
-            <div class="text-xs ${publicIsWorkingDay(d)?'text-emerald-600':'text-red-500'}">${publicIsWorkingDay(d)?'10am-4pm':'Off'}</div>
-          </div>`).join('')}
-        </div>
-        <div class="grid grid-cols-6 min-h-[320px]">
-          ${days.map(d=> {
-            const dayStr = fmtDate(d);
-            const dayEvents = events.filter(e=> fmtDate(new Date(e.start_at))===dayStr);
-            return `<div class="p-2 border-r border-slate-100 last:border-0 space-y-2 ${!publicIsWorkingDay(d)?'bg-slate-50/50':''}">
-              ${dayEvents.length? dayEvents.map(ev=> eventCard(ev)).join('') : `<div class="text-xs text-slate-300 text-center py-8">No events</div>`}
-              ${publicIsWorkingDay(d)? `<button onclick="quickAdd('${dayStr}')" class="w-full mt-2 py-1.5 text-xs font-bold text-slate-400 hover:text-brand-600 border border-dashed border-slate-200 rounded-lg hover:border-brand-300">+ Add</button>`: ''}
-            </div>`;
-          }).join('')}
+        <div class="overflow-x-auto horizontal-scroller">
+          <div class="min-w-[640px]">
+            <div class="grid grid-cols-6 bg-slate-50 border-b border-slate-200">
+              ${days.map(d=> `<div class="p-3 text-center border-r border-slate-200 last:border-0 ${fmtDate(d)===fmtDate(new Date())?'bg-brand-50':''}">
+                <div class="text-xs font-black text-slate-500 uppercase">${d.toLocaleDateString('en',{weekday:'short'})}</div>
+                <div class="text-lg font-black ${fmtDate(d)===fmtDate(new Date())?'text-brand-600': 'text-navy-900'}">${d.getDate()}</div>
+                <div class="text-xs ${publicIsWorkingDay(d)?'text-emerald-600':'text-red-500'}">${publicIsWorkingDay(d)?'10am-4pm':'Off'}</div>
+              </div>`).join('')}
+            </div>
+            <div class="grid grid-cols-6 min-h-[320px]">
+              ${days.map(d=> {
+                const dayStr = fmtDate(d);
+                const dayEvents = events.filter(e=> fmtDate(new Date(e.start_at))===dayStr);
+                return `<div class="p-2 border-r border-slate-100 last:border-0 space-y-2 ${!publicIsWorkingDay(d)?'bg-slate-50/50':''}">
+                  ${dayEvents.length? dayEvents.map(ev=> eventCard(ev)).join('') : `<div class="text-xs text-slate-300 text-center py-8">No events</div>`}
+                  ${publicIsWorkingDay(d)? `<button onclick="quickAdd('${dayStr}')" class="w-full mt-2 py-1.5 text-xs font-bold text-slate-400 hover:text-brand-600 border border-dashed border-slate-200 rounded-lg hover:border-brand-300">+ Add</button>`: ''}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
         </div>
       </div>
     `;
   } else if(calView==='day'){
     const dayStr = fmtDate(calDate);
     const dayEvents = events.filter(e=> fmtDate(new Date(e.start_at))===dayStr);
-    body = `<div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
+    body = `<div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5">
       <h3 class="font-black text-navy-900 mb-3">${calDate.toLocaleDateString('en',{weekday:'long', day:'numeric', month:'long'})} — ${publicIsWorkingDay(calDate)?'Work Day 10am-4pm':'Off Day (Sunday)'}</h3>
       <div class="space-y-2">${dayEvents.length? dayEvents.map(eventCard).join('') : '<p class="text-xs text-slate-400 py-6 text-center">No events — enjoy focus time!</p>'}</div>
-      <div class="mt-4 flex gap-2">${publicIsWorkingDay(calDate)? `<button onclick="quickAdd('${dayStr}')" class="px-4 py-2 bg-brand-500 text-white text-xs font-bold rounded-xl">+ Add Meeting</button>`: '<span class="text-xs text-red-500">Sunday off — overtime needs approval</span>'}<button onclick="exportICSForDay('${dayStr}')" class="px-4 py-2 bg-white border border-slate-200 text-xs font-bold rounded-xl">⬇ Export .ics</button></div>
+      <div class="mt-4 flex flex-wrap gap-2">${publicIsWorkingDay(calDate)? `<button onclick="quickAdd('${dayStr}')" class="w-full sm:w-auto px-4 py-2 bg-brand-500 text-white text-xs font-bold rounded-xl shadow-sm">+ Add Meeting</button>`: '<span class="text-xs text-red-500">Sunday off — overtime needs approval</span>'}<button onclick="exportICSForDay('${dayStr}')" class="w-full sm:w-auto px-4 py-2 bg-white border border-slate-200 text-xs font-bold rounded-xl shadow-sm">⬇ Export .ics</button></div>
     </div>`;
   } else { // month
     const y=calDate.getFullYear(), m=calDate.getMonth();
     const first=new Date(y,m,1), last=new Date(y,m+1,0);
     const daysInMonth = Array.from({length: last.getDate()}, (_,i)=> new Date(y,m,i+1));
     body = `<div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200">
-        ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=> `<div class="p-2 text-center text-xs font-black text-slate-500">${d}</div>`).join('')}
-      </div>
-      <div class="grid grid-cols-7">
-        ${daysInMonth.map(d=> {
-          const dayStr=fmtDate(d); const dayEvents=events.filter(e=> fmtDate(new Date(e.start_at))===dayStr);
-          const isSun = d.getDay()===0;
-          return `<div class="min-h-[90px] p-2 border-r border-b border-slate-100 ${isSun?'bg-red-50/40':''} ${fmtDate(d)===fmtDate(new Date())?'bg-brand-50':''}">
-            <div class="text-xs font-bold ${isSun?'text-red-500': fmtDate(d)===fmtDate(new Date())?'text-brand-600':'text-navy-900'}">${d.getDate()} ${isSun?'(Off)':''}</div>
-            <div class="mt-1 space-y-1">${dayEvents.slice(0,2).map(ev=> `<div class="text-xs bg-brand-500 text-white px-1.5 py-0.5 rounded truncate">${escapeHtml(ev.title)} ${new Date(ev.start_at).toLocaleTimeString('en-GB',{hour:'2-digit', minute:'2-digit'})}</div>`).join('')}${dayEvents.length>2? `<div class="text-xs text-slate-400">+${dayEvents.length-2} more</div>`:''}</div>
-          </div>`;
-        }).join('')}
+      <div class="overflow-x-auto horizontal-scroller">
+        <div class="min-w-[700px]">
+          <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200">
+            ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=> `<div class="p-2 text-center text-xs font-black text-slate-500">${d}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7">
+            ${daysInMonth.map(d=> {
+              const dayStr=fmtDate(d); const dayEvents=events.filter(e=> fmtDate(new Date(e.start_at))===dayStr);
+              const isSun = d.getDay()===0;
+              return `<div class="min-h-[90px] p-2 border-r border-b border-slate-100 ${isSun?'bg-red-50/40':''} ${fmtDate(d)===fmtDate(new Date())?'bg-brand-50':''}">
+                <div class="text-xs font-bold ${isSun?'text-red-500': fmtDate(d)===fmtDate(new Date())?'text-brand-600':'text-navy-900'}">${d.getDate()} ${isSun?'(Off)':''}</div>
+                <div class="mt-1 space-y-1">${dayEvents.slice(0,2).map(ev=> `<div class="text-xs bg-brand-500 text-white px-1.5 py-0.5 rounded truncate">${escapeHtml(ev.title)} ${new Date(ev.start_at).toLocaleTimeString('en-GB',{hour:'2-digit', minute:'2-digit'})}</div>`).join('')}${dayEvents.length>2? `<div class="text-xs text-slate-400">+${dayEvents.length-2} more</div>`:''}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
       </div>
     </div>`;
   }
