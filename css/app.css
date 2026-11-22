@@ -332,3 +332,44 @@ html, body {
   #channels-main-container > div { max-height: calc(100dvh - 190px); }
   #channel-feed-container { min-height: 0; }
 }
+
+/* ===== v3.5 Docs (Word-style) ===== */
+.doc-tb {
+  min-width: 30px; height: 30px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #475569;
+  border-radius: 8px; transition: background .15s, color .15s;
+}
+.doc-tb:hover { background: #e2e8f0; color: #0f172a; }
+.doc-tb:active { background: #cbd5e1; }
+.doc-page h1 { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: .6em 0 .3em; }
+.doc-page h2 { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin: .6em 0 .3em; }
+.doc-page h3 { font-size: 1.1rem; font-weight: 600; color: #0f172a; margin: .5em 0 .25em; }
+.doc-page p  { margin: .35em 0; }
+.doc-page ul { list-style: disc; padding-left: 1.4em; margin: .4em 0; }
+.doc-page ol { list-style: decimal; padding-left: 1.4em; margin: .4em 0; }
+.doc-page blockquote { border-left: 4px solid #f59e0b; background: #f8fafc; padding: .4em .8em; margin: .5em 0; border-radius: 0 10px 10px 0; color: #475569; font-style: italic; }
+.doc-page a { color: #2563eb; text-decoration: underline; overflow-wrap: anywhere; }
+.doc-page:focus { outline: none; }
+
+/* ===== v3.5 readability: no unreadable overflow / broken line breaks ===== */
+/* Long words/URLs must wrap instead of overflowing */
+.view-section, .update-card, .doc-page, td, li, p, span, a, div {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.view-section a, .update-card a, td a { word-break: break-all; }
+/* Lists should never clip text */
+.view-section ul, .view-section ol { padding-left: 1.25em; }
+.view-section li { margin: .2em 0; white-space: normal !important; }
+/* Horizontal scrollers: keep readable, no cut-off labels */
+.horizontal-scroller { scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.horizontal-scroller > * { flex-shrink: 0; }
+/* Tables: wrap cells, keep readable on mobile */
+.view-section table { table-layout: auto; width: 100%; }
+.view-section td, .view-section th { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+/* Truncated titles: allow tooltips instead of silent cut */
+.truncate { min-width: 0; }
+/* Fix flex children that overflow their container */
+.flex.items-center, .flex.items-start { min-width: 0; }
+.flex.items-center > *, .flex.items-start > * { min-width: 0; }

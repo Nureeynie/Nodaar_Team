@@ -232,6 +232,7 @@ const TAB_META = {
   whatsapp:{ title:'WhatsApp Team Groups', sub:'Join and manage official team WhatsApp groups, department broadcast channels and emergency lines', btn:'New Group' },
   scores:  { title:'Team Scores & Evaluations', sub:'Automatic activity scores and admin member evaluations', btn:'' },
   channels:{ title:'Channels & Broadcasts', sub:'MS Teams style team collaboration, URL links and announcements', btn:'New Post' },
+  docs:    { title:'Documents', sub:'Word-style documents — write, format and autosave team docs', btn:'New Document' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
   calendar:{ title:'Team Calendar', sub:'Mon–Sat 10:00–16:00 (Lagos) · meetings, deadlines and Google/Outlook sync', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
@@ -295,9 +296,10 @@ async function loadTabData(tab) {
     case 'meetings':await loadMeetings(); break;
     case 'ideas':   await loadIdeas(); break;
     case 'team':    await (window.loadTeam ? window.loadTeam() : loadTeam()); break;
-    case 'whatsapp': if (window.loadWhatsAppView) window.loadWhatsAppView(); break;
+    case 'whatsapp': window.navigate('channels'); break;
     case 'scores':   if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
     case 'channels': if (window.loadChannels) await window.loadChannels(); break;
+    case 'docs':     if (window.loadDocs) window.loadDocs(); break;
     case 'roles':   await loadRoles(); break;
     case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
@@ -1058,15 +1060,15 @@ function openAddUserModal() {
   document.getElementById('modal-fields').innerHTML = `
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
-      <input id="u-name" type="text" required placeholder="Jane Doe" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-name" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Email Address *</label>
-      <input id="u-email" type="email" required placeholder="jane@nodaar.com" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-email" type="email" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Temporary Password *</label>
-      <input id="u-password" type="password" required value="Nodaar@2026" placeholder="Min 6 characters" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-password" type="password" required value="Nodaar@2026" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
       <span class="text-[10px] text-slate-400">Share this password with the member to sign in.</span>
     </div>
     <div class="grid grid-cols-2 gap-3">
@@ -1086,7 +1088,7 @@ function openAddUserModal() {
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
-      <input id="u-title" type="text" placeholder="e.g. Marketing Specialist, Designer" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-title" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
   `;
 
@@ -1537,8 +1539,8 @@ async function openActionModal() {
   if (activeTab === 'tasks' || !['okrs','meetings','ideas','roles'].includes(activeTab)) {
     title.textContent = 'New Task';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Task Title *</label><input id="f-title" type="text" required placeholder="Launch marketing campaign" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Deliverables and expectations..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Task Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Priority</label><select id="f-pri" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option>Medium</option><option>High</option><option>Critical</option><option>Low</option></select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Due Date</label><input id="f-due" type="date" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1551,7 +1553,7 @@ async function openActionModal() {
         <input type="checkbox" id="f-admin-task" class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
         <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'okrs') {
     title.textContent = 'New OKR';
@@ -1560,8 +1562,8 @@ async function openActionModal() {
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Quarter</label><select id="f-q" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option>Q1</option><option>Q2</option><option>Q3</option><option selected>Q4</option></select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Unit</label><input id="f-unit" type="text" value="%" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required placeholder="Scale Client Base & Market Share" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Key Result *</label><input id="f-kr" type="text" required placeholder="Acquire 100 new paying clients" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Key Result *</label><input id="f-kr" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Target</label><input id="f-target" type="number" required value="100" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Current Progress</label><input id="f-current" type="number" value="0" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1581,35 +1583,35 @@ async function openActionModal() {
           </select>
         </div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Strategy Doc</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Strategy Doc</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'meetings') {
     title.textContent = 'Schedule Meeting';
     const today = new Date().toISOString().slice(0, 10);
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Meeting Title *</label><input id="f-title" type="text" required placeholder="Weekly Marketing Sync" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Meeting Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-3 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Date *</label><input id="f-date" type="date" required value="${today}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Start</label><input id="f-start" type="time" value="10:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">End</label><input id="f-end" type="time" value="11:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Meet Link</label><input id="f-meet" type="url" placeholder="https://meet.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Notes Doc</label><input id="f-notes" type="url" placeholder="https://docs.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Agenda</label><textarea id="f-agenda" rows="2" placeholder="Review Q4 progress..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Meet Link</label><input id="f-meet" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Notes Doc</label><input id="f-notes" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Agenda</label><textarea id="f-agenda" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>`;
 
   } else if (activeTab === 'ideas') {
     title.textContent = 'Pitch an Idea';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Title *</label><input id="f-title" type="text" required placeholder="Community Ambassador Program" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description *</label><textarea id="f-desc" rows="3" required placeholder="Outline your initiative..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Expected Impact</label><input id="f-impact" type="text" placeholder="Estimated +20% engagement..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Pitch Deck / Slides Link</label><input id="f-link" type="url" placeholder="https://docs.google.com/presentation/d/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description *</label><textarea id="f-desc" rows="3" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Expected Impact</label><input id="f-impact" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Pitch Deck / Slides Link</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'roles') {
     title.textContent = 'Create New Role';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required placeholder="Marketing, Engineering, Operations..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Responsibilities and scope for this role..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Color</label>
         <div class="flex items-center gap-3">
           <input id="f-color" type="color" value="#FE8A03" class="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer">

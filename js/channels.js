@@ -250,7 +250,7 @@
           <div class="p-2.5 border-b border-slate-100">
             <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
               <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
-              <input type="text" id="channel-search-input" placeholder="Search channels…" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.filterChannelsList(this.value)">
+              <input type="text" id="channel-search-input" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.filterChannelsList(this.value)">
             </div>
           </div>
 
@@ -397,7 +397,7 @@
       <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 sticky bottom-0 z-10">
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-500/10 transition">
           <!-- Textarea -->
-          <textarea id="docked-post-body" rows="2" placeholder="Send a message to #${escapeHtml(channel.name)}… (use **bold**, *italic*, \`code\`, quote, #tags)" class="w-full text-xs text-navy-900 focus:outline-none resize-none"></textarea>
+          <textarea id="docked-post-body" rows="2" class="w-full text-xs text-navy-900 focus:outline-none resize-none"></textarea>
 
           <!-- Docked Controls Bar -->
           <div class="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
@@ -443,7 +443,7 @@
           <div id="docked-url-container" class="hidden mt-2 pt-2 border-t border-slate-100">
             <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
               <span class="text-xs">🔗</span>
-              <input type="url" id="docked-post-url" placeholder="Paste URL link (Google Docs, Sheets, Slides, Figma, Loom, GitHub)… Strictly URL only" class="bg-transparent text-xs w-full focus:outline-none">
+              <input type="url" id="docked-post-url" class="bg-transparent text-xs w-full focus:outline-none">
               <button type="button" onclick="document.getElementById('docked-post-url').value=''" class="text-slate-400 hover:text-slate-600 text-xs">✕</button>
             </div>
           </div>
@@ -664,7 +664,7 @@
             </div>
 
             <form onsubmit="window.submitReply(event, '${u.id}')" class="flex gap-2">
-              <input type="text" placeholder="Write a reply… (tags & URLs supported)" required class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+              <input type="text" required class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
               <button type="submit" class="px-3.5 py-2 bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs rounded-xl shadow-sm transition">
                 Reply
               </button>
@@ -848,7 +848,7 @@
       <div class="space-y-4">
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Headline / Title (Optional)</label>
-          <input type="text" id="upd-title" placeholder="e.g. Q4 Sprint Deliverable Review & Drive Link" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input type="text" id="upd-title" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -882,7 +882,7 @@
               <button type="button" onclick="window.insertFormatting('• ', '', 'item')" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-xs">•</button>
             </div>
           </div>
-          <textarea id="upd-body" rows="4" required placeholder="Write the update details, instructions, or meeting summary… (supports Markdown and @mentions)" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+          <textarea id="upd-body" rows="4" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
         </div>
 
         <!-- Tags Selector -->
@@ -905,7 +905,7 @@
           </label>
           <div class="relative">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">🔗</span>
-            <input type="url" id="upd-url-link" placeholder="https://docs.google.com/... or https://drive.google.com/..." class="w-full text-xs pl-9 pr-3 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="url" id="upd-url-link" class="w-full text-xs pl-9 pr-3 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
           </div>
         </div>
 
@@ -1008,7 +1008,7 @@
         <!-- URL Attachment Only (NO FILE UPLOAD) -->
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Attached URL Link (No File Upload)</label>
-          <input type="url" id="upd-edit-url" value="${escapeHtml(upd.url_link || '')}" placeholder="https://..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input type="url" id="upd-edit-url" value="${escapeHtml(upd.url_link || '')}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
       </div>
     `;
@@ -1113,14 +1113,14 @@
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Channel Name (slug) *</label>
           <div class="flex items-center">
             <span class="px-3 py-3 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500">#</span>
-            <input type="text" id="ch-name" required placeholder="client-operations" class="w-full text-xs p-3 rounded-r-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="text" id="ch-name" required class="w-full text-xs p-3 rounded-r-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Display Title *</label>
-            <input type="text" id="ch-display" required placeholder="Client Operations" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="text" id="ch-display" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Icon / Emoji</label>
@@ -1130,7 +1130,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Channel Purpose & Description</label>
-          <textarea id="ch-desc" rows="2" placeholder="Briefly describe what this channel is for…" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+          <textarea id="ch-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
         </div>
 
         <div>
@@ -1493,15 +1493,15 @@
       <div class="space-y-4">
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
-          <input id="u-name" type="text" required placeholder="Jane Doe" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input id="u-name" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">Email Address *</label>
-          <input id="u-email" type="email" required placeholder="jane@nodaar.com" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input id="u-email" type="email" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">Temporary Password *</label>
-          <input id="u-password" type="password" required value="Nodaar@2026" placeholder="Min 6 characters" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input id="u-password" type="password" required value="Nodaar@2026" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
           <span class="text-[10px] text-slate-400">Share this password with the member to sign in.</span>
         </div>
         <div class="grid grid-cols-3 gap-3">
@@ -1528,7 +1528,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
-          <input id="u-title" type="text" placeholder="e.g. Frontend Engineer, Designer" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input id="u-title" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
 
         <div>

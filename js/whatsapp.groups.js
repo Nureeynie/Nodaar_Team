@@ -190,7 +190,7 @@
         <!-- Search Input -->
         <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 w-full sm:w-64 flex-shrink-0">
           <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
-          <input type="text" id="wa-search-input" placeholder="Search WhatsApp groups…" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.searchWhatsAppGroups(this.value)">
+          <input type="text" id="wa-search-input" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.searchWhatsAppGroups(this.value)">
         </div>
       </div>
 
@@ -297,7 +297,7 @@
       <div class="space-y-4">
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Group Name *</label>
-          <input id="wa-name" type="text" required value="${esc(existing?.name || '')}" placeholder="e.g. Lagos HQ Engineering Sync" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <input id="wa-name" type="text" required value="${esc(existing?.name || '')}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -322,14 +322,14 @@
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">WhatsApp Invite Link *</label>
           <div class="flex items-center gap-2 bg-emerald-50/50 border border-emerald-200 rounded-xl px-3 py-1">
             <span class="text-emerald-600 font-bold text-xs">🔗</span>
-            <input id="wa-url" type="url" required value="${esc(existing?.url || '')}" placeholder="https://chat.whatsapp.com/..." class="bg-transparent text-xs w-full py-2 text-navy-900 focus:outline-none font-mono">
+            <input id="wa-url" type="url" required value="${esc(existing?.url || '')}" class="bg-transparent text-xs w-full py-2 text-navy-900 focus:outline-none font-mono">
           </div>
           <span class="text-[10px] text-slate-400 mt-1 block">Copy this link from your WhatsApp group info (Group Info → Invite via link).</span>
         </div>
 
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Group Description & Guidelines</label>
-          <textarea id="wa-desc" rows="2" placeholder="e.g. Lagos shift discussions, urgent sync, voice notes..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none">${esc(existing?.description || '')}</textarea>
+          <textarea id="wa-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none">${esc(existing?.description || '')}</textarea>
         </div>
 
         <div class="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">

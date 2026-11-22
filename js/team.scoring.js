@@ -299,7 +299,7 @@
         <div class="flex flex-wrap items-center gap-2 flex-1">
           <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 w-full sm:w-auto sm:min-w-[220px]">
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z"/></svg>
-            <input type="text" id="score-search-input" placeholder="Search member scorecard…" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.filterScorecards()">
+            <input type="text" id="score-search-input" class="bg-transparent text-xs w-full focus:outline-none" oninput="window.filterScorecards()">
           </div>
 
           <select id="score-filter-mode" onchange="window.filterScorecards()" class="text-xs px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -538,7 +538,7 @@
         <!-- Notes / Feedback -->
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Admin Feedback & Review Notes</label>
-          <textarea id="modal-score-notes" rows="2" placeholder="e.g. Excellent execution on key deliverables this sprint..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${escapeHtml(entry.adminNotes || '')}</textarea>
+          <textarea id="modal-score-notes" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${escapeHtml(entry.adminNotes || '')}</textarea>
         </div>
 
         <!-- Hidden ID -->

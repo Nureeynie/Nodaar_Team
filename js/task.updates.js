@@ -20,15 +20,15 @@ async function openTaskDailyUpdate(taskId, taskTitle) {
       <span class="text-xs text-brand-600 font-semibold">${existing ? 'Updating today' : 'New log'}</span>
     </div>
     <div class="grid grid-cols-2 gap-3">
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Today's Progress % *</label><input id="tu-progress" type="number" min="0" max="100" required value="${existing?.progress_pct || ''}" placeholder="e.g. 25" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Today's Progress % *</label><input id="tu-progress" type="number" min="0" max="100" required value="${existing?.progress_pct || ''}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Hours Today *</label><input id="tu-hours" type="number" step="0.5" min="0" max="24" required value="${existing?.hours || '4'}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
     </div>
-    <div><label class="block text-xs font-bold text-slate-600 mb-1">What did you do today? *</label><textarea id="tu-desc" rows="3" required placeholder="Fixed checkout bug, updated API docs..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none">${existing?.description || ''}</textarea></div>
+    <div><label class="block text-xs font-bold text-slate-600 mb-1">What did you do today? *</label><textarea id="tu-desc" rows="3" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none">${existing?.description || ''}</textarea></div>
     <div class="grid grid-cols-2 gap-3">
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Blockers</label><input id="tu-blockers" type="text" value="${existing?.blockers || 'None'}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Mood</label><select id="tu-mood" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option ${existing?.mood==='🔥 Great'?'selected':''}>🔥 Great</option><option ${existing?.mood==='👍 Good'?'selected':''}>👍 Good</option><option ${existing?.mood==='😐 Neutral'?'selected':''}>😐 Neutral</option><option ${existing?.mood==='😴 Tired'?'selected':''}>😴 Tired</option><option ${existing?.mood==='🛑 Blocked'?'selected':''}>🛑 Blocked</option></select></div>
     </div>
-    <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Proof (optional)</label><input id="tu-link" type="url" value="${existing?.drive_link || ''}" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+    <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Proof (optional)</label><input id="tu-link" type="url" value="${existing?.drive_link || ''}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
     <div class="text-xs text-slate-400 bg-amber-50 border border-amber-200 rounded-xl p-2">💡 Tip: Log daily to keep your streak. Managers see this in Overview → Performance.</div>
     <input type="hidden" id="tu-task-id" value="${taskId}">
   `;
