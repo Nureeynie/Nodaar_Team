@@ -21,8 +21,16 @@ window.SB_KEY = window.SB_KEY || SB_KEY;
 // ─────────────────────────────────────────────
 function initSupabase() {
   try {
-    sbClient = window.supabase.createClient(SB_URL, SB_KEY);
-    return true;
+    if (window.sbClient) {
+      sbClient = window.sbClient;
+      return true;
+    }
+    if (window.supabase) {
+      sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+      window.sbClient = sbClient;
+      return true;
+    }
+    return false;
   } catch (err) {
     console.error('Supabase init failed:', err);
     return false;
@@ -30,25 +38,33 @@ function initSupabase() {
 }
 
 async function checkAuth() {
-  if (!initSupabase()) return;
+  if (!initSupabase()) {
+    setTimeout(checkAuth, 100);
+    return;
+  }
 
   // Restore sidebar collapsed preference
   if (localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
     document.body.classList.add('sidebar-collapsed');
   }
 
-  const { data: { session } } = await sbClient.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    await fetchProfile();
-    await fetchAllRoles();
-    showApp();
-  } else {
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      await fetchProfile();
+      await fetchAllRoles();
+      showApp();
+    } else {
+      showAuth();
+    }
+  } catch (err) {
+    console.warn('Session check notice:', err);
     showAuth();
   }
 
   sbClient.auth.onAuthStateChange(async (event, session) => {
-    if (session) {
+    if (session && session.user) {
       currentUser = session.user;
       await fetchProfile();
       await fetchAllRoles();
@@ -1754,20 +1770,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const errBox = document.getElementById('auth-error');
     const btn = document.getElementById('auth-submit-btn');
     errBox.classList.add('hidden');
-    btn.disabled = true; btn.textContent = 'Signing in…';
+    errBox.textContent = '';
+    btn.disabled = true;
+    btn.innerHTML = `<span>Signing in…</span>`;
 
-    const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-    btn.disabled = false; btn.textContent = 'Sign In';
-
-    if (error) {
-      errBox.textContent = error.message;
+    if (!sbClient) {
+      initSupabase();
+    }
+    if (!sbClient) {
+      errBox.textContent = 'Connecting to authentication services... please wait a few seconds and try again.';
       errBox.classList.remove('hidden');
-    } else if (data?.user) {
-      currentUser = data.user;
-      await fetchProfile();
-      await fetchAllRoles();
-      showApp();
-      showToast('Welcome back to Nodaar Hub! 🎉');
+      btn.disabled = false;
+      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+      return;
+    }
+
+    try {
+      const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+      btn.disabled = false;
+      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+
+      if (error) {
+        errBox.textContent = error.message || 'Invalid email or password.';
+        errBox.classList.remove('hidden');
+      } else if (data?.user) {
+        currentUser = data.user;
+        await fetchProfile();
+        await fetchAllRoles();
+        showApp();
+        showToast('Welcome back to Nodaar Hub! 🎉');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+      errBox.textContent = err.message || 'Network connection error while signing in. Please check your connection.';
+      errBox.classList.remove('hidden');
+      console.error('Sign-in error:', err);
     }
   });
 
