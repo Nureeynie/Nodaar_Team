@@ -523,154 +523,91 @@
       const urlMeta = getUrlMetadata(u.url_link);
 
       return `
-        <div class="update-card bg-white rounded-3xl border ${isDraft ? 'border-amber-300 bg-amber-50/15' : u.is_pinned ? 'border-brand-200 bg-brand-50/10' : 'border-slate-200'} p-5 sm:p-6 shadow-sm hover:shadow-md transition relative">
-          
-          <!-- Pinned or Draft Ribbon -->
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              ${u.is_pinned ? `
-                <span class="pill bg-brand-100 text-brand-800 text-[10px] font-bold flex items-center gap-1">
-                  <span>📌</span> Pinned by Admin
-                </span>
-              ` : ''}
-
-              ${isDraft ? `
-                <span class="pill bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold">
-                  📝 DRAFT — Only visible to you & admin
-                </span>
-              ` : ''}
+        <div class="chat-msg flex gap-3 px-3 sm:px-4 py-3 rounded-2xl hover:bg-slate-50 transition ${isDraft ? 'bg-amber-50/40' : u.is_pinned ? 'bg-brand-50/30' : ''}">
+          <!-- Avatar -->
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-xs flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+            ${u.author_avatar ? `<img src="${u.author_avatar}" class="w-full h-full object-cover">` : initials}
+          </div>
+          <!-- Message body -->
+          <div class="min-w-0 flex-1">
+            <!-- Name row: name + role + time + badges inline -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${u.is_pinned ? `<span class="text-[10px] font-bold text-brand-700">📌</span>` : ''}
+              ${isDraft ? `<span class="text-[10px] font-bold text-amber-700">📝 DRAFT</span>` : ''}
+              <h4 class="font-bold text-navy-900 text-[13px] leading-tight">${escapeHtml(u.author_name || 'Team Member')}</h4>
+              <span class="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">${escapeHtml(u.author_role || 'Member')}</span>
+              <span class="text-[10px] text-slate-400">${new Date(u.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}${u.updated_at ? ' · edited' : ''}</span>
+              <span class="ml-auto">${typeBadges[u.update_type] || typeBadges.general}</span>
             </div>
 
-            ${isDraft ? `
-              <button onclick="window.sendDraftNow('${u.id}')" class="px-3 py-1 bg-gradient-to-r from-brand-500 to-amber-500 hover:from-brand-600 hover:to-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition">
-                🚀 Send Now
-              </button>
+            ${u.title ? `<h3 class="font-extrabold text-navy-900 text-sm mt-1 mb-0.5">${escapeHtml(u.title)}</h3>` : ''}
+            <div class="text-[13px] text-slate-700 leading-relaxed mt-0.5">${parseTextFormatting(u.body)}</div>
+
+            <!-- Tags inline -->
+            ${(u.tags && u.tags.length > 0) ? `
+              <div class="mt-1.5 flex flex-wrap gap-1">
+                ${u.tags.map(t => `<button onclick="window.setTagFilter('${escapeHtml(t)}')" class="text-[10px] font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 px-1.5 py-0.5 rounded-md transition">#${escapeHtml(t)}</button>`).join('')}
+              </div>
             ` : ''}
-          </div>
 
-          <!-- Header -->
-          <div class="flex items-start justify-between gap-3 mb-2.5">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-500 to-amber-400 text-white font-black text-xs flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0">
-                ${u.author_avatar ? `<img src="${u.author_avatar}" class="w-full h-full object-cover">` : initials}
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h4 class="font-bold text-navy-900 text-sm leading-tight">${escapeHtml(u.author_name || 'Team Member')}</h4>
-                  <span class="pill bg-slate-100 text-slate-600 text-[9px] font-semibold">${escapeHtml(u.author_role || 'Member')}</span>
-                </div>
-                <div class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
-                  <span>${new Date(u.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                  ${u.updated_at ? '<span class="text-slate-400 italic">(edited)</span>' : ''}
-                </div>
-              </div>
-            </div>
+            <!-- URL attachment: compact chat link card -->
+            ${(u.url_link && urlMeta) ? `
+              <a href="${escapeHtml(u.url_link)}" target="_blank" rel="noopener noreferrer" class="mt-2 flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-brand-300 hover:bg-brand-50/40 transition max-w-md">
+                <span class="text-lg leading-none">${urlMeta.icon}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[9px] font-bold uppercase tracking-wide ${urlMeta.bg} w-fit px-1.5 py-0.5 rounded">${urlMeta.label}</span>
+                  <span class="block text-[11px] font-semibold text-brand-700 truncate mt-0.5">${escapeHtml(u.url_link)}</span>
+                </span>
+                <span class="text-slate-400 text-xs flex-shrink-0">↗</span>
+              </a>
+            ` : ''}
 
-            <div class="flex items-center gap-2">
-              ${typeBadges[u.update_type] || typeBadges.general}
-
-              <!-- Admin/Author Actions Menu -->
-              ${isAuthorOrAdmin ? `
-                <div class="flex items-center gap-1">
-                  ${isUserAdmin ? `
-                    <button onclick="window.togglePinUpdate('${u.id}')" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition" title="${u.is_pinned ? 'Unpin' : 'Pin to Top'}">
-                      <span class="text-xs">📌</span>
-                    </button>
-                  ` : ''}
-                  <button onclick="window.openEditUpdateModal('${u.id}')" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition" title="Edit Post">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  </button>
-                  <button onclick="window.deleteUpdate('${u.id}')" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete Post">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-
-          <!-- Title & Formatted Body -->
-          ${u.title ? `<h3 class="font-extrabold text-navy-900 text-base mb-1.5">${escapeHtml(u.title)}</h3>` : ''}
-          <div class="text-xs text-slate-700 leading-relaxed">${parseTextFormatting(u.body)}</div>
-
-          <!-- Tags Badges Row -->
-          ${(u.tags && u.tags.length > 0) ? `
-            <div class="mt-3 flex flex-wrap gap-1.5">
-              ${u.tags.map(t => `
-                <button onclick="window.setTagFilter('${escapeHtml(t)}')" class="pill bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] transition cursor-pointer">
-                  ${escapeHtml(t)}
-                </button>
-              `).join('')}
-            </div>
-          ` : ''}
-
-          <!-- Attached URL Deliverable Card (STRICTLY URL ONLY - NO FILE UPLOADS) -->
-          ${(u.url_link && urlMeta) ? `
-            <div class="mt-3.5 p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div class="flex items-center gap-3 min-w-0">
-                <span class="text-2xl">${urlMeta.icon}</span>
-                <div class="truncate">
-                  <div class="flex items-center gap-1.5">
-                    <span class="pill ${urlMeta.bg} border text-[9px] font-bold">${urlMeta.label}</span>
-                    <span class="text-xs font-bold text-navy-900 truncate">URL Attachment</span>
-                  </div>
-                  <div class="text-[11px] text-brand-600 truncate underline mt-0.5">${escapeHtml(u.url_link)}</div>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 flex-shrink-0">
-                ${urlMeta.type.startsWith('g') ? `
-                  <button onclick="window.openGoogleDrivePreview('${escapeHtml(u.url_link)}', '${escapeHtml((u.title || 'Google File').replace(/'/g, "\\'"))}')" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs rounded-xl transition">
-                    👁️ In-App Preview
-                  </button>
-                ` : ''}
-                <a href="${escapeHtml(u.url_link)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition flex items-center gap-1">
-                  <span>Open URL</span> ↗
-                </a>
-              </div>
-            </div>
-          ` : ''}
-
-          <!-- Reactions Bar & Threaded Replies -->
-          <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-1.5">
+            <!-- Reactions + replies: compact chat footer -->
+            <div class="mt-2 flex items-center gap-1 flex-wrap">
               ${['👍', '❤️', '🚀', '🔥', '👏'].map(emoji => {
                 const count = (u.reactions?.[emoji] || []).length;
                 const hasReacted = (u.reactions?.[emoji] || []).includes(currentUid);
                 return `
-                  <button onclick="window.toggleUpdateReaction('${u.id}', '${emoji}')" class="px-2 py-1 rounded-xl text-xs transition flex items-center gap-1 ${hasReacted ? 'bg-brand-50 border border-brand-300 text-brand-700 font-bold' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'}">
+                  <button onclick="window.toggleUpdateReaction('${u.id}', '${emoji}')" class="px-1.5 py-0.5 rounded-lg text-[11px] transition flex items-center gap-0.5 ${hasReacted ? 'bg-brand-50 border border-brand-300 font-bold' : 'bg-slate-100 border border-transparent hover:bg-slate-200'}">
                     <span>${emoji}</span>
-                    ${count > 0 ? `<span class="text-[10px] font-bold">${count}</span>` : ''}
+                    ${count > 0 ? `<span class="text-[10px] font-bold text-slate-600">${count}</span>` : ''}
                   </button>
                 `;
               }).join('')}
+              <button onclick="window.toggleReplyThread('${u.id}')" class="ml-1 px-1.5 py-0.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition flex items-center gap-1">
+                💬 ${(u.replies || []).length} Replies
+              </button>
+              ${isAuthorOrAdmin ? `
+                <span class="ml-auto flex items-center gap-0.5">
+                  ${isUserAdmin ? `<button onclick="window.togglePinUpdate('${u.id}')" class="p-1 text-slate-400 hover:text-brand-600 rounded-lg" title="${u.is_pinned ? 'Unpin' : 'Pin'}">📌</button>` : ''}
+                  <button onclick="window.openEditUpdateModal('${u.id}')" class="p-1 text-slate-400 hover:text-brand-600 rounded-lg" title="Edit">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  </button>
+                  <button onclick="window.deleteUpdate('${u.id}')" class="p-1 text-slate-400 hover:text-red-500 rounded-lg" title="Delete">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </span>
+              ` : ''}
+              ${isDraft ? `<button onclick="window.sendDraftNow('${u.id}')" class="ml-auto px-2 py-1 bg-gradient-to-r from-brand-500 to-amber-500 text-white rounded-lg text-[10px] font-bold">🚀 Send Now</button>` : ''}
             </div>
 
-            <button onclick="window.toggleReplyThread('${u.id}')" class="text-xs font-bold text-slate-500 hover:text-navy-900 transition flex items-center gap-1">
-              <span>💬</span> ${(u.replies || []).length} Replies
-            </button>
-          </div>
-
-          <!-- Threaded Replies Section -->
-          <div id="reply-thread-${u.id}" class="mt-3 pt-3 border-t border-slate-100 hidden space-y-3">
-            <div class="space-y-2">
+            <!-- Threaded replies -->
+            <div id="reply-thread-${u.id}" class="mt-2 pl-3 border-l-2 border-slate-200 hidden space-y-2">
               ${(u.replies || []).map(r => `
-                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="font-bold text-navy-900">${escapeHtml(r.author_name)}</span>
-                    <span class="text-[10px] text-slate-400">${new Date(r.created_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}</span>
+                <div class="bg-slate-50 p-2.5 rounded-xl text-xs">
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span class="font-bold text-navy-900 text-[11px]">${escapeHtml(r.author_name)}</span>
+                    <span class="text-[9px] text-slate-400">${new Date(r.created_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}</span>
                   </div>
-                  <p class="text-slate-700">${parseTextFormatting(r.body)}</p>
+                  <p class="text-slate-700 text-[11px]">${parseTextFormatting(r.body)}</p>
                 </div>
               `).join('')}
+              <form onsubmit="window.submitReply(event, '${u.id}')" class="flex gap-1.5 pt-1">
+                <input type="text" required class="flex-1 min-w-0 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+                <button type="submit" class="px-3 py-1.5 bg-navy-900 text-white font-bold text-[11px] rounded-lg">Reply</button>
+              </form>
             </div>
-
-            <form onsubmit="window.submitReply(event, '${u.id}')" class="flex gap-2">
-              <input type="text" required class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
-              <button type="submit" class="px-3.5 py-2 bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs rounded-xl shadow-sm transition">
-                Reply
-              </button>
-            </form>
           </div>
-
         </div>
       `;
     }).join('');

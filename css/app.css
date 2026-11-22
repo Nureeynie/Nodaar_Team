@@ -411,3 +411,13 @@ body { overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-y; }
   #app-shell:not(.hidden) { display: flex; }
   #main-content { overflow-y: auto; }
 }
+
+/* ===== v3.8 chat-style channel feed ===== */
+#channel-feed-container { max-width: 52rem; width: 100%; margin: 0 auto; }
+#channel-feed-container > * + * { margin-top: 2px; }
+.chat-msg { align-items: flex-start; }
+.chat-msg:hover { background: #f8fafc; }
+@media (max-width: 767px) {
+  #channel-feed-container { padding: 10px !important; }
+  .chat-msg { padding: 10px 8px !important; gap: 8px !important; }
+}
