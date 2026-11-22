@@ -309,3 +309,26 @@ html, body {
     font-size: 16px !important;
   }
 }
+
+/* ===== v3.4 layout alignment fixes ===== */
+/* 1. App shell must be a flex row on desktop so sidebar + main sit side-by-side */
+#app-shell:not(.hidden) { display: flex; align-items: stretch; }
+@media (max-width: 767px) {
+  #app-shell:not(.hidden) { display: block; }
+}
+/* 2. Channels card: only enforce tall min-height on desktop; mobile hugs content */
+@media (max-width: 767px) {
+  #channels-main-container > div { min-height: 0 !important; }
+}
+@media (min-width: 768px) {
+  #channels-main-container > div { min-height: 680px; }
+}
+/* 3. Channel columns fill available height evenly on desktop */
+@media (min-width: 768px) {
+  #channel-nav-column, #channel-feed-column { min-height: 0; }
+}
+/* 4. Keep docked composer pinned and feed scrollable within the card */
+@media (min-width: 768px) {
+  #channels-main-container > div { max-height: calc(100dvh - 190px); }
+  #channel-feed-container { min-height: 0; }
+}

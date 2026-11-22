@@ -220,7 +220,7 @@
     const hasAccess = canUserAccessChannel(activeChannel);
 
     container.innerHTML = `
-      <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 min-h-[680px] w-full">
+      <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 w-full">
         
         <!-- LEFT COLUMN: Channels Directory (4 cols on md/lg) -->
         <div id="channel-nav-column" class="${mobileActiveView === 'channels' ? 'flex' : 'hidden'} md:flex md:col-span-4 lg:col-span-3 border-r border-slate-100 flex-col bg-slate-50/70 select-none">
