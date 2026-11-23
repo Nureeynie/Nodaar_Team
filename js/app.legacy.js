@@ -385,6 +385,7 @@ const TAB_META = {
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
   calendar:{ title:'Team Calendar', sub:'Mon–Sat 10:00–16:00 (Lagos) · meetings, deadlines and Google/Outlook sync', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
+  units:   { title:'Units & Structure', sub:'Create units, assign members and positions', btn:'New Unit' },
 };
 
 function navigate(tab) {
@@ -465,6 +466,8 @@ async function loadTabData(tab) {
     case 'roles':   await loadRoles(); break;
     case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
+    case 'units':   if (window.loadUnits) window.loadUnits(); break;
+    case 'units':   if (window.loadUnits) window.loadUnits(); break;
   }
 }
 
@@ -1216,6 +1219,9 @@ async function loadTeam() {
                 <button onclick="toggleUserAdminRole('${u.id}', '${u.access_level}')" class="px-2.5 py-1 text-[11px] font-bold ${userIsAdmin ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'} rounded-lg transition">
                   ${userIsAdmin ? 'Set Member' : 'Promote Admin'}
                 </button>
+                <button onclick="toggleUserActive('${u.id}', ${u.active !== false})" class="px-2.5 py-1 text-[11px] font-bold ${u.active !== false ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'} rounded-lg transition">
+                  ${u.active !== false ? 'Deactivate' : 'Activate'}
+                </button>
               ` : ''}
             </div>
           ` : '<span class="text-slate-300 text-xs">—</span>'}
@@ -1350,6 +1356,19 @@ function openAddUserModal() {
     }
     btn.disabled = false; btn.textContent = 'Save';
   };
+}
+
+async function toggleUserActive(userId, currentlyActive) {
+  if (!isUserAdmin()) { showToast('Restricted: admins only.', true); return; }
+  const action = currentlyActive ? 'deactivate' : 'activate';
+  if (!confirm(`${action === 'deactivate' ? 'Deactivate' : 'Activate'} this user? ${action === 'deactivate' ? 'They will not be able to log in, but history is kept.' : ''}`)) return;
+  try {
+    const { error } = await sbClient.from('profiles').update({ active: !currentlyActive }).eq('id', userId);
+    if (error) throw error;
+    await sbClient.from('audit_log').insert({ actor_id: currentUser.id, action, target: 'profiles:' + userId });
+    showToast(`User ${action}d.`);
+    loadTeam();
+  } catch (err) { showToast(err.message, true); }
 }
 
 async function openEditUserModal(userId) {
@@ -2134,6 +2153,28 @@ function showApp() {
     appShell.classList.add('flex');
   }
   navigate(activeTab);
+  // PRD 4.3: forced password change on first login / after admin reset
+  if (currentProfile && currentProfile.must_change_password) {
+    const m = document.getElementById('force-pw-modal');
+    if (m) m.classList.remove('hidden');
+  }
+}
+
+async function submitForcedPasswordChange(e) {
+  e.preventDefault();
+  const pw = document.getElementById('force-pw-new').value;
+  const pw2 = document.getElementById('force-pw-confirm').value;
+  const err = document.getElementById('force-pw-error');
+  if (pw.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.classList.remove('hidden'); return; }
+  if (pw !== pw2) { err.textContent = 'Passwords do not match.'; err.classList.remove('hidden'); return; }
+  err.classList.add('hidden');
+  const { error } = await sbClient.auth.updateUser({ password: pw });
+  if (error) { err.textContent = error.message; err.classList.remove('hidden'); return; }
+  await sbClient.from('profiles').update({ must_change_password: false }).eq('id', currentUser.id);
+  await sbClient.from('audit_log').insert({ actor_id: currentUser.id, action: 'password_changed', target: 'profiles:' + currentUser.id });
+  currentProfile.must_change_password = false;
+  document.getElementById('force-pw-modal').classList.add('hidden');
+  showToast('Password updated — welcome! 🎉');
 }
 
 async function logout() {
