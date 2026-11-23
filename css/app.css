@@ -493,3 +493,41 @@ body { overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-y; }
 #sidebar #sidebar-avatar + span { ring-color: #ffffff !important; }
 #sidebar .sidebar-user-card .sidebar-text { border-top: 1px solid #e2e8f0 !important; }
 #sidebar .sidebar-user-card > button:hover { background: #f1f5f9 !important; }
+
+/* ===== v3.12 world-class typography & sidebar scroll ===== */
+html {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+  font-size: 15.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif !important; letter-spacing: -0.006em; }
+h1,h2,h3,h4 { letter-spacing: -0.02em; }
+code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+
+/* Sidebar: ONE clean scroll area — header & user card pinned, nav scrolls smoothly */
+#sidebar { overflow: hidden !important; }
+#sidebar-nav {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  padding-top: 6px !important;
+  padding-bottom: 12px !important;
+}
+#sidebar-nav::-webkit-scrollbar { width: 5px; }
+#sidebar-nav::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+#sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+/* bigger, clearer nav type */
+#sidebar .nav-btn { font-size: 13px !important; padding: 9px 12px !important; gap: 12px !important; }
+#sidebar .nav-btn > div { width: 28px !important; height: 28px !important; }
+#sidebar .nav-btn svg { width: 16px !important; height: 16px !important; }
+#sidebar .sidebar-header-title { font-size: 10.5px !important; letter-spacing: .09em !important; padding-left: 12px !important; }
+#sidebar .sidebar-logo-text .font-black { font-size: 15px !important; }
+#sidebar #user-display-name { font-size: 13px !important; }
+
+/* general type bump for readability */
+#main-content { font-size: 14.5px; }
+.view-section h3 { font-size: 15px !important; }
+.pill { font-size: 11.5px; }
