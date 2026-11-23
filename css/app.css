@@ -531,3 +531,24 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
 #main-content { font-size: 14.5px; }
 .view-section h3 { font-size: 15px !important; }
 .pill { font-size: 11.5px; }
+
+/* ===== v3.13 sidebar stays FIXED while content scrolls (app-shell pattern) ===== */
+@media (min-width: 768px) {
+  #app-shell:not(.hidden) {
+    display: flex !important;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden !important;   /* shell never scrolls; kills sticky-breaking overflow */
+  }
+  #app-shell > div.flex-1 {
+    height: 100dvh;
+    overflow-y: auto !important;   /* only the content column scrolls */
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  #app-shell > div.flex-1::-webkit-scrollbar { width: 6px; }
+  #app-shell > div.flex-1::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+  #sidebar { position: relative !important; height: 100dvh !important; top: 0 !important; }
+}
