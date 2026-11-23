@@ -1108,28 +1108,31 @@ function openAddUserModal() {
     const job_title = document.getElementById('u-title').value.trim() || (selectedRole ? selectedRole.name : 'Member');
 
     try {
-      const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      });
+      let newUserId = null;
+      let needsConfirm = false;
 
-      const { data: authData, error: authErr } = await tempClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name, role: job_title, access_level }
-        }
-      });
-
-      if (authErr) {
-        const m = (authErr.message || '').toLowerCase();
-        if (m.includes('already registered') || m.includes('already exists')) {
-          throw new Error('An account with this email already exists. Ask them to sign in, or reset their password.');
-        }
-        throw authErr;
+      // Preferred: Edge Function with service role -> user created PRE-CONFIRMED
+      try {
+        const fn = await sbClient.functions.invoke('create-user', {
+          body: { email, password, full_name, role: job_title, role_id, access_level }
+        });
+        if (fn.error) throw fn.error;
+        newUserId = fn.data?.user?.id || null;
+      } catch (fnErr) {
+        // Fallback: anon signUp (account may need email confirmation)
+        const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+        const { data: authData, error: authErr } = await tempClient.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name, role: job_title, access_level } }
+        });
+        if (authErr) throw authErr;
+        newUserId = authData.user?.id;
+        needsConfirm = !authData.session;
       }
 
-      const newUserId = authData.user?.id;
-      const needsConfirm = !authData.session; // no session = email confirmation required by Supabase
       if (newUserId) {
         await sbClient.from('profiles').upsert({
           id: newUserId,
@@ -1148,7 +1151,8 @@ function openAddUserModal() {
       resetModalSubmit();
       loadTeam();
     } catch (err) {
-      showToast(err.message || 'Failed to create user', true);
+      const m = (err.message || '').toLowerCase();
+      showToast(m.includes('already') ? 'An account with this email already exists — they can sign in now.' : (err.message || 'Failed to create user'), true);
     }
     btn.disabled = false; btn.textContent = 'Save';
   };
@@ -1843,11 +1847,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (error) {
         const msg = (error.message || '').toLowerCase();
-        errBox.textContent = msg.includes('invalid') || msg.includes('credentials')
-          ? 'Incorrect email or password. Please try again.'
-          : msg.includes('email not confirmed') ? 'Please confirm your email first — check your inbox for the confirmation link.'
-          : (error.message || 'Could not sign in. Please try again.');
-        errBox.classList.remove('hidden');
+        if (msg.includes('email not confirmed')) {
+          errBox.innerHTML = 'Email not confirmed yet. <button type="button" id="resend-confirm" class="underline font-bold text-brand-600 hover:text-brand-700">Resend confirmation link</button>';
+          errBox.classList.remove('hidden');
+          document.getElementById('resend-confirm')?.addEventListener('click', async () => {
+            await sbClient.auth.resend({ type: 'signup', email });
+            errBox.textContent = 'Confirmation link resent — check inbox and spam folder.';
+          });
+        } else {
+          errBox.textContent = msg.includes('invalid') || msg.includes('credentials')
+            ? 'Incorrect email or password. Please try again.'
+            : (error.message || 'Could not sign in. Please try again.');
+          errBox.classList.remove('hidden');
+        }
       } else if (data?.user) {
         currentUser = data.user;
         await fetchProfile();
