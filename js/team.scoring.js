@@ -212,10 +212,12 @@
     }
 
     const isAdmin = Boolean(
-      window.currentProfile?.access_level === 'Admin' ||
-      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
-      window.currentUser?.email === 'nodaarltd@gmail.com' ||
-      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      (typeof window.isUserAdmin === 'function' ? window.isUserAdmin() : (
+        window.currentProfile?.access_level === 'Admin' ||
+        (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+        window.currentUser?.email === 'nodaarltd@gmail.com' ||
+        (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      ))
     );
 
     // Summary statistics
@@ -458,6 +460,10 @@
 
   // Open Score Adjustment & Management Modal for Admin
   window.openScoreModal = function (userId, userName) {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can evaluate team members.', true);
+      return;
+    }
     loadLocalScores();
     const entry = teamScoresCache[userId] || {
       mode: 'auto',
@@ -677,6 +683,10 @@
   };
 
   window.recalculateAllAutoScores = function () {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can recalculate scores.', true);
+      return;
+    }
     loadLocalScores();
     Object.keys(teamScoresCache).forEach(k => {
       if (teamScoresCache[k].mode === 'auto') {

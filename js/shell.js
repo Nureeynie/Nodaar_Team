@@ -79,13 +79,14 @@
     const html = p.avatar_url ? `<img src="${p.avatar_url}" alt="${name}">` : initial;
     ['nh-h-avatar', 'nh-sheet-avatar'].forEach((id) => { const el = $(id); if (el) el.innerHTML = html; });
     const n = $('nh-sheet-name'); if (n) n.textContent = name;
-    const r = $('nh-sheet-role'); if (r) r.textContent = `${p.role || 'Member'} · ${p.access_level || 'Member'}`;
-    const isAdmin = p.access_level === 'Admin';
+    const isAdmin = typeof window.isUserAdmin === 'function' ? window.isUserAdmin() : (p.access_level === 'Admin');
+    const r = $('nh-sheet-role'); if (r) r.textContent = `${p.role || 'Member'} · ${isAdmin ? 'Admin' : 'Member'}`;
     ADMIN_ONLY.forEach((t) => { const el = document.querySelector(`.nh-gitem[data-tab="${t}"]`); if (el) el.hidden = !isAdmin; });
-    const roleBox = $('admin-role-switcher-box'); if (roleBox) roleBox.style.display = isAdmin ? '' : 'none';
+    const roleBox = $('admin-role-switcher-box'); if (roleBox) roleBox.style.display = isAdmin ? 'flex' : 'none';
     const fr = $('nh-footer-roles'); if (fr) fr.style.display = isAdmin ? '' : 'none';
     const yr = $('nh-year'); if (yr) yr.textContent = new Date().getFullYear();
   }
+  window.syncAppShell = syncUser;
 
   /* ---------- Notification dot mirror ---------- */
   function syncNotifDot() {

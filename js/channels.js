@@ -124,6 +124,7 @@
 
   // Admin & Access check
   function isCurrentAdmin() {
+    if (typeof window.isUserAdmin === 'function') return window.isUserAdmin();
     return Boolean(
       window.currentProfile?.access_level === 'Admin' ||
       (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
@@ -1037,6 +1038,10 @@
   // 6. CHANNEL CREATION & MEMBERSHIP MODAL
   // ─────────────────────────────────────────────
   window.openCreateChannelModal = function () {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can create channels.', true);
+      return;
+    }
     const modalTitle = document.getElementById('modal-title');
     const modalFields = document.getElementById('modal-fields');
     if (!modalTitle || !modalFields) return;
@@ -1232,6 +1237,10 @@
   // 8. USER MANAGEMENT (Delete, Edit, Save, Draft)
   // ─────────────────────────────────────────────
   window.deleteUser = async function (userId, userName) {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can delete users.', true);
+      return;
+    }
     if (window.currentUser && window.currentUser.id === userId) {
       alert("You cannot delete your own active administrator account.");
       return;
@@ -1269,6 +1278,10 @@
 
   // Enhanced Edit User Modal
   window.openEditUserModal = async function (userId) {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can edit user profiles and permissions.', true);
+      return;
+    }
     const sb = window.sbClient;
     let user = null;
 
@@ -1419,6 +1432,10 @@
 
   // Enhanced Add User Modal
   window.openAddUserModal = function () {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can add new team members.', true);
+      return;
+    }
     const modal = document.getElementById('action-modal');
     document.getElementById('modal-title').textContent = 'Add New Team Member';
 
@@ -1602,20 +1619,18 @@
     const countEl = document.getElementById('team-count-text');
     if (countEl) countEl.textContent = `Team Directory (${team.length} Member${team.length === 1 ? '' : 's'})`;
 
-    const isAdmin = Boolean(
-      window.currentProfile?.access_level === 'Admin' ||
-      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
-      window.currentUser?.email === 'nodaarltd@gmail.com' ||
-      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
-    );
+    const isAdmin = isCurrentAdmin();
     const currentUid = window.currentUser?.id || (typeof currentUser !== 'undefined' && currentUser?.id);
 
     const teamAddUserBtn = document.getElementById('team-add-user-btn');
     if (teamAddUserBtn) {
-      const knownUser = window.currentUser || (typeof currentUser !== 'undefined' ? currentUser : null);
-      // show for admins; also when auth state is unknown (offline/boot) so management is never stuck
-      if (!knownUser || isAdmin) teamAddUserBtn.classList.remove('hidden');
-      else teamAddUserBtn.classList.add('hidden');
+      if (isAdmin) {
+        teamAddUserBtn.style.display = 'inline-flex';
+        teamAddUserBtn.classList.remove('hidden');
+      } else {
+        teamAddUserBtn.style.display = 'none';
+        teamAddUserBtn.classList.add('hidden');
+      }
     }
 
     if (team.length === 0) {
@@ -1633,7 +1648,7 @@
         const isDraft = u.status === 'draft';
         const isInactive = u.status === 'inactive';
         const isSelf = currentUid && u.id === currentUid;
-        const canEdit = isAdmin || isSelf;
+        const canEdit = isAdmin;
         const canDelete = isAdmin && !isSelf;
         const cleanPhone = (u.phone || '').replace(/[^0-9+]/g, '');
         const waLink = cleanPhone ? `https://wa.me/${cleanPhone.replace('+', '')}` : null;
@@ -1726,7 +1741,7 @@
         const isDraft = u.status === 'draft';
         const isInactive = u.status === 'inactive';
         const isSelf = currentUid && u.id === currentUid;
-        const canEdit = isAdmin || isSelf;
+        const canEdit = isAdmin;
         const canDelete = isAdmin && !isSelf;
         const cleanPhone = (u.phone || '').replace(/[^0-9+]/g, '');
         const waLink = cleanPhone ? `https://wa.me/${cleanPhone.replace('+', '')}` : null;

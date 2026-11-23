@@ -37,11 +37,83 @@ function initSupabase() {
   }
 }
 
+// ─────────────────────────────────────────────
+// 1. INIT & AUTH (WITH STRICT REAL ADMIN DIFFERENTIATION)
+// ─────────────────────────────────────────────
+function isRealAdminUser() {
+  const prof = window.currentProfile || currentProfile;
+  if (prof) {
+    const lvl = (prof.access_level || '').toLowerCase();
+    if (lvl === 'admin' || lvl === 'administrator' || lvl === 'founder' || lvl === 'owner') return true;
+    const r = (prof.role || '').toLowerCase();
+    if (r.includes('admin') || r.includes('founder') || r.includes('owner') || r.includes('ceo') || r.includes('executive')) return true;
+  }
+
+  const user = window.currentUser || currentUser;
+  if (user) {
+    const email = (user.email || '').toLowerCase();
+    if (email === 'nodaarltd@gmail.com' || email.startsWith('admin@') || email.startsWith('founder@')) return true;
+    const metaLvl = (user.user_metadata?.access_level || '').toLowerCase();
+    if (metaLvl === 'admin' || metaLvl === 'administrator') return true;
+    const metaRole = (user.user_metadata?.role || '').toLowerCase();
+    if (metaRole.includes('admin') || metaRole.includes('founder') || metaRole.includes('owner') || metaRole.includes('ceo')) return true;
+  }
+
+  return false;
+}
+window.isRealAdminUser = isRealAdminUser;
+
+function isUserAdmin() {
+  // If user is not genuinely an admin, they can never have admin access
+  if (!isRealAdminUser()) return false;
+
+  // Real admin user can simulate/preview Member view if explicitly requested
+  const viewMode = localStorage.getItem('nodaar_view_mode');
+  if (viewMode === 'Member') return false;
+
+  return true;
+}
+window.isUserAdmin = isUserAdmin;
+
+function toggleViewMode() {
+  // Disallow non-admins from switching to admin
+  if (!isRealAdminUser()) {
+    showToast('Permission denied: Only administrators can switch view modes.', true);
+    const switchBtn = document.getElementById('persona-switch-btn');
+    if (switchBtn) switchBtn.style.display = 'none';
+    return;
+  }
+
+  const current = isUserAdmin();
+  const newMode = current ? 'Member' : 'Admin';
+  localStorage.setItem('nodaar_view_mode', newMode);
+
+  if (currentProfile) {
+    currentProfile.access_level = newMode;
+  }
+
+  showToast(`Switched view to ${newMode === 'Admin' ? '👑 Administrator' : '👤 Team Member (Preview)'} Mode`);
+
+  // Redirect if currently on admin-only tab and switching to Member
+  if (newMode === 'Member' && activeTab === 'roles') {
+    navigate('overview');
+  } else {
+    updateSidebarUser();
+    loadTabData(activeTab);
+  }
+
+  if (window.syncAppShell) window.syncAppShell();
+}
+window.toggleViewMode = toggleViewMode;
+
 async function checkAuth() {
   if (!initSupabase()) {
     setTimeout(checkAuth, 100);
     return;
   }
+
+  // Clear demo session storage to enforce real Supabase credentials
+  localStorage.removeItem('nodaar_demo_session');
 
   // Restore sidebar collapsed preference only on desktop (screen width >= 768px)
   if (window.innerWidth >= 768 && localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
@@ -78,6 +150,7 @@ async function checkAuth() {
       currentProfile = null;
       window.currentUser = null;
       window.currentProfile = null;
+      localStorage.removeItem('nodaar_view_mode');
       showAuth();
     }
   });
@@ -101,12 +174,22 @@ async function fetchProfile() {
     const { data } = await sbClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
     const prof = data || {
       id: currentUser.id, email: currentUser.email,
-      full_name: currentUser.email.split('@')[0],
-      role: 'Member', access_level: 'Member'
+      full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+      role: currentUser.user_metadata?.role || 'Member',
+      access_level: currentUser.user_metadata?.access_level || 'Member'
     };
-    if (currentUser.email === 'nodaarltd@gmail.com') {
+    if (currentUser.email === 'nodaarltd@gmail.com' || (currentUser.email || '').toLowerCase().startsWith('admin@')) {
       prof.access_level = 'Admin';
       prof.role = prof.role || 'Founder / Admin';
+    }
+    // Only real admins may have an active preview view mode
+    if (isRealAdminUser()) {
+      const savedMode = localStorage.getItem('nodaar_view_mode');
+      if (savedMode === 'Member') {
+        prof.access_level = 'Member';
+      }
+    } else {
+      localStorage.removeItem('nodaar_view_mode');
     }
     currentProfile = prof;
     window.currentProfile = prof;
@@ -145,16 +228,18 @@ function updateRoleDropdowns() {
   const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
   const adminRoleSelect = document.getElementById('admin-active-role-select');
   if (adminSwitcherBox && adminRoleSelect) {
-    if (currentProfile?.access_level === 'Admin') {
+    if (isUserAdmin()) {
+      adminSwitcherBox.style.display = 'flex';
       adminSwitcherBox.classList.remove('hidden');
       adminSwitcherBox.classList.add('flex');
       let options = `<option value="">Admin / Founder</option>`;
       allRoles.forEach(r => {
-        const sel = currentProfile.role_id === r.id ? 'selected' : '';
+        const sel = currentProfile?.role_id === r.id ? 'selected' : '';
         options += `<option value="${r.id}" ${sel}>${escapeHtml(r.name)}</option>`;
       });
       adminRoleSelect.innerHTML = options;
     } else {
+      adminSwitcherBox.style.display = 'none';
       adminSwitcherBox.classList.add('hidden');
       adminSwitcherBox.classList.remove('flex');
     }
@@ -168,7 +253,7 @@ function updateRoleDropdowns() {
 }
 
 async function switchAdminRole(roleId) {
-  if (!currentProfile || currentProfile.access_level !== 'Admin') return;
+  if (!currentProfile || !isUserAdmin()) return;
   const targetRole = allRoles.find(r => r.id === roleId);
   const newRoleName = targetRole ? targetRole.name : 'Founder / Admin';
 
@@ -176,10 +261,16 @@ async function switchAdminRole(roleId) {
   currentProfile.role = newRoleName;
   window.currentProfile = currentProfile;
 
-  await sbClient.from('profiles').update({
-    role_id: roleId || null,
-    role: newRoleName
-  }).eq('id', currentUser.id);
+  try {
+    if (sbClient && currentUser?.id && !currentUser.id.startsWith('demo-')) {
+      await sbClient.from('profiles').update({
+        role_id: roleId || null,
+        role: newRoleName
+      }).eq('id', currentUser.id);
+    }
+  } catch (e) {
+    console.warn('Switch admin role remote update skipped', e);
+  }
 
   updateSidebarUser();
   showToast(`Switched active role to: ${newRoleName}`);
@@ -187,32 +278,90 @@ async function switchAdminRole(roleId) {
 }
 
 function updateSidebarUser() {
-  const p = currentProfile;
-  if (!p) return;
-  const name = p.full_name || p.email || 'User';
-  const role = p.role || 'Member';
+  const p = currentProfile || window.currentProfile;
+  const isAdmin = isUserAdmin();
+  const name = p?.full_name || p?.email || (isAdmin ? 'Admin User' : 'Team Member');
+  const role = p?.role || (isAdmin ? 'Administrator' : 'Team Member');
 
   const nameEl = document.getElementById('user-display-name');
   const roleEl = document.getElementById('user-display-role');
   if (nameEl) nameEl.textContent = name;
-  if (roleEl) roleEl.textContent = `${role} · ${p.access_level || 'Member'}`;
+  if (roleEl) roleEl.textContent = `${role} · ${isAdmin ? 'Admin' : 'Member'}`;
 
   const avatarEl = document.getElementById('sidebar-avatar');
   if (avatarEl) {
-    if (p.avatar_url) {
+    if (p?.avatar_url) {
       avatarEl.innerHTML = `<img src="${p.avatar_url}" class="w-full h-full object-cover" alt="Avatar">`;
     } else {
       avatarEl.textContent = name.charAt(0).toUpperCase();
+      avatarEl.className = `w-9 h-9 rounded-xl ${isAdmin ? 'bg-gradient-to-tr from-purple-600 to-amber-500' : 'bg-gradient-to-tr from-brand-500 to-blue-500'} text-white font-black text-xs flex items-center justify-center overflow-hidden shadow-sm`;
     }
   }
 
-  const rolesBtn = document.getElementById('roles-nav-btn');
-  if (rolesBtn) rolesBtn.style.display = p.access_level === 'Admin' ? 'flex' : 'none';
+  // Update Persona Card in Sidebar
+  const personaBadge = document.getElementById('sidebar-persona-badge');
+  const personaDesc = document.getElementById('sidebar-persona-desc');
+  const personaSwitchBtn = document.getElementById('persona-switch-btn');
+  const personaSwitchText = document.getElementById('persona-switch-text');
+  const roleCard = document.getElementById('sidebar-role-card');
+  const realAdmin = isRealAdminUser();
 
+  if (personaBadge) {
+    if (isAdmin) {
+      personaBadge.className = 'persona-badge admin';
+      personaBadge.innerHTML = '<span>👑</span><span>Administrator</span>';
+      if (personaDesc) personaDesc.textContent = 'Full Workspace & Management Access';
+      if (roleCard) roleCard.classList.add('is-admin');
+    } else {
+      personaBadge.className = 'persona-badge member';
+      personaBadge.innerHTML = '<span>👤</span><span>Team Member</span>';
+      if (personaDesc) personaDesc.textContent = 'Standard Workspace Access';
+      if (roleCard) roleCard.classList.remove('is-admin');
+    }
+  }
+
+  // ONLY show view switch toggle if the user is a REAL admin!
+  if (personaSwitchBtn) {
+    if (!realAdmin) {
+      personaSwitchBtn.style.display = 'none';
+      personaSwitchBtn.classList.add('hidden');
+    } else {
+      personaSwitchBtn.style.display = 'flex';
+      personaSwitchBtn.classList.remove('hidden');
+      if (personaSwitchText) {
+        personaSwitchText.textContent = isAdmin ? 'Switch to Member View' : 'Return to Admin View';
+      }
+    }
+  }
+
+  // Administration Navigation Section in Sidebar
+  const adminSection = document.getElementById('sidebar-admin-section');
+  if (adminSection) {
+    adminSection.style.display = isAdmin ? 'block' : 'none';
+  }
+
+  const rolesBtn = document.getElementById('roles-nav-btn');
+  if (rolesBtn) rolesBtn.style.display = isAdmin ? 'flex' : 'none';
+
+  // Team Directory Add User button
   const teamAddUserBtn = document.getElementById('team-add-user-btn');
   if (teamAddUserBtn) {
-    if (p.access_level === 'Admin') teamAddUserBtn.classList.remove('hidden');
+    teamAddUserBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (isAdmin) teamAddUserBtn.classList.remove('hidden');
     else teamAddUserBtn.classList.add('hidden');
+  }
+
+  // Admin role switcher box in header
+  const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
+  if (adminSwitcherBox) {
+    adminSwitcherBox.style.display = isAdmin ? 'flex' : 'none';
+  }
+
+  // Task filter admin option
+  const taskFilter = document.getElementById('task-filter');
+  if (taskFilter) {
+    const adminOpt = taskFilter.querySelector('option[value="admin"]');
+    if (adminOpt) adminOpt.style.display = isAdmin ? '' : 'none';
   }
 
   loadNotifBadge();
@@ -239,6 +388,11 @@ const TAB_META = {
 };
 
 function navigate(tab) {
+  if (tab === 'roles' && !isUserAdmin()) {
+    showToast('Restricted: Administration access required', true);
+    tab = 'overview';
+  }
+
   activeTab = tab;
   document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
 
@@ -275,11 +429,19 @@ function navigate(tab) {
 
   const actionBtn = document.getElementById('primary-action-btn');
   const actionText = document.getElementById('action-btn-text');
-  if (meta.btn) {
+  const isAdmin = isUserAdmin();
+
+  // Hide primary action button on tabs where only admin can perform the action
+  const adminOnlyActions = ['team', 'okrs', 'roles'];
+  const showBtn = meta.btn && (!adminOnlyActions.includes(tab) || isAdmin);
+
+  if (showBtn) {
     actionBtn.classList.remove('hidden');
+    actionBtn.style.display = 'inline-flex';
     actionText.textContent = meta.btn;
   } else {
     actionBtn.classList.add('hidden');
+    actionBtn.style.display = 'none';
   }
 
   loadTabData(tab);
@@ -593,7 +755,8 @@ async function loadTasks() {
   boardContainer.innerHTML = loadingHTML('col-span-3');
   tableBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-xs text-slate-400">Loading tasks…</td></tr>`;
 
-  const filter = document.getElementById('task-filter')?.value || 'all';
+  let filter = document.getElementById('task-filter')?.value || 'all';
+  if (filter === 'admin' && !isUserAdmin()) filter = 'all';
   const roleFilter = document.getElementById('task-role-filter')?.value || 'all';
   const priFilter = document.getElementById('task-priority-filter')?.value || 'all';
 
@@ -615,7 +778,12 @@ async function loadTasks() {
     query = query.eq('priority', priFilter);
   }
 
-  const { data: tasks, error } = await query;
+  let { data: tasks, error } = await query;
+
+  // Non-admins should only see admin-flagged tasks if assigned to them directly
+  if (tasks && !isUserAdmin()) {
+    tasks = tasks.filter(t => !t.is_admin_task || t.assignee_id === currentUser?.id);
+  }
 
   if (error || !tasks || tasks.length === 0) {
     const emptyMsg = `
@@ -727,9 +895,10 @@ function taskCard(t) {
         <button onclick="openEditTaskModal('${t.id}')" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition opacity-0 group-hover:opacity-100" title="Edit">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         </button>
+        ${(isUserAdmin() || t.assignee_id === currentUser?.id) ? `
         <button onclick="deleteTask('${t.id}')" class="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100" title="Delete">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>` : ''}
       </div>
     </div>
     <select onchange="updateTaskStatus('${t.id}', this.value)" class="mt-2.5 w-full text-[10px] bg-white border border-slate-200 rounded-lg px-2 py-1.5 font-semibold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -747,6 +916,15 @@ async function updateTaskStatus(id, status) {
 }
 
 async function deleteTask(id) {
+  if (!isUserAdmin()) {
+    try {
+      const { data: t } = await sbClient.from('tasks').select('assignee_id').eq('id', id).maybeSingle();
+      if (t && t.assignee_id && t.assignee_id !== currentUser?.id) {
+        showToast('Restricted: You can only delete tasks assigned to you.', true);
+        return;
+      }
+    } catch (e) {}
+  }
   if (!confirm('Delete this task?')) return;
   await sbClient.from('tasks').delete().eq('id', id);
   showToast('Task deleted');
@@ -908,15 +1086,20 @@ async function loadMeetings() {
       <div class="flex flex-wrap items-center gap-2 flex-shrink-0">
         ${m.meet_link ? `<a href="${m.meet_link}" target="_blank" rel="noopener" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition">Join Call ↗</a>` : ''}
         ${m.drive_notes_link ? `<a href="${m.drive_notes_link}" target="_blank" rel="noopener" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">📁 Notes</a>` : ''}
+        ${isUserAdmin() ? `
         <button onclick="deleteMeeting('${m.id}')" class="p-2 rounded-xl hover:bg-red-50 text-slate-300 hover:text-red-500 transition" title="Delete">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>` : ''}
       </div>
     </div>`;
   }).join('');
 }
 
 async function deleteMeeting(id) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can delete meetings.', true);
+    return;
+  }
   if (!confirm('Delete this meeting?')) return;
   try {
     if (sbClient) await sbClient.from('meetings').delete().eq('id', id);
@@ -969,8 +1152,13 @@ async function loadTeam() {
   const tableBody = document.getElementById('team-table-body');
   tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
 
+  const isAdmin = isUserAdmin();
   const addBtn = document.getElementById('team-add-user-btn');
-  if (addBtn) addBtn.classList.remove('hidden');
+  if (addBtn) {
+    addBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (isAdmin) addBtn.classList.remove('hidden');
+    else addBtn.classList.add('hidden');
+  }
 
   const { data: team } = await sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
 
@@ -981,8 +1169,6 @@ async function loadTeam() {
     tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
     return;
   }
-
-  const isAdmin = currentProfile?.access_level === 'Admin';
 
   tableBody.innerHTML = team.map(u => {
     const name = u.full_name || u.email || 'Member';
@@ -1040,6 +1226,10 @@ async function loadTeam() {
 }
 
 async function toggleUserAdminRole(userId, currentLevel) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can change access levels.', true);
+    return;
+  }
   const newLevel = currentLevel === 'Admin' ? 'Member' : 'Admin';
   if (!confirm(`Switch this user's access level to ${newLevel}?`)) return;
 
@@ -1051,6 +1241,10 @@ async function toggleUserAdminRole(userId, currentLevel) {
 }
 
 function openAddUserModal() {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can add new team members.', true);
+    return;
+  }
   const modal = document.getElementById('action-modal');
   document.getElementById('modal-title').textContent = 'Add New Team Member';
 
@@ -1159,6 +1353,10 @@ function openAddUserModal() {
 }
 
 async function openEditUserModal(userId) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can edit member roles and access levels.', true);
+    return;
+  }
   const { data: user } = await sbClient.from('profiles').select('*').eq('id', userId).single();
   if (!user) return;
 
@@ -1496,6 +1694,19 @@ async function createNotification(userId, title, message, type = 'info', link_ta
 // 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles, Team, WhatsApp)
 // ─────────────────────────────────────────────
 async function openActionModal() {
+  if (activeTab === 'okrs' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can create company OKRs and objectives.', true);
+    return;
+  }
+  if (activeTab === 'roles' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can create roles.', true);
+    return;
+  }
+  if (activeTab === 'team' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can add new members.', true);
+    return;
+  }
+
   // Delegate to specific modal if on specialized tab
   if (activeTab === 'team') {
     if (typeof openAddUserModal === 'function') {
@@ -1562,10 +1773,11 @@ async function openActionModal() {
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
       </div>
+      ${isUserAdmin() ? `
       <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
         <input type="checkbox" id="f-admin-task" class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
         <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
-      </div>
+      </div>` : ''}
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'okrs') {
@@ -1768,10 +1980,11 @@ async function openEditTaskModal(id) {
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
     </div>
+    ${isUserAdmin() ? `
     <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
       <input type="checkbox" id="f-admin-task" ${t.is_admin_task ? 'checked' : ''} class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
       <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
-    </div>
+    </div>` : ''}
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Due Date</label><input id="f-due" type="date" value="${t.due_date || ''}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Link</label><input id="f-link" type="url" value="${t.drive_link || ''}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
@@ -1785,7 +1998,7 @@ async function openEditTaskModal(id) {
       status: document.getElementById('f-status').value,
       assignee_id: document.getElementById('f-assignee').value,
       role_id: document.getElementById('f-role-id').value || null,
-      is_admin_task: document.getElementById('f-admin-task')?.checked || false,
+      is_admin_task: isUserAdmin() ? (document.getElementById('f-admin-task')?.checked || false) : Boolean(t.is_admin_task),
       due_date: document.getElementById('f-due').value || null,
       drive_link: document.getElementById('f-link').value || null,
     }).eq('id', id);
@@ -1925,7 +2138,16 @@ function showApp() {
 
 async function logout() {
   if (!confirm('Sign out of Nodaar Hub?')) return;
-  await sbClient.auth.signOut();
+  localStorage.removeItem('nodaar_demo_session');
+  localStorage.removeItem('nodaar_view_mode');
+  try {
+    if (sbClient?.auth) await sbClient.auth.signOut();
+  } catch (err) { console.error('logout:', err); }
+  currentUser = null;
+  currentProfile = null;
+  window.currentUser = null;
+  window.currentProfile = null;
+  showAuth();
   showToast('Signed out');
 }
 

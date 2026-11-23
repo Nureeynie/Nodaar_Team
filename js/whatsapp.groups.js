@@ -110,10 +110,12 @@
     if (!container) return;
 
     const isAdmin = Boolean(
-      window.currentProfile?.access_level === 'Admin' ||
-      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
-      window.currentUser?.email === 'nodaarltd@gmail.com' ||
-      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      (typeof window.isUserAdmin === 'function' ? window.isUserAdmin() : (
+        window.currentProfile?.access_level === 'Admin' ||
+        (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+        window.currentUser?.email === 'nodaarltd@gmail.com' ||
+        (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      ))
     );
     const categories = ['all', ...new Set(whatsappGroups.map(g => g.category))];
 
@@ -284,6 +286,10 @@
   // MODAL: ADD / EDIT WHATSAPP GROUP
   // ─────────────────────────────────────────────
   window.openWhatsAppGroupModal = function (groupId = null) {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can manage WhatsApp group links.', true);
+      return;
+    }
     loadWhatsAppGroups();
     const existing = groupId ? whatsappGroups.find(g => g.id === groupId) : null;
     const modal = document.getElementById('action-modal');
@@ -390,6 +396,10 @@
   };
 
   window.deleteWhatsAppGroup = function (groupId) {
+    if (!window.isUserAdmin || !window.isUserAdmin()) {
+      if (typeof showToast === 'function') showToast('Restricted: Only administrators can delete WhatsApp groups.', true);
+      return;
+    }
     if (!confirm('Are you sure you want to remove this WhatsApp group link?')) return;
     whatsappGroups = whatsappGroups.filter(g => g.id !== groupId);
     saveWhatsAppGroups();
@@ -430,10 +440,12 @@
   window.searchWhatsAppGroups = function (query) {
     const q = (query || '').toLowerCase().trim();
     const isAdmin = Boolean(
-      window.currentProfile?.access_level === 'Admin' ||
-      (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
-      window.currentUser?.email === 'nodaarltd@gmail.com' ||
-      (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      (typeof window.isUserAdmin === 'function' ? window.isUserAdmin() : (
+        window.currentProfile?.access_level === 'Admin' ||
+        (typeof currentProfile !== 'undefined' && currentProfile?.access_level === 'Admin') ||
+        window.currentUser?.email === 'nodaarltd@gmail.com' ||
+        (typeof currentUser !== 'undefined' && currentUser?.email === 'nodaarltd@gmail.com')
+      ))
     );
     const grid = document.getElementById('whatsapp-groups-grid');
     if (!grid) return;

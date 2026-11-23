@@ -13,22 +13,107 @@ let taskViewMode = 'board'; // 'board' or 'list'
 
 const SB_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
 const SB_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
+window.SB_URL = window.SB_URL || SB_URL;
+window.SB_KEY = window.SB_KEY || SB_KEY;
 
 // ─────────────────────────────────────────────
 // 1. INIT & AUTH
 // ─────────────────────────────────────────────
 function initSupabase() {
   try {
-    sbClient = window.supabase.createClient(SB_URL, SB_KEY);
-    return true;
+    if (window.sbClient) {
+      sbClient = window.sbClient;
+      return true;
+    }
+    if (window.supabase) {
+      sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+      window.sbClient = sbClient;
+      return true;
+    }
+    return false;
   } catch (err) {
     console.error('Supabase init failed:', err);
     return false;
   }
 }
 
+// ─────────────────────────────────────────────
+// 1. INIT & AUTH (WITH STRICT REAL ADMIN DIFFERENTIATION)
+// ─────────────────────────────────────────────
+function isRealAdminUser() {
+  const prof = window.currentProfile || currentProfile;
+  if (prof) {
+    const lvl = (prof.access_level || '').toLowerCase();
+    if (lvl === 'admin' || lvl === 'administrator' || lvl === 'founder' || lvl === 'owner') return true;
+    const r = (prof.role || '').toLowerCase();
+    if (r.includes('admin') || r.includes('founder') || r.includes('owner') || r.includes('ceo') || r.includes('executive')) return true;
+  }
+
+  const user = window.currentUser || currentUser;
+  if (user) {
+    const email = (user.email || '').toLowerCase();
+    if (email === 'nodaarltd@gmail.com' || email.startsWith('admin@') || email.startsWith('founder@')) return true;
+    const metaLvl = (user.user_metadata?.access_level || '').toLowerCase();
+    if (metaLvl === 'admin' || metaLvl === 'administrator') return true;
+    const metaRole = (user.user_metadata?.role || '').toLowerCase();
+    if (metaRole.includes('admin') || metaRole.includes('founder') || metaRole.includes('owner') || metaRole.includes('ceo')) return true;
+  }
+
+  return false;
+}
+window.isRealAdminUser = isRealAdminUser;
+
+function isUserAdmin() {
+  // If user is not genuinely an admin, they can never have admin access
+  if (!isRealAdminUser()) return false;
+
+  // Real admin user can simulate/preview Member view if explicitly requested
+  const viewMode = localStorage.getItem('nodaar_view_mode');
+  if (viewMode === 'Member') return false;
+
+  return true;
+}
+window.isUserAdmin = isUserAdmin;
+
+function toggleViewMode() {
+  // Disallow non-admins from switching to admin
+  if (!isRealAdminUser()) {
+    showToast('Permission denied: Only administrators can switch view modes.', true);
+    const switchBtn = document.getElementById('persona-switch-btn');
+    if (switchBtn) switchBtn.style.display = 'none';
+    return;
+  }
+
+  const current = isUserAdmin();
+  const newMode = current ? 'Member' : 'Admin';
+  localStorage.setItem('nodaar_view_mode', newMode);
+
+  if (currentProfile) {
+    currentProfile.access_level = newMode;
+  }
+
+  showToast(`Switched view to ${newMode === 'Admin' ? '👑 Administrator' : '👤 Team Member (Preview)'} Mode`);
+
+  // Redirect if currently on admin-only tab and switching to Member
+  if (newMode === 'Member' && activeTab === 'roles') {
+    navigate('overview');
+  } else {
+    updateSidebarUser();
+    loadTabData(activeTab);
+  }
+
+  if (window.syncAppShell) window.syncAppShell();
+}
+window.toggleViewMode = toggleViewMode;
+
 async function checkAuth() {
-  if (!initSupabase()) return;
+  if (!initSupabase()) {
+    setTimeout(checkAuth, 100);
+    return;
+  }
+
+  // Clear demo session storage to enforce real Supabase credentials
+  localStorage.removeItem('nodaar_demo_session');
 
   // Restore sidebar collapsed preference only on desktop (screen width >= 768px)
   if (window.innerWidth >= 768 && localStorage.getItem('nodaar_sidebar_collapsed') === 'true') {
@@ -37,14 +122,19 @@ async function checkAuth() {
     document.body.classList.remove('sidebar-collapsed');
   }
 
-  const { data: { session } } = await sbClient.auth.getSession();
-  if (session && session.user) {
-    currentUser = session.user;
-    window.currentUser = currentUser;
-    await fetchProfile();
-    await fetchAllRoles();
-    showApp();
-  } else {
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      window.currentUser = currentUser;
+      await fetchProfile();
+      await fetchAllRoles();
+      showApp();
+    } else {
+      showAuth();
+    }
+  } catch (err) {
+    console.warn('Session check notice:', err);
     showAuth();
   }
 
@@ -60,6 +150,7 @@ async function checkAuth() {
       currentProfile = null;
       window.currentUser = null;
       window.currentProfile = null;
+      localStorage.removeItem('nodaar_view_mode');
       showAuth();
     }
   });
@@ -83,12 +174,22 @@ async function fetchProfile() {
     const { data } = await sbClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
     const prof = data || {
       id: currentUser.id, email: currentUser.email,
-      full_name: currentUser.email.split('@')[0],
-      role: 'Member', access_level: 'Member'
+      full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+      role: currentUser.user_metadata?.role || 'Member',
+      access_level: currentUser.user_metadata?.access_level || 'Member'
     };
-    if (currentUser.email === 'nodaarltd@gmail.com') {
+    if (currentUser.email === 'nodaarltd@gmail.com' || (currentUser.email || '').toLowerCase().startsWith('admin@')) {
       prof.access_level = 'Admin';
       prof.role = prof.role || 'Founder / Admin';
+    }
+    // Only real admins may have an active preview view mode
+    if (isRealAdminUser()) {
+      const savedMode = localStorage.getItem('nodaar_view_mode');
+      if (savedMode === 'Member') {
+        prof.access_level = 'Member';
+      }
+    } else {
+      localStorage.removeItem('nodaar_view_mode');
     }
     currentProfile = prof;
     window.currentProfile = prof;
@@ -127,16 +228,18 @@ function updateRoleDropdowns() {
   const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
   const adminRoleSelect = document.getElementById('admin-active-role-select');
   if (adminSwitcherBox && adminRoleSelect) {
-    if (currentProfile?.access_level === 'Admin') {
+    if (isUserAdmin()) {
+      adminSwitcherBox.style.display = 'flex';
       adminSwitcherBox.classList.remove('hidden');
       adminSwitcherBox.classList.add('flex');
       let options = `<option value="">Admin / Founder</option>`;
       allRoles.forEach(r => {
-        const sel = currentProfile.role_id === r.id ? 'selected' : '';
+        const sel = currentProfile?.role_id === r.id ? 'selected' : '';
         options += `<option value="${r.id}" ${sel}>${escapeHtml(r.name)}</option>`;
       });
       adminRoleSelect.innerHTML = options;
     } else {
+      adminSwitcherBox.style.display = 'none';
       adminSwitcherBox.classList.add('hidden');
       adminSwitcherBox.classList.remove('flex');
     }
@@ -150,7 +253,7 @@ function updateRoleDropdowns() {
 }
 
 async function switchAdminRole(roleId) {
-  if (!currentProfile || currentProfile.access_level !== 'Admin') return;
+  if (!currentProfile || !isUserAdmin()) return;
   const targetRole = allRoles.find(r => r.id === roleId);
   const newRoleName = targetRole ? targetRole.name : 'Founder / Admin';
 
@@ -158,10 +261,16 @@ async function switchAdminRole(roleId) {
   currentProfile.role = newRoleName;
   window.currentProfile = currentProfile;
 
-  await sbClient.from('profiles').update({
-    role_id: roleId || null,
-    role: newRoleName
-  }).eq('id', currentUser.id);
+  try {
+    if (sbClient && currentUser?.id && !currentUser.id.startsWith('demo-')) {
+      await sbClient.from('profiles').update({
+        role_id: roleId || null,
+        role: newRoleName
+      }).eq('id', currentUser.id);
+    }
+  } catch (e) {
+    console.warn('Switch admin role remote update skipped', e);
+  }
 
   updateSidebarUser();
   showToast(`Switched active role to: ${newRoleName}`);
@@ -169,32 +278,90 @@ async function switchAdminRole(roleId) {
 }
 
 function updateSidebarUser() {
-  const p = currentProfile;
-  if (!p) return;
-  const name = p.full_name || p.email || 'User';
-  const role = p.role || 'Member';
+  const p = currentProfile || window.currentProfile;
+  const isAdmin = isUserAdmin();
+  const name = p?.full_name || p?.email || (isAdmin ? 'Admin User' : 'Team Member');
+  const role = p?.role || (isAdmin ? 'Administrator' : 'Team Member');
 
   const nameEl = document.getElementById('user-display-name');
   const roleEl = document.getElementById('user-display-role');
   if (nameEl) nameEl.textContent = name;
-  if (roleEl) roleEl.textContent = `${role} · ${p.access_level || 'Member'}`;
+  if (roleEl) roleEl.textContent = `${role} · ${isAdmin ? 'Admin' : 'Member'}`;
 
   const avatarEl = document.getElementById('sidebar-avatar');
   if (avatarEl) {
-    if (p.avatar_url) {
+    if (p?.avatar_url) {
       avatarEl.innerHTML = `<img src="${p.avatar_url}" class="w-full h-full object-cover" alt="Avatar">`;
     } else {
       avatarEl.textContent = name.charAt(0).toUpperCase();
+      avatarEl.className = `w-9 h-9 rounded-xl ${isAdmin ? 'bg-gradient-to-tr from-purple-600 to-amber-500' : 'bg-gradient-to-tr from-brand-500 to-blue-500'} text-white font-black text-xs flex items-center justify-center overflow-hidden shadow-sm`;
     }
   }
 
-  const rolesBtn = document.getElementById('roles-nav-btn');
-  if (rolesBtn) rolesBtn.style.display = p.access_level === 'Admin' ? 'flex' : 'none';
+  // Update Persona Card in Sidebar
+  const personaBadge = document.getElementById('sidebar-persona-badge');
+  const personaDesc = document.getElementById('sidebar-persona-desc');
+  const personaSwitchBtn = document.getElementById('persona-switch-btn');
+  const personaSwitchText = document.getElementById('persona-switch-text');
+  const roleCard = document.getElementById('sidebar-role-card');
+  const realAdmin = isRealAdminUser();
 
+  if (personaBadge) {
+    if (isAdmin) {
+      personaBadge.className = 'persona-badge admin';
+      personaBadge.innerHTML = '<span>👑</span><span>Administrator</span>';
+      if (personaDesc) personaDesc.textContent = 'Full Workspace & Management Access';
+      if (roleCard) roleCard.classList.add('is-admin');
+    } else {
+      personaBadge.className = 'persona-badge member';
+      personaBadge.innerHTML = '<span>👤</span><span>Team Member</span>';
+      if (personaDesc) personaDesc.textContent = 'Standard Workspace Access';
+      if (roleCard) roleCard.classList.remove('is-admin');
+    }
+  }
+
+  // ONLY show view switch toggle if the user is a REAL admin!
+  if (personaSwitchBtn) {
+    if (!realAdmin) {
+      personaSwitchBtn.style.display = 'none';
+      personaSwitchBtn.classList.add('hidden');
+    } else {
+      personaSwitchBtn.style.display = 'flex';
+      personaSwitchBtn.classList.remove('hidden');
+      if (personaSwitchText) {
+        personaSwitchText.textContent = isAdmin ? 'Switch to Member View' : 'Return to Admin View';
+      }
+    }
+  }
+
+  // Administration Navigation Section in Sidebar
+  const adminSection = document.getElementById('sidebar-admin-section');
+  if (adminSection) {
+    adminSection.style.display = isAdmin ? 'block' : 'none';
+  }
+
+  const rolesBtn = document.getElementById('roles-nav-btn');
+  if (rolesBtn) rolesBtn.style.display = isAdmin ? 'flex' : 'none';
+
+  // Team Directory Add User button
   const teamAddUserBtn = document.getElementById('team-add-user-btn');
   if (teamAddUserBtn) {
-    if (p.access_level === 'Admin') teamAddUserBtn.classList.remove('hidden');
+    teamAddUserBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (isAdmin) teamAddUserBtn.classList.remove('hidden');
     else teamAddUserBtn.classList.add('hidden');
+  }
+
+  // Admin role switcher box in header
+  const adminSwitcherBox = document.getElementById('admin-role-switcher-box');
+  if (adminSwitcherBox) {
+    adminSwitcherBox.style.display = isAdmin ? 'flex' : 'none';
+  }
+
+  // Task filter admin option
+  const taskFilter = document.getElementById('task-filter');
+  if (taskFilter) {
+    const adminOpt = taskFilter.querySelector('option[value="admin"]');
+    if (adminOpt) adminOpt.style.display = isAdmin ? '' : 'none';
   }
 
   loadNotifBadge();
@@ -210,13 +377,22 @@ const TAB_META = {
   okrs:    { title:'Quarterly OKRs & Goals', sub:'High-level business and role targets', btn:'New OKR' },
   meetings:{ title:'Team Meetings & Notes', sub:'Video links, agendas and Drive meeting notes', btn:'New Meeting' },
   ideas:   { title:'Ideas & Innovation Decks', sub:'Pitch initiatives with Google Docs / Slides attachments', btn:'New Idea' },
-  team:    { title:'Team Directory', sub:'View members, roles, permissions and contact info', btn:'' },
+  team:    { title:'Team Directory', sub:'Manage organization members, assigned roles, permissions, and contacts', btn:'Add User' },
+  whatsapp:{ title:'WhatsApp Team Groups', sub:'Join and manage official team WhatsApp groups, department broadcast channels and emergency lines', btn:'New Group' },
+  scores:  { title:'Team Scores & Evaluations', sub:'Automatic activity scores and admin member evaluations', btn:'' },
+  channels:{ title:'Channels & Broadcasts', sub:'MS Teams style team collaboration, URL links and announcements', btn:'New Post' },
+  docs:    { title:'Documents', sub:'Word-style documents — write, format and autosave team docs', btn:'New Document' },
   roles:   { title:'Roles & Permissions', sub:'Create roles, assign members and categorize work', btn:'New Role' },
-  calendar:{ title:'Team Calendar', sub:'Mon-Sat 10am-4pm • Meetings auto-sync • Teams-like', btn:'New Meeting' },
+  calendar:{ title:'Team Calendar', sub:'Mon–Sat 10:00–16:00 (Lagos) · meetings, deadlines and Google/Outlook sync', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
 };
 
 function navigate(tab) {
+  if (tab === 'roles' && !isUserAdmin()) {
+    showToast('Restricted: Administration access required', true);
+    tab = 'overview';
+  }
+
   activeTab = tab;
   document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
 
@@ -253,11 +429,19 @@ function navigate(tab) {
 
   const actionBtn = document.getElementById('primary-action-btn');
   const actionText = document.getElementById('action-btn-text');
-  if (meta.btn) {
+  const isAdmin = isUserAdmin();
+
+  // Hide primary action button on tabs where only admin can perform the action
+  const adminOnlyActions = ['team', 'okrs', 'roles'];
+  const showBtn = meta.btn && (!adminOnlyActions.includes(tab) || isAdmin);
+
+  if (showBtn) {
     actionBtn.classList.remove('hidden');
+    actionBtn.style.display = 'inline-flex';
     actionText.textContent = meta.btn;
   } else {
     actionBtn.classList.add('hidden');
+    actionBtn.style.display = 'none';
   }
 
   loadTabData(tab);
@@ -274,8 +458,12 @@ async function loadTabData(tab) {
     case 'meetings':await loadMeetings(); break;
     case 'ideas':   await loadIdeas(); break;
     case 'team':    await (window.loadTeam ? window.loadTeam() : loadTeam()); break;
+    case 'whatsapp': window.navigate('channels'); break;
+    case 'scores':   if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
+    case 'channels': if (window.loadChannels) await window.loadChannels(); break;
+    case 'docs':     if (window.loadDocs) window.loadDocs(); break;
     case 'roles':   await loadRoles(); break;
-    case 'calendar': await loadCalendar(); break;
+    case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
   }
 }
@@ -567,7 +755,8 @@ async function loadTasks() {
   boardContainer.innerHTML = loadingHTML('col-span-3');
   tableBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-xs text-slate-400">Loading tasks…</td></tr>`;
 
-  const filter = document.getElementById('task-filter')?.value || 'all';
+  let filter = document.getElementById('task-filter')?.value || 'all';
+  if (filter === 'admin' && !isUserAdmin()) filter = 'all';
   const roleFilter = document.getElementById('task-role-filter')?.value || 'all';
   const priFilter = document.getElementById('task-priority-filter')?.value || 'all';
 
@@ -589,7 +778,12 @@ async function loadTasks() {
     query = query.eq('priority', priFilter);
   }
 
-  const { data: tasks, error } = await query;
+  let { data: tasks, error } = await query;
+
+  // Non-admins should only see admin-flagged tasks if assigned to them directly
+  if (tasks && !isUserAdmin()) {
+    tasks = tasks.filter(t => !t.is_admin_task || t.assignee_id === currentUser?.id);
+  }
 
   if (error || !tasks || tasks.length === 0) {
     const emptyMsg = `
@@ -701,9 +895,10 @@ function taskCard(t) {
         <button onclick="openEditTaskModal('${t.id}')" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition opacity-0 group-hover:opacity-100" title="Edit">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         </button>
+        ${(isUserAdmin() || t.assignee_id === currentUser?.id) ? `
         <button onclick="deleteTask('${t.id}')" class="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100" title="Delete">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>` : ''}
       </div>
     </div>
     <select onchange="updateTaskStatus('${t.id}', this.value)" class="mt-2.5 w-full text-[10px] bg-white border border-slate-200 rounded-lg px-2 py-1.5 font-semibold text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500">
@@ -721,6 +916,15 @@ async function updateTaskStatus(id, status) {
 }
 
 async function deleteTask(id) {
+  if (!isUserAdmin()) {
+    try {
+      const { data: t } = await sbClient.from('tasks').select('assignee_id').eq('id', id).maybeSingle();
+      if (t && t.assignee_id && t.assignee_id !== currentUser?.id) {
+        showToast('Restricted: You can only delete tasks assigned to you.', true);
+        return;
+      }
+    } catch (e) {}
+  }
   if (!confirm('Delete this task?')) return;
   await sbClient.from('tasks').delete().eq('id', id);
   showToast('Task deleted');
@@ -841,9 +1045,26 @@ async function loadOKRs() {
 // ─────────────────────────────────────────────
 async function loadMeetings() {
   const container = document.getElementById('meetings-container');
-  const { data: meetings } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
+  if (!container) return;
+
+  let remoteMeetings = [];
+  try {
+    if (sbClient) {
+      const { data } = await sbClient.from('meetings').select('*').order('meeting_date', { ascending: true });
+      remoteMeetings = data || [];
+    }
+  } catch (err) {
+    console.warn('Load meetings remote error:', err);
+  }
+
+  const localMeetings = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+  const meetMap = new Map();
+  localMeetings.forEach(m => { if (m && (m.id || m.title)) meetMap.set(m.id || m.title, m); });
+  remoteMeetings.forEach(m => { if (m && (m.id || m.title)) meetMap.set(m.id || m.title, m); });
+  const meetings = Array.from(meetMap.values()).sort((a, b) => (a.meeting_date || '').localeCompare(b.meeting_date || ''));
+
   if (!meetings || meetings.length === 0) {
-    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No meetings scheduled. Click "+ New Meeting" to schedule one.</div>';
+    container.innerHTML = '<div class="p-10 text-center text-xs text-slate-400">No meetings scheduled. Click "+ Schedule Meeting" to schedule one.</div>';
     return;
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -853,29 +1074,41 @@ async function loadMeetings() {
     <div class="p-4 sm:p-5 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isPast ? 'opacity-60' : ''}">
       <div class="flex gap-4 items-start">
         <div class="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-2xl flex flex-col items-center justify-center border border-slate-200">
-          <span class="text-[9px] font-black text-slate-500 uppercase">${new Date(m.meeting_date+'T00:00').toLocaleString('en',{month:'short'})}</span>
-          <span class="text-lg font-black text-navy-900 leading-none">${new Date(m.meeting_date+'T00:00').getDate()}</span>
+          <span class="text-[9px] font-black text-slate-500 uppercase">${new Date((m.meeting_date||today)+'T00:00').toLocaleString('en',{month:'short'})}</span>
+          <span class="text-lg font-black text-navy-900 leading-none">${new Date((m.meeting_date||today)+'T00:00').getDate()}</span>
         </div>
         <div>
           <h4 class="font-bold text-sm text-navy-900">${escapeHtml(m.title)}</h4>
-          <div class="text-[11px] text-slate-400 mt-0.5">${m.start_time} – ${m.end_time}</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">${m.start_time || '10:00'} – ${m.end_time || '11:00'}</div>
           ${m.agenda ? `<p class="text-xs text-slate-500 mt-1 line-clamp-2">${escapeHtml(m.agenda)}</p>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 flex-shrink-0">
         ${m.meet_link ? `<a href="${m.meet_link}" target="_blank" rel="noopener" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition">Join Call ↗</a>` : ''}
         ${m.drive_notes_link ? `<a href="${m.drive_notes_link}" target="_blank" rel="noopener" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">📁 Notes</a>` : ''}
+        ${isUserAdmin() ? `
         <button onclick="deleteMeeting('${m.id}')" class="p-2 rounded-xl hover:bg-red-50 text-slate-300 hover:text-red-500 transition" title="Delete">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>` : ''}
       </div>
     </div>`;
   }).join('');
 }
 
 async function deleteMeeting(id) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can delete meetings.', true);
+    return;
+  }
   if (!confirm('Delete this meeting?')) return;
-  await sbClient.from('meetings').delete().eq('id', id);
+  try {
+    if (sbClient) await sbClient.from('meetings').delete().eq('id', id);
+  } catch (e) {}
+  try {
+    const local = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+    const filtered = local.filter(m => m.id !== id);
+    localStorage.setItem('nodaar_meetings_local', JSON.stringify(filtered));
+  } catch (e) {}
   showToast('Meeting deleted');
   loadMeetings();
 }
@@ -917,7 +1150,15 @@ async function loadTeam() {
     return window.loadTeam();
   }
   const tableBody = document.getElementById('team-table-body');
-  tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
+  tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">Loading team members…</td></tr>`;
+
+  const isAdmin = isUserAdmin();
+  const addBtn = document.getElementById('team-add-user-btn');
+  if (addBtn) {
+    addBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (isAdmin) addBtn.classList.remove('hidden');
+    else addBtn.classList.add('hidden');
+  }
 
   const { data: team } = await sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
 
@@ -925,11 +1166,9 @@ async function loadTeam() {
   if (countEl) countEl.textContent = `Team Directory (${(team || []).length} Members)`;
 
   if (!team || team.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-400">No team profiles found.</td></tr>`;
     return;
   }
-
-  const isAdmin = currentProfile?.access_level === 'Admin';
 
   tableBody.innerHTML = team.map(u => {
     const name = u.full_name || u.email || 'Member';
@@ -956,7 +1195,13 @@ async function loadTeam() {
         </td>
         <td class="py-3 px-4">${roleTag}</td>
         <td class="py-3 px-4">
-          ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600">Member</span>'}
+          ${userIsAdmin ? '<span class="pill bg-purple-100 text-purple-700 border border-purple-200 font-bold">Admin</span>' : '<span class="pill bg-slate-100 text-slate-600 font-semibold">Member</span>'}
+        </td>
+        <td class="py-3 px-4">
+          <div class="flex items-center gap-1 flex-wrap">
+            <span class="pill bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-semibold">#announcements</span>
+            <span class="pill bg-slate-100 text-slate-600 text-[9px] font-semibold">#general</span>
+          </div>
         </td>
         <td class="py-3 px-4 text-slate-500 font-medium">
           ${u.phone ? `📞 ${escapeHtml(u.phone)}` : '<span class="text-slate-300">—</span>'}
@@ -981,6 +1226,10 @@ async function loadTeam() {
 }
 
 async function toggleUserAdminRole(userId, currentLevel) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can change access levels.', true);
+    return;
+  }
   const newLevel = currentLevel === 'Admin' ? 'Member' : 'Admin';
   if (!confirm(`Switch this user's access level to ${newLevel}?`)) return;
 
@@ -992,6 +1241,10 @@ async function toggleUserAdminRole(userId, currentLevel) {
 }
 
 function openAddUserModal() {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can add new team members.', true);
+    return;
+  }
   const modal = document.getElementById('action-modal');
   document.getElementById('modal-title').textContent = 'Add New Team Member';
 
@@ -1001,15 +1254,15 @@ function openAddUserModal() {
   document.getElementById('modal-fields').innerHTML = `
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Full Name *</label>
-      <input id="u-name" type="text" required placeholder="Jane Doe" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-name" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Email Address *</label>
-      <input id="u-email" type="email" required placeholder="jane@nodaar.com" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-email" type="email" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Temporary Password *</label>
-      <input id="u-password" type="password" required value="Nodaar@2026" placeholder="Min 6 characters" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-password" type="password" required value="Nodaar@2026" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
       <span class="text-[10px] text-slate-400">Share this password with the member to sign in.</span>
     </div>
     <div class="grid grid-cols-2 gap-3">
@@ -1029,7 +1282,7 @@ function openAddUserModal() {
     </div>
     <div>
       <label class="block text-xs font-bold text-slate-600 mb-1">Job Title</label>
-      <input id="u-title" type="text" placeholder="e.g. Marketing Specialist, Designer" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+      <input id="u-title" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">
     </div>
   `;
 
@@ -1049,21 +1302,31 @@ function openAddUserModal() {
     const job_title = document.getElementById('u-title').value.trim() || (selectedRole ? selectedRole.name : 'Member');
 
     try {
-      const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      });
+      let newUserId = null;
+      let needsConfirm = false;
 
-      const { data: authData, error: authErr } = await tempClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name, role: job_title, access_level }
-        }
-      });
+      // Preferred: Edge Function with service role -> user created PRE-CONFIRMED
+      try {
+        const fn = await sbClient.functions.invoke('create-user', {
+          body: { email, password, full_name, role: job_title, role_id, access_level }
+        });
+        if (fn.error) throw fn.error;
+        newUserId = fn.data?.user?.id || null;
+      } catch (fnErr) {
+        // Fallback: anon signUp (account may need email confirmation)
+        const tempClient = window.supabase.createClient(SB_URL, SB_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+        const { data: authData, error: authErr } = await tempClient.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name, role: job_title, access_level } }
+        });
+        if (authErr) throw authErr;
+        newUserId = authData.user?.id;
+        needsConfirm = !authData.session;
+      }
 
-      if (authErr) throw authErr;
-
-      const newUserId = authData.user?.id;
       if (newUserId) {
         await sbClient.from('profiles').upsert({
           id: newUserId,
@@ -1075,18 +1338,25 @@ function openAddUserModal() {
         });
       }
 
-      showToast(`User ${full_name} created successfully! 🎉`);
+      showToast(needsConfirm
+        ? `User ${full_name} created — they must confirm their email before signing in (or disable "Confirm email" in Supabase → Auth → Settings).`
+        : `User ${full_name} created! Temp password: ${password}`);
       closeActionModal();
       resetModalSubmit();
       loadTeam();
     } catch (err) {
-      showToast(err.message || 'Failed to create user', true);
+      const m = (err.message || '').toLowerCase();
+      showToast(m.includes('already') ? 'An account with this email already exists — they can sign in now.' : (err.message || 'Failed to create user'), true);
     }
     btn.disabled = false; btn.textContent = 'Save';
   };
 }
 
 async function openEditUserModal(userId) {
+  if (!isUserAdmin()) {
+    showToast('Restricted: Only administrators can edit member roles and access levels.', true);
+    return;
+  }
   const { data: user } = await sbClient.from('profiles').select('*').eq('id', userId).single();
   if (!user) return;
 
@@ -1421,25 +1691,80 @@ async function createNotification(userId, title, message, type = 'info', link_ta
 }
 
 // ─────────────────────────────────────────────
-// 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles)
+// 14. ACTION MODAL (Tasks, OKRs, Meetings, Ideas, Roles, Team, WhatsApp)
 // ─────────────────────────────────────────────
 async function openActionModal() {
+  if (activeTab === 'okrs' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can create company OKRs and objectives.', true);
+    return;
+  }
+  if (activeTab === 'roles' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can create roles.', true);
+    return;
+  }
+  if (activeTab === 'team' && !isUserAdmin()) {
+    showToast('Restricted: Only administrators can add new members.', true);
+    return;
+  }
+
+  // Delegate to specific modal if on specialized tab
+  if (activeTab === 'team') {
+    if (typeof openAddUserModal === 'function') {
+      openAddUserModal();
+      return;
+    }
+  }
+  if (activeTab === 'whatsapp') {
+    if (window.openWhatsAppGroupModal) {
+      window.openWhatsAppGroupModal();
+      return;
+    }
+  }
+  if (activeTab === 'channels') {
+    if (window.openPostUpdateModal) {
+      window.openPostUpdateModal();
+      return;
+    }
+  }
+  if (activeTab === 'reports') {
+    const rf = document.getElementById('report-form');
+    if (rf) {
+      rf.scrollIntoView({ behavior: 'smooth' });
+      const firstInput = rf.querySelector('input, textarea');
+      if (firstInput) firstInput.focus();
+      return;
+    }
+  }
+
   const modal = document.getElementById('action-modal');
   const fields = document.getElementById('modal-fields');
   const title = document.getElementById('modal-title');
 
-  await fetchAllRoles();
-  const roleOptions = `<option value="">No Specific Role</option>` + allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  let roleOptions = '<option value="">No Specific Role</option>';
+  try {
+    await fetchAllRoles();
+    if (allRoles && allRoles.length) {
+      roleOptions += allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('Could not fetch roles for modal', e);
+  }
 
-  const { data: members } = await sbClient.from('profiles').select('id,full_name,email').order('full_name');
-  const memberOptions = `<option value="${currentUser.id}">(Me)</option>` +
-    (members || []).filter(m => m.id !== currentUser.id).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
+  let memberOptions = `<option value="${currentUser?.id || 'admin'}">(Me)</option>`;
+  try {
+    const { data: members } = await sbClient.from('profiles').select('id,full_name,email').order('full_name');
+    if (members && members.length) {
+      memberOptions += members.filter(m => m.id !== currentUser?.id).map(m => `<option value="${m.id}">${escapeHtml(m.full_name || m.email)}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('Could not fetch members for modal', e);
+  }
 
-  if (activeTab === 'tasks') {
+  if (activeTab === 'tasks' || !['okrs','meetings','ideas','roles'].includes(activeTab)) {
     title.textContent = 'New Task';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Task Title *</label><input id="f-title" type="text" required placeholder="Launch marketing campaign" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Deliverables and expectations..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Task Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Priority</label><select id="f-pri" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option>Medium</option><option>High</option><option>Critical</option><option>Low</option></select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Due Date</label><input id="f-due" type="date" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1448,11 +1773,12 @@ async function openActionModal() {
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign to Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
       </div>
+      ${isUserAdmin() ? `
       <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
         <input type="checkbox" id="f-admin-task" class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
         <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
-      </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      </div>` : ''}
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Link</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'okrs') {
     title.textContent = 'New OKR';
@@ -1461,8 +1787,8 @@ async function openActionModal() {
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Quarter</label><select id="f-q" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"><option>Q1</option><option>Q2</option><option>Q3</option><option selected>Q4</option></select></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Unit</label><input id="f-unit" type="text" value="%" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required placeholder="Scale Client Base & Market Share" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Key Result *</label><input id="f-kr" type="text" required placeholder="Acquire 100 new paying clients" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Objective *</label><input id="f-obj" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Key Result *</label><input id="f-kr" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Target</label><input id="f-target" type="number" required value="100" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
         <div><label class="block text-xs font-bold text-slate-600 mb-1">Current Progress</label><input id="f-current" type="number" value="0" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
@@ -1482,34 +1808,35 @@ async function openActionModal() {
           </select>
         </div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Strategy Doc</label><input id="f-link" type="url" placeholder="https://drive.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Strategy Doc</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'meetings') {
     title.textContent = 'Schedule Meeting';
+    const today = new Date().toISOString().slice(0, 10);
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Meeting Title *</label><input id="f-title" type="text" required placeholder="Weekly Marketing Sync" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Meeting Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       <div class="grid grid-cols-3 gap-3">
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">Date *</label><input id="f-date" type="date" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">Start</label><input id="f-start" type="time" value="09:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-        <div><label class="block text-xs font-bold text-slate-600 mb-1">End</label><input id="f-end" type="time" value="10:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">Date *</label><input id="f-date" type="date" required value="${today}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">Start</label><input id="f-start" type="time" value="10:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold text-slate-600 mb-1">End</label><input id="f-end" type="time" value="11:00" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
       </div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Meet Link</label><input id="f-meet" type="url" placeholder="https://meet.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Notes Doc</label><input id="f-notes" type="url" placeholder="https://docs.google.com/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Agenda</label><textarea id="f-agenda" rows="2" placeholder="Review Q4 progress..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Google Meet Link</label><input id="f-meet" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Notes Doc</label><input id="f-notes" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Agenda</label><textarea id="f-agenda" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>`;
 
   } else if (activeTab === 'ideas') {
     title.textContent = 'Pitch an Idea';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Title *</label><input id="f-title" type="text" required placeholder="Community Ambassador Program" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description *</label><textarea id="f-desc" rows="3" required placeholder="Outline your initiative..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Expected Impact</label><input id="f-impact" type="text" placeholder="Estimated +20% engagement..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Pitch Deck / Slides Link</label><input id="f-link" type="url" placeholder="https://docs.google.com/presentation/d/..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Title *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description *</label><textarea id="f-desc" rows="3" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Expected Impact</label><input id="f-impact" type="text" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Pitch Deck / Slides Link</label><input id="f-link" type="url" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
   } else if (activeTab === 'roles') {
     title.textContent = 'Create New Role';
     fields.innerHTML = `
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required placeholder="Marketing, Engineering, Operations..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" placeholder="Responsibilities and scope for this role..." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Name *</label><input id="f-title" type="text" required class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-600 mb-1">Description</label><textarea id="f-desc" rows="2" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role Color</label>
         <div class="flex items-center gap-3">
           <input id="f-color" type="color" value="#FE8A03" class="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer">
@@ -1521,6 +1848,7 @@ async function openActionModal() {
   modal.classList.remove('hidden');
   document.getElementById('modal-form').onsubmit = handleModalSubmit;
 }
+window.openActionModal = openActionModal;
 
 async function handleModalSubmit(e) {
   e.preventDefault();
@@ -1566,16 +1894,43 @@ async function handleModalSubmit(e) {
       showToast('OKR saved!'); closeActionModal(); loadOKRs();
 
     } else if (activeTab === 'meetings') {
-      const title = document.getElementById('f-title').value;
+      const title = document.getElementById('f-title').value.trim();
       const meeting_date = document.getElementById('f-date').value;
       const start_time = document.getElementById('f-start').value;
       const end_time = document.getElementById('f-end').value;
-      const meet_link = document.getElementById('f-meet').value || null;
-      const drive_notes_link = document.getElementById('f-notes').value || null;
-      const agenda = document.getElementById('f-agenda').value || null;
-      const { error } = await sbClient.from('meetings').insert({ title, meeting_date, start_time, end_time, meet_link, drive_notes_link, agenda });
-      if (error) throw error;
-      showToast('Meeting scheduled!'); closeActionModal(); loadMeetings();
+      const meet_link = document.getElementById('f-meet').value.trim() || null;
+      const drive_notes_link = document.getElementById('f-notes').value.trim() || null;
+      const agenda = document.getElementById('f-agenda').value.trim() || null;
+
+      const newMeeting = {
+        id: 'meet_' + Date.now(),
+        title,
+        meeting_date,
+        start_time,
+        end_time,
+        meet_link,
+        drive_notes_link,
+        agenda,
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        if (sbClient) {
+          await sbClient.from('meetings').insert({ title, meeting_date, start_time, end_time, meet_link, drive_notes_link, agenda });
+        }
+      } catch (err) {
+        console.warn('Supabase meeting insert notice:', err);
+      }
+
+      try {
+        const local = JSON.parse(localStorage.getItem('nodaar_meetings_local') || '[]');
+        local.push(newMeeting);
+        localStorage.setItem('nodaar_meetings_local', JSON.stringify(local));
+      } catch (e) {}
+
+      showToast('Meeting scheduled successfully! 📅');
+      closeActionModal();
+      loadMeetings();
 
     } else if (activeTab === 'ideas') {
       const title = document.getElementById('f-title').value;
@@ -1625,10 +1980,11 @@ async function openEditTaskModal(id) {
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Assign To</label><select id="f-assignee" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${memberOptions}</select></div>
       <div><label class="block text-xs font-bold text-slate-600 mb-1">Role</label><select id="f-role-id" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none">${roleOptions}</select></div>
     </div>
+    ${isUserAdmin() ? `
     <div class="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200/60 rounded-xl">
       <input type="checkbox" id="f-admin-task" ${t.is_admin_task ? 'checked' : ''} class="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer">
       <label for="f-admin-task" class="text-xs font-bold text-purple-900 cursor-pointer">🔒 Mark as Admin Work / Executive Task</label>
-    </div>
+    </div>` : ''}
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Due Date</label><input id="f-due" type="date" value="${t.due_date || ''}" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>
     <div><label class="block text-xs font-bold text-slate-600 mb-1">Drive Link</label><input id="f-link" type="url" value="${t.drive_link || ''}" class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"></div>`;
 
@@ -1642,7 +1998,7 @@ async function openEditTaskModal(id) {
       status: document.getElementById('f-status').value,
       assignee_id: document.getElementById('f-assignee').value,
       role_id: document.getElementById('f-role-id').value || null,
-      is_admin_task: document.getElementById('f-admin-task')?.checked || false,
+      is_admin_task: isUserAdmin() ? (document.getElementById('f-admin-task')?.checked || false) : Boolean(t.is_admin_task),
       due_date: document.getElementById('f-due').value || null,
       drive_link: document.getElementById('f-link').value || null,
     }).eq('id', id);
@@ -1665,6 +2021,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function setAuthLoading(loading) {
+    const btn = document.getElementById('auth-submit-btn');
+    if (!btn) return;
+    btn.disabled = loading;
+    const label = document.getElementById('auth-btn-label');
+    const arrow = document.getElementById('auth-btn-arrow');
+    const spin = document.getElementById('auth-btn-spinner');
+    if (label) label.textContent = loading ? 'Signing in…' : 'Sign in';
+    if (arrow) arrow.classList.toggle('hidden', loading);
+    if (spin) spin.classList.toggle('hidden', !loading);
+  }
+
   const authForm = document.getElementById('auth-form');
   if (authForm) authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1673,20 +2041,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const errBox = document.getElementById('auth-error');
     const btn = document.getElementById('auth-submit-btn');
     errBox.classList.add('hidden');
-    btn.disabled = true; btn.textContent = 'Signing in…';
+    errBox.textContent = '';
+    setAuthLoading(true);
 
-    const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-    btn.disabled = false; btn.textContent = 'Sign In';
-
-    if (error) {
-      errBox.textContent = error.message;
+    if (!sbClient) {
+      initSupabase();
+    }
+    if (!sbClient) {
+      errBox.textContent = 'Connecting to authentication services... please wait a few seconds and try again.';
       errBox.classList.remove('hidden');
-    } else if (data?.user) {
-      currentUser = data.user;
-      await fetchProfile();
-      await fetchAllRoles();
-      showApp();
-      showToast('Welcome back to Nodaar Hub! 🎉');
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+      setAuthLoading(false);
+
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('email not confirmed')) {
+          errBox.innerHTML = 'Email not confirmed yet. <button type="button" id="resend-confirm" class="underline font-bold text-brand-600 hover:text-brand-700">Resend confirmation link</button>';
+          errBox.classList.remove('hidden');
+          document.getElementById('resend-confirm')?.addEventListener('click', async () => {
+            await sbClient.auth.resend({ type: 'signup', email });
+            errBox.textContent = 'Confirmation link resent — check inbox and spam folder.';
+          });
+        } else {
+          errBox.textContent = msg.includes('invalid') || msg.includes('credentials')
+            ? 'Incorrect email or password. Please try again.'
+            : (error.message || 'Could not sign in. Please try again.');
+          errBox.classList.remove('hidden');
+        }
+      } else if (data?.user) {
+        currentUser = data.user;
+        await fetchProfile();
+        await fetchAllRoles();
+        showApp();
+        showToast('Welcome back to Nodaar Hub! 🎉');
+      }
+    } catch (err) {
+      setAuthLoading(false);
+      errBox.textContent = err.message || 'Network connection error while signing in. Please check your connection.';
+      errBox.classList.remove('hidden');
+      console.error('Sign-in error:', err);
     }
   });
 
@@ -1721,18 +2119,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function showAuth() {
   document.getElementById('auth-screen').classList.remove('hidden');
-  document.getElementById('app-shell').classList.add('hidden');
+  const appShell = document.getElementById('app-shell');
+  if (appShell) {
+    appShell.classList.add('hidden');
+    appShell.classList.remove('flex');
+  }
 }
 
 function showApp() {
   document.getElementById('auth-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
+  const appShell = document.getElementById('app-shell');
+  if (appShell) {
+    appShell.classList.remove('hidden');
+    appShell.classList.add('flex');
+  }
   navigate(activeTab);
 }
 
 async function logout() {
   if (!confirm('Sign out of Nodaar Hub?')) return;
-  await sbClient.auth.signOut();
+  localStorage.removeItem('nodaar_demo_session');
+  localStorage.removeItem('nodaar_view_mode');
+  try {
+    if (sbClient?.auth) await sbClient.auth.signOut();
+  } catch (err) { console.error('logout:', err); }
+  currentUser = null;
+  currentProfile = null;
+  window.currentUser = null;
+  window.currentProfile = null;
+  showAuth();
   showToast('Signed out');
 }
 

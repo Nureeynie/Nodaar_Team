@@ -626,76 +626,170 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
 /* primary buttons: solid, slightly smaller, portal-like */
 #primary-action-btn { border-radius: 10px !important; font-size: 13px !important; padding: 9px 16px !important; box-shadow: 0 2px 8px rgba(249,115,22,.25) !important; }
 
-/* ===== v3.16 sidebar: bg color, Inter font, generous padding/margins ===== */
+/* ===== Modern Enterprise Dark Sidebar UI/UX Redesign ===== */
 #sidebar {
-  background: #f6f8fb !important;               /* soft portal gray */
-  border-right: 1px solid #e8ecf2 !important;
-  font-family: 'Inter', system-ui, sans-serif !important;
+  background: #07192F !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #94A3B8 !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.35);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
-/* more air around header block */
-#sidebar .sidebar-top-box { padding: 20px 18px !important; border-bottom: 1px solid #e8ecf2 !important; }
-/* nav list: more padding + item spacing */
-#sidebar-nav { padding: 14px 14px 18px 14px !important; }
-#sidebar-nav > * + * { margin-top: 6px; }
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 99px; }
+
+#sidebar .sidebar-top-box {
+  padding: 16px 14px 12px 14px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Persona & Mode Switcher */
+#sidebar-role-card {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+#sidebar-role-card.is-admin {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.14) 0%, rgba(109, 40, 217, 0.05) 100%) !important;
+  border-color: rgba(167, 139, 250, 0.35) !important;
+}
+.persona-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  padding: 2.5px 8px !important;
+  border-radius: 9999px !important;
+  letter-spacing: 0.02em !important;
+}
+.persona-badge.admin {
+  background: rgba(139, 92, 246, 0.25) !important;
+  color: #DDD6FE !important;
+  border: 1px solid rgba(167, 139, 250, 0.45) !important;
+}
+.persona-badge.member {
+  background: rgba(56, 189, 248, 0.18) !important;
+  color: #BAE6FD !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+}
+
+.sidebar-section-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 10px 4px 10px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #64748B !important;
+}
+
+/* Nav Buttons */
 #sidebar .nav-btn {
-  padding: 11px 14px !important;
-  margin: 2px 0;
-  font-size: 13.5px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  padding: 8.5px 10px !important;
+  margin: 2px 0 !important;
+  border-radius: 11px !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
-  letter-spacing: -0.01em;
-  border-radius: 12px !important;
+  color: #94A3B8 !important;
   background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  transition: all 0.16s ease !important;
+  text-decoration: none !important;
 }
-#sidebar .nav-btn:hover { background: #ffffff !important; box-shadow: 0 1px 3px rgba(15,23,42,.06) !important; }
-#sidebar .nav-btn.active { background: #ffffff !important; color: #c2410c !important; box-shadow: inset 3px 0 0 0 #f97316, 0 1px 3px rgba(15,23,42,.05) !important; }
-#sidebar .nav-btn.active > div { background: #f97316 !important; color: #fff !important; }
-#sidebar .nav-btn > div { background: #ffffff !important; color: #64748b !important; box-shadow: 0 1px 2px rgba(15,23,42,.05) !important; width: 30px !important; height: 30px !important; }
-#sidebar .sidebar-header-title { padding: 10px 14px 6px 14px !important; font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: .1em !important; color: #94a3b8 !important; }
-/* shift pill + user card get breathing room */
-#sidebar .sidebar-top-box .sidebar-text { margin-top: 14px !important; }
-#sidebar .sidebar-user-box { padding: 16px 14px !important; background: #f6f8fb !important; border-top: 1px solid #e8ecf2 !important; }
-#sidebar .sidebar-user-card { background: #ffffff !important; padding: 12px !important; border-radius: 16px !important; }
-
-/* ===== v3.17 sidebar label contrast: all nav labels dark & readable ===== */
-#sidebar .nav-btn, #sidebar .nav-btn .sidebar-text { color: #334155 !important; }
-#sidebar .nav-btn > div { color: #475569 !important; background: #ffffff !important; }
-#sidebar .nav-btn:hover, #sidebar .nav-btn:hover .sidebar-text { color: #0f172a !important; }
-#sidebar .nav-btn:hover > div { color: #ea580c !important; }
-#sidebar .nav-btn.active, #sidebar .nav-btn.active .sidebar-text { color: #c2410c !important; }
-#sidebar .nav-btn .pill { color: #64748b !important; background: #ffffff !important; border: 1px solid #e2e8f0; }
-#sidebar .nav-btn.active .pill { color: #c2410c !important; background: #ffedd5 !important; border-color: #fed7aa !important; }
-
-/* ===== v3.17b fix: icon chip is the NESTED div; wrapper must size to content ===== */
-#sidebar .nav-btn > div { width: auto !important; height: auto !important; min-width: 0 !important; }
-#sidebar .nav-btn > div > div { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; }
-#sidebar .nav-btn .sidebar-text.truncate { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important; flex: 1 1 auto !important; width: auto !important; }
-
-/* ===== v3.18 sidebar clean-up ===== */
-/* accordion group headers: no leading icon, chevron far right, quiet */
-#sidebar details > summary { list-style: none !important; }
-#sidebar details > summary::-webkit-details-marker { display: none !important; }
-#sidebar details > summary > div:first-child,
-#sidebar details > summary > span.ic,
-#sidebar details > summary svg:first-child { display: none !important; }
-#sidebar details > summary {
-  display: flex !important; align-items: center !important; justify-content: space-between !important;
-  padding: 10px 14px 6px 14px !important; cursor: pointer;
-  font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: .1em !important;
-  text-transform: uppercase !important; color: #94a3b8 !important;
+#sidebar .nav-btn .nav-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #94A3B8 !important;
+  flex-shrink: 0 !important;
+  transition: all 0.16s ease !important;
 }
-#sidebar details > summary .sidebar-text { color: #94a3b8 !important; }
-#sidebar details > summary svg:last-child { width: 14px !important; height: 14px !important; color: #cbd5e1 !important; }
-/* group content indent: clean hairline */
-#sidebar details > div { border-left: 1px solid #e8ecf2 !important; margin-left: 20px !important; padding-left: 8px !important; }
-/* uniform icon chips */
-#sidebar .nav-btn > div > div {
-  background: #ffffff !important; color: #64748b !important;
-  border-radius: 9px !important; box-shadow: 0 1px 2px rgba(15,23,42,.05) !important;
+#sidebar .nav-btn .nav-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke-width: 2 !important;
 }
-#sidebar .nav-btn > div > div svg { width: 15px !important; height: 15px !important; }
-/* pills never shrink, labels keep room */
-#sidebar .nav-btn .pill { flex-shrink: 0 !important; }
-#sidebar .nav-btn .sidebar-text.truncate { flex: 1 1 auto !important; }
-/* hide the emoji icon inside group headers */
-#sidebar details > summary > span > span:first-child { display: none !important; }
-#sidebar details > summary > span { gap: 0 !important; }
+
+#sidebar .nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #FFFFFF !important;
+}
+#sidebar .nav-btn:hover .nav-icon {
+  background: rgba(254, 138, 3, 0.18) !important;
+  color: #FE8A03 !important;
+}
+
+#sidebar .nav-btn.active {
+  background: linear-gradient(135deg, rgba(254, 138, 3, 0.2) 0%, rgba(234, 88, 12, 0.12) 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border-color: rgba(254, 138, 3, 0.35) !important;
+  box-shadow: 0 2px 10px rgba(254, 138, 3, 0.12) !important;
+}
+#sidebar .nav-btn.active .nav-icon {
+  background: #FE8A03 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 6px rgba(254, 138, 3, 0.4) !important;
+}
+#sidebar .nav-btn.active .nav-icon svg {
+  stroke: #FFFFFF !important;
+}
+
+/* User Card */
+#sidebar .sidebar-user-box {
+  padding: 12px 10px !important;
+  background: #051426 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+#sidebar .sidebar-user-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  padding: 10px !important;
+}
+
+/* Desktop Collapse Handling */
+@media (min-width: 768px) {
+  body.sidebar-collapsed #sidebar {
+    width: 68px !important;
+  }
+  body.sidebar-collapsed #sidebar .sidebar-text,
+  body.sidebar-collapsed #sidebar .sidebar-logo-text,
+  body.sidebar-collapsed #sidebar .sidebar-user-info,
+  body.sidebar-collapsed #sidebar .sidebar-section-header,
+  body.sidebar-collapsed #sidebar #sidebar-role-card {
+    display: none !important;
+  }
+  body.sidebar-collapsed #sidebar .nav-btn {
+    width: 44px !important;
+    height: 44px !important;
+    margin: 4px auto !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    border-radius: 12px !important;
+  }
+  body.sidebar-collapsed #sidebar .nav-btn .nav-icon {
+    margin: 0 !important;
+    background: transparent !important;
+  }
+  body.sidebar-collapsed #sidebar .nav-btn.active .nav-icon {
+    background: #FE8A03 !important;
+  }
+  body.sidebar-collapsed #sidebar #sidebar-avatar {
+    margin: 0 auto !important;
+  }
+}

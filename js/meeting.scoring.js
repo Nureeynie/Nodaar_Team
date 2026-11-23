@@ -3,6 +3,12 @@
 // Formula: present*0.25 + contribution*0.30 + understanding*0.30 + stayed*0.15 (if present=false → 0)
 
 async function openMeetingScoring(meetingId, meetingTitle) {
+  if (!window.isUserAdmin || !window.isUserAdmin()) {
+    if (typeof showToast === 'function') {
+      showToast('Restricted: Only administrators can score meeting attendance.', true);
+    }
+    return;
+  }
   const sb = window.sbClient;
   // Load all team members + existing scores for this meeting
   let members = [];
