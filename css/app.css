@@ -625,3 +625,33 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
 
 /* primary buttons: solid, slightly smaller, portal-like */
 #primary-action-btn { border-radius: 10px !important; font-size: 13px !important; padding: 9px 16px !important; box-shadow: 0 2px 8px rgba(249,115,22,.25) !important; }
+
+/* ===== v3.16 sidebar: bg color, Inter font, generous padding/margins ===== */
+#sidebar {
+  background: #f6f8fb !important;               /* soft portal gray */
+  border-right: 1px solid #e8ecf2 !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+/* more air around header block */
+#sidebar .sidebar-top-box { padding: 20px 18px !important; border-bottom: 1px solid #e8ecf2 !important; }
+/* nav list: more padding + item spacing */
+#sidebar-nav { padding: 14px 14px 18px 14px !important; }
+#sidebar-nav > * + * { margin-top: 6px; }
+#sidebar .nav-btn {
+  padding: 11px 14px !important;
+  margin: 2px 0;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+#sidebar .nav-btn:hover { background: #ffffff !important; box-shadow: 0 1px 3px rgba(15,23,42,.06) !important; }
+#sidebar .nav-btn.active { background: #ffffff !important; color: #c2410c !important; box-shadow: inset 3px 0 0 0 #f97316, 0 1px 3px rgba(15,23,42,.05) !important; }
+#sidebar .nav-btn.active > div { background: #f97316 !important; color: #fff !important; }
+#sidebar .nav-btn > div { background: #ffffff !important; color: #64748b !important; box-shadow: 0 1px 2px rgba(15,23,42,.05) !important; width: 30px !important; height: 30px !important; }
+#sidebar .sidebar-header-title { padding: 10px 14px 6px 14px !important; font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: .1em !important; color: #94a3b8 !important; }
+/* shift pill + user card get breathing room */
+#sidebar .sidebar-top-box .sidebar-text { margin-top: 14px !important; }
+#sidebar .sidebar-user-box { padding: 16px 14px !important; background: #f6f8fb !important; border-top: 1px solid #e8ecf2 !important; }
+#sidebar .sidebar-user-card { background: #ffffff !important; padding: 12px !important; border-radius: 16px !important; }
