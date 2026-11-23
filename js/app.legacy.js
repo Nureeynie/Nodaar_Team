@@ -387,6 +387,7 @@ const TAB_META = {
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
   units:   { title:'Units & Structure', sub:'Create units, assign members and positions', btn:'New Unit' },
   reviews: { title:'Review Queue', sub:'Approve, reject or score daily reports; open blockers', btn:'' },
+  leave:   { title:'Leave', sub:'Request leave and track approvals', btn:'' },
 };
 
 function navigate(tab) {

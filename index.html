@@ -481,6 +481,12 @@
         </div>
         <span class="sidebar-text truncate">Ideas &amp; Decks</span>
       </button>
+          <button onclick="navigate('leave')" data-tab="leave" title="Leave" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3v2m6.36 1.64l-1.42 1.42M21 12h-2M5 12H3m3.34-5.66L4.93 4.93M12 21a9 9 0 100-18 9 9 0 000 18z"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Leave</span>
+          </button>
 
       <button onclick="navigate('team')" data-tab="team" title="Team Directory" class="nav-btn">
         <div class="nav-icon">
@@ -839,7 +845,8 @@
       </section>
 
       <!-- ===== SECTION: IDEAS (Structured List) ===== -->
-      <section id="view-ideas" class="view-section hidden">
+      <section id="view-ideas" class="view-section hidden space-y-4">
+        <div id="feedback-container"></div>
         <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -1086,6 +1093,10 @@
         <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5" id="blockers-container"></div>
       </section>
 
+
+      <section id="view-leave" class="view-section hidden space-y-4">
+        <div id="leave-container"></div>
+      </section>
     </main>
 
     <!-- DESKTOP FOOTER -->
@@ -1203,6 +1214,7 @@
 <script src="./js/units.js"></script>
 <script src="./js/daily.js"></script>
 <script src="./js/scores.js"></script>
+<script src="./js/phase4.js"></script>
 <script src="./js/whatsapp.groups.js"></script>
 <script src="./js/shell.js"></script>
 <script>
