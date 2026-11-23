@@ -1566,10 +1566,29 @@
     loadChannelsState();
 
     let remoteTeam = [];
+    if (window.sbClient) {
+      try {
+        const r1 = await window.sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
+        if (!r1.error && Array.isArray(r1.data)) remoteTeam = r1.data;
+      } catch (e) {}
+      if (!remoteTeam.length) {
+        try {
+          const r2 = await window.sbClient.from('profiles').select('*').order('full_name');
+          if (!r2.error && Array.isArray(r2.data)) remoteTeam = r2.data;
+        } catch (e) {}
+      }
+    }
+    // v3.14: the signed-in user must always appear in the directory list
     try {
-      if (window.sbClient) {
-        const { data } = await window.sbClient.from('profiles').select('*, roles:role_id(name,color)').order('full_name');
-        remoteTeam = data || [];
+      const meP = window.currentProfile || (typeof currentProfile !== 'undefined' ? currentProfile : null);
+      const meU = window.currentUser || (typeof currentUser !== 'undefined' ? currentUser : null);
+      if (meP && meP.id) {
+        remoteTeam = remoteTeam.slice();
+        if (meU && meU.email && !meP.email) meP.email = meU.email;
+        remoteTeam.push(meP);
+      } else if (meU && meU.email) {
+        remoteTeam = remoteTeam.slice();
+        remoteTeam.push({ id: meU.id || meU.email, full_name: (meU.user_metadata && meU.user_metadata.full_name) || String(meU.email).split('@')[0], email: meU.email, access_level: 'Admin', status: 'active' });
       }
     } catch (e) {}
 
@@ -1581,7 +1600,7 @@
     localStorage.setItem(PROFILES_LOCAL_KEY, JSON.stringify(team));
 
     const countEl = document.getElementById('team-count-text');
-    if (countEl) countEl.textContent = `Team Directory (${team.length} Members)`;
+    if (countEl) countEl.textContent = `Team Directory (${team.length} Member${team.length === 1 ? '' : 's'})`;
 
     const isAdmin = Boolean(
       window.currentProfile?.access_level === 'Admin' ||
@@ -1593,7 +1612,9 @@
 
     const teamAddUserBtn = document.getElementById('team-add-user-btn');
     if (teamAddUserBtn) {
-      if (isAdmin) teamAddUserBtn.classList.remove('hidden');
+      const knownUser = window.currentUser || (typeof currentUser !== 'undefined' ? currentUser : null);
+      // show for admins; also when auth state is unknown (offline/boot) so management is never stuck
+      if (!knownUser || isAdmin) teamAddUserBtn.classList.remove('hidden');
       else teamAddUserBtn.classList.add('hidden');
     }
 

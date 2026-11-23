@@ -552,3 +552,34 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
   #app-shell > div.flex-1::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
   #sidebar { position: relative !important; height: 100dvh !important; top: 0 !important; }
 }
+
+/* ===== v3.14 clarity + calm: fewer competing elements, clearer small type ===== */
+/* small gray text: darker & slightly larger so nothing is hard to read */
+#main-content .text-slate-400 { color: #64748b !important; }
+#main-content .text-\[10px\], #sidebar .text-\[10px\] { font-size: 11px !important; }
+#main-content thead th { font-size: 11px !important; color: #64748b !important; font-weight: 700 !important; letter-spacing: .05em !important; }
+#main-content p.text-xs { color: #64748b !important; }
+#sidebar .nav-accordion summary span.text-\[9px\] { display: none !important; }
+/* calmer overview: hide KPI progress bars + 3rd micro-line, trim table to 5 essential columns */
+#overview-kpi-cards .rounded-full.h-1\.5 { display: none !important; }
+#overview-kpi-cards .text-\[11px\] { display: none !important; }
+#view-overview thead th:nth-child(2), #overview-performance-table td:nth-child(2),
+#view-overview thead th:nth-child(5), #overview-performance-table td:nth-child(5) { display: none !important; }
+/* footer: quiet secondary links */
+.nh-footer-links button { color: #64748b !important; font-size: 12px !important; }
+
+/* ===== v3.14b: restore purged responsive display utilities (md:/sm:) ===== */
+@media (min-width: 768px) {
+  .md\:hidden { display: none !important; }
+  .hidden.md\:block { display: block !important; }
+  .hidden.md\:flex { display: flex !important; }
+  .hidden.md\:grid { display: grid !important; }
+  .hidden.md\:inline-flex { display: inline-flex !important; }
+}
+@media (min-width: 640px) {
+  .sm\:hidden { display: none !important; }
+  .hidden.sm\:flex { display: flex !important; }
+  .hidden.sm\:block { display: block !important; }
+  .hidden.sm\:grid { display: grid !important; }
+  .hidden.sm\:inline-flex { display: inline-flex !important; }
+}
