@@ -655,3 +655,17 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
 #sidebar .sidebar-top-box .sidebar-text { margin-top: 14px !important; }
 #sidebar .sidebar-user-box { padding: 16px 14px !important; background: #f6f8fb !important; border-top: 1px solid #e8ecf2 !important; }
 #sidebar .sidebar-user-card { background: #ffffff !important; padding: 12px !important; border-radius: 16px !important; }
+
+/* ===== v3.17 sidebar label contrast: all nav labels dark & readable ===== */
+#sidebar .nav-btn, #sidebar .nav-btn .sidebar-text { color: #334155 !important; }
+#sidebar .nav-btn > div { color: #475569 !important; background: #ffffff !important; }
+#sidebar .nav-btn:hover, #sidebar .nav-btn:hover .sidebar-text { color: #0f172a !important; }
+#sidebar .nav-btn:hover > div { color: #ea580c !important; }
+#sidebar .nav-btn.active, #sidebar .nav-btn.active .sidebar-text { color: #c2410c !important; }
+#sidebar .nav-btn .pill { color: #64748b !important; background: #ffffff !important; border: 1px solid #e2e8f0; }
+#sidebar .nav-btn.active .pill { color: #c2410c !important; background: #ffedd5 !important; border-color: #fed7aa !important; }
+
+/* ===== v3.17b fix: icon chip is the NESTED div; wrapper must size to content ===== */
+#sidebar .nav-btn > div { width: auto !important; height: auto !important; min-width: 0 !important; }
+#sidebar .nav-btn > div > div { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; }
+#sidebar .nav-btn .sidebar-text.truncate { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important; flex: 1 1 auto !important; width: auto !important; }
