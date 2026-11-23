@@ -1,3 +1,9 @@
+-- helper: admin check by uid (wraps existing is_admin())
+create or replace function public.is_admin_uid(uid uuid)
+returns boolean language sql stable as $$
+  select exists (select 1 from public.profiles p where p.id = uid and p.access_level = 'Admin');
+$$;
+
 -- ============================================================
 -- NODAAR TEAM HUB — PHASE 1 (PRD): Foundation
 -- units, positions, multi-unit membership, account hardening

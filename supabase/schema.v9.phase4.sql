@@ -3,7 +3,14 @@
 -- Run AFTER schema.v8.phase3.sql
 -- ============================================================
 
--- ── MEETINGS (PRD 7) ────────────────────────────────────────
+-- ── MEETINGS (PRD 7) ──
+-- meetings table may pre-exist from v4: add PRD columns if missing
+alter table public.meetings add column if not exists description text;
+alter table public.meetings add column if not exists location text;
+alter table public.meetings add column if not exists organizer_id uuid references public.profiles(id);
+alter table public.meetings add column if not exists unit_id uuid references public.units(id);
+alter table public.meetings add column if not exists minutes text;
+──────────────────────────────────────
 create table if not exists public.meetings (
   id          uuid default uuid_generate_v4() primary key,
   title       text not null,
