@@ -435,3 +435,7 @@ body { overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-y; }
 /* human-friendly auth form polish */
 #auth-email, #auth-password { min-height: 48px; }
 #auth-submit-btn { min-height: 52px; }
+
+/* ===== v3.10 fix: auth input icons must not overlap text (pl-11 may be purged) ===== */
+#auth-email, #auth-password { padding-left: 2.75rem !important; padding-right: 1rem !important; }
+#auth-screen .relative > span.absolute { z-index: 1; }
