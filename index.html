@@ -525,6 +525,12 @@
             </div>
             <span class="sidebar-text truncate">Units</span>
           </button>
+          <button onclick="navigate('reviews')" data-tab="reviews" title="Review Queue" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 transition text-left group" id="reviews-nav-btn">
+            <div class="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-brand-500/20 transition flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            </div>
+            <span class="sidebar-text truncate">Review Queue</span>
+          </button>
       </div>
     </nav>
 
@@ -744,7 +750,8 @@
       </section>
 
       <!-- ===== SECTION: REPORTS ===== -->
-      <section id="view-reports" class="view-section hidden">
+      <section id="view-reports" data-daily="1" class="view-section hidden space-y-4">
+        <div id="daily-report-slot"></div>
         <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-4 sm:p-5 mb-5 shadow-sm">
           <h3 class="font-bold text-sm text-navy-900 mb-4 flex items-center gap-2">
             <span class="bg-brand-500 text-white rounded-lg p-1"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg></span>
@@ -1068,6 +1075,16 @@
         </div>
       </section>
 
+
+      <section id="view-reviews" class="view-section hidden space-y-4">
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5">
+          <h3 class="font-bold text-sm text-navy-900 mb-1">📥 Review Queue — Daily Reports</h3>
+          <p class="text-xs text-slate-400 mb-4">Approve, reject (member can resubmit), or enter a manual score. Late flags show exact minutes.</p>
+          <div id="review-queue-container" class="space-y-3"></div>
+        </div>
+        <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5" id="blockers-container"></div>
+      </section>
+
     </main>
 
     <!-- DESKTOP FOOTER -->
@@ -1183,6 +1200,7 @@
 <script src="./js/channels.js"></script>
 <script src="./js/docs.js"></script>
 <script src="./js/units.js"></script>
+<script src="./js/daily.js"></script>
 <script src="./js/whatsapp.groups.js"></script>
 <script src="./js/shell.js"></script>
 <script>

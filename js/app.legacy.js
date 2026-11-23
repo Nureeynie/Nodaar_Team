@@ -386,6 +386,7 @@ const TAB_META = {
   calendar:{ title:'Team Calendar', sub:'Mon–Sat 10:00–16:00 (Lagos) · meetings, deadlines and Google/Outlook sync', btn:'New Meeting' },
   profile: { title:'Profile & Settings', sub:'Edit your profile, avatar, role and account security', btn:'' },
   units:   { title:'Units & Structure', sub:'Create units, assign members and positions', btn:'New Unit' },
+  reviews: { title:'Review Queue', sub:'Approve, reject or score daily reports; open blockers', btn:'' },
 };
 
 function navigate(tab) {
@@ -467,7 +468,11 @@ async function loadTabData(tab) {
     case 'calendar': if (window.loadCalendar) await window.loadCalendar(); break;
     case 'profile': loadProfilePage(); break;
     case 'units':   if (window.loadUnits) window.loadUnits(); break;
+    case 'reviews': if (window.loadReviewQueue) window.loadReviewQueue(); break;
+    case 'reports':  if (window.renderDailyReportForm) window.renderDailyReportForm(); break;
     case 'units':   if (window.loadUnits) window.loadUnits(); break;
+    case 'reviews': if (window.loadReviewQueue) window.loadReviewQueue(); break;
+    case 'reports':  if (window.renderDailyReportForm) window.renderDailyReportForm(); break;
   }
 }
 
