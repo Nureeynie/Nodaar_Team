@@ -455,13 +455,13 @@ async function loadTabData(tab) {
   switch (tab) {
     case 'overview':await loadOverviewData(); break;
     case 'tasks':   await loadTasks(); break;
-    case 'reports': await loadReports(); break;
+    case 'reports': await loadReports(); if (window.renderDailyReportForm) window.renderDailyReportForm(); break;
     case 'okrs':    await loadOKRs(); break;
     case 'meetings':await loadMeetings(); break;
     case 'ideas':   await loadIdeas(); break;
     case 'team':    await (window.loadTeam ? window.loadTeam() : loadTeam()); break;
     case 'whatsapp': window.navigate('channels'); break;
-    case 'scores':   if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
+    case 'scores':   if (window.loadScoresPage) await window.loadScoresPage(); else if (window.renderTeamScoresView) await window.renderTeamScoresView(); break;
     case 'channels': if (window.loadChannels) await window.loadChannels(); break;
     case 'docs':     if (window.loadDocs) window.loadDocs(); break;
     case 'roles':   await loadRoles(); break;
@@ -469,10 +469,6 @@ async function loadTabData(tab) {
     case 'profile': loadProfilePage(); break;
     case 'units':   if (window.loadUnits) window.loadUnits(); break;
     case 'reviews': if (window.loadReviewQueue) window.loadReviewQueue(); break;
-    case 'reports':  if (window.renderDailyReportForm) window.renderDailyReportForm(); break;
-    case 'units':   if (window.loadUnits) window.loadUnits(); break;
-    case 'reviews': if (window.loadReviewQueue) window.loadReviewQueue(); break;
-    case 'reports':  if (window.renderDailyReportForm) window.renderDailyReportForm(); break;
   }
 }
 
