@@ -1120,9 +1120,16 @@ function openAddUserModal() {
         }
       });
 
-      if (authErr) throw authErr;
+      if (authErr) {
+        const m = (authErr.message || '').toLowerCase();
+        if (m.includes('already registered') || m.includes('already exists')) {
+          throw new Error('An account with this email already exists. Ask them to sign in, or reset their password.');
+        }
+        throw authErr;
+      }
 
       const newUserId = authData.user?.id;
+      const needsConfirm = !authData.session; // no session = email confirmation required by Supabase
       if (newUserId) {
         await sbClient.from('profiles').upsert({
           id: newUserId,
@@ -1134,7 +1141,9 @@ function openAddUserModal() {
         });
       }
 
-      showToast(`User ${full_name} created successfully! 🎉`);
+      showToast(needsConfirm
+        ? `User ${full_name} created — they must confirm their email before signing in (or disable "Confirm email" in Supabase → Auth → Settings).`
+        : `User ${full_name} created! Temp password: ${password}`);
       closeActionModal();
       resetModalSubmit();
       loadTeam();
@@ -1836,7 +1845,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = (error.message || '').toLowerCase();
         errBox.textContent = msg.includes('invalid') || msg.includes('credentials')
           ? 'Incorrect email or password. Please try again.'
-          : msg.includes('email not confirmed') ? 'Please confirm your email before signing in.'
+          : msg.includes('email not confirmed') ? 'Please confirm your email first — check your inbox for the confirmation link.'
           : (error.message || 'Could not sign in. Please try again.');
         errBox.classList.remove('hidden');
       } else if (data?.user) {
