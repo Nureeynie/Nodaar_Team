@@ -421,3 +421,17 @@ body { overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-y; }
   #channel-feed-container { padding: 10px !important; }
   .chat-msg { padding: 10px 8px !important; gap: 8px !important; }
 }
+
+/* ===== v3.9 auth screen: guarantee lg (desktop) 2-column layout even if purged CSS lacks the classes ===== */
+@media (min-width: 1024px) {
+  #auth-screen .lg\:hidden { display: none !important; }
+  #auth-screen .hidden.lg\:flex { display: flex !important; }
+  #auth-screen .lg\:max-w-4xl { max-width: 56rem !important; }
+  #auth-screen .lg\:grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
+  #auth-screen .lg\:col-span-5 { grid-column: span 5 / span 5 !important; }
+  #auth-screen .lg\:col-span-7 { grid-column: span 7 / span 7 !important; }
+  #auth-screen .lg\:min-h-\[580px\] { min-height: 580px !important; }
+}
+/* human-friendly auth form polish */
+#auth-email, #auth-password { min-height: 48px; }
+#auth-submit-btn { min-height: 52px; }

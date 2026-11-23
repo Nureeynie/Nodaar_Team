@@ -1795,6 +1795,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function setAuthLoading(loading) {
+    const btn = document.getElementById('auth-submit-btn');
+    if (!btn) return;
+    btn.disabled = loading;
+    const label = document.getElementById('auth-btn-label');
+    const arrow = document.getElementById('auth-btn-arrow');
+    const spin = document.getElementById('auth-btn-spinner');
+    if (label) label.textContent = loading ? 'Signing in…' : 'Sign in';
+    if (arrow) arrow.classList.toggle('hidden', loading);
+    if (spin) spin.classList.toggle('hidden', !loading);
+  }
+
   const authForm = document.getElementById('auth-form');
   if (authForm) authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1804,8 +1816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('auth-submit-btn');
     errBox.classList.add('hidden');
     errBox.textContent = '';
-    btn.disabled = true;
-    btn.innerHTML = `<span>Signing in…</span>`;
+    setAuthLoading(true);
 
     if (!sbClient) {
       initSupabase();
@@ -1813,18 +1824,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!sbClient) {
       errBox.textContent = 'Connecting to authentication services... please wait a few seconds and try again.';
       errBox.classList.remove('hidden');
-      btn.disabled = false;
-      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+      setAuthLoading(false);
       return;
     }
 
     try {
       const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-      btn.disabled = false;
-      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+      setAuthLoading(false);
 
       if (error) {
-        errBox.textContent = error.message || 'Invalid email or password.';
+        const msg = (error.message || '').toLowerCase();
+        errBox.textContent = msg.includes('invalid') || msg.includes('credentials')
+          ? 'Incorrect email or password. Please try again.'
+          : msg.includes('email not confirmed') ? 'Please confirm your email before signing in.'
+          : (error.message || 'Could not sign in. Please try again.');
         errBox.classList.remove('hidden');
       } else if (data?.user) {
         currentUser = data.user;
@@ -1834,8 +1847,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Welcome back to Nodaar Hub! 🎉');
       }
     } catch (err) {
-      btn.disabled = false;
-      btn.innerHTML = `<span>Sign In to Workspace</span>`;
+      setAuthLoading(false);
       errBox.textContent = err.message || 'Network connection error while signing in. Please check your connection.';
       errBox.classList.remove('hidden');
       console.error('Sign-in error:', err);
