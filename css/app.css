@@ -669,3 +669,33 @@ code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regu
 #sidebar .nav-btn > div { width: auto !important; height: auto !important; min-width: 0 !important; }
 #sidebar .nav-btn > div > div { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; }
 #sidebar .nav-btn .sidebar-text.truncate { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important; flex: 1 1 auto !important; width: auto !important; }
+
+/* ===== v3.18 sidebar clean-up ===== */
+/* accordion group headers: no leading icon, chevron far right, quiet */
+#sidebar details > summary { list-style: none !important; }
+#sidebar details > summary::-webkit-details-marker { display: none !important; }
+#sidebar details > summary > div:first-child,
+#sidebar details > summary > span.ic,
+#sidebar details > summary svg:first-child { display: none !important; }
+#sidebar details > summary {
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  padding: 10px 14px 6px 14px !important; cursor: pointer;
+  font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: .1em !important;
+  text-transform: uppercase !important; color: #94a3b8 !important;
+}
+#sidebar details > summary .sidebar-text { color: #94a3b8 !important; }
+#sidebar details > summary svg:last-child { width: 14px !important; height: 14px !important; color: #cbd5e1 !important; }
+/* group content indent: clean hairline */
+#sidebar details > div { border-left: 1px solid #e8ecf2 !important; margin-left: 20px !important; padding-left: 8px !important; }
+/* uniform icon chips */
+#sidebar .nav-btn > div > div {
+  background: #ffffff !important; color: #64748b !important;
+  border-radius: 9px !important; box-shadow: 0 1px 2px rgba(15,23,42,.05) !important;
+}
+#sidebar .nav-btn > div > div svg { width: 15px !important; height: 15px !important; }
+/* pills never shrink, labels keep room */
+#sidebar .nav-btn .pill { flex-shrink: 0 !important; }
+#sidebar .nav-btn .sidebar-text.truncate { flex: 1 1 auto !important; }
+/* hide the emoji icon inside group headers */
+#sidebar details > summary > span > span:first-child { display: none !important; }
+#sidebar details > summary > span { gap: 0 !important; }
