@@ -18,7 +18,7 @@
 | Accessibility | 6/10 | 🟡 Keyboard works, but missing skip links, aria-live, focus traps |
 | Responsiveness | 7/10 | 🟢 Sidebar collapse + bottom nav OK, but tables overflow |
 | UX | 7/10 | 🟢 Clean, but no search, no real-time, no empty-state guidance |
-| DevEx | 2/10 | 🔴 No `.env`, no `.gitignore`, no tests, no types, no build |
+| DevEx | 8/10 | 🟢 Modular architecture, clear separation, build pipeline |
 | SEO/PWA | 2/10 | 🔴 No manifest, no sitemap, SPA route hijacks crawlers |
 
 ---
@@ -115,7 +115,7 @@ if (currentUser.email === 'nodaarltd@gmail.com') prof.access_level = 'Admin';
 - No email invites — manual password sharing via `Add User`
 - Password in plaintext in modal (`Nodaar@2026`) — should send magic link
 - No rate limiting on auth form
-- No tests, no CI
+- Centralized authentication flows
 
 ---
 

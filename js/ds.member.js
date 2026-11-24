@@ -265,7 +265,7 @@
               <div class="table-wrap"><table class="ds">
                 <thead>
                   <tr>
-                    <th>Date</th>
+                    <th class="sticky-col">Date</th>
                     <th>Status</th>
                     <th>Score</th>
                     <th>Yesterday's Work</th>
@@ -287,20 +287,20 @@
                     ];
                     return `
                       <tr>
-                        <td style="font-weight:700;white-space:nowrap">
+                        <td class="sticky-col" style="font-weight:700;white-space:nowrap">
                           ${fmtD(r.report_date)}
                           ${r.is_late ? `<br><span class="tag alert" style="font-size:10px;padding:1px 6px">Late by ${r.late_minutes}m</span>` : ''}
                         </td>
-                        <td>
+                        <td style="white-space:nowrap">
                           ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
                             r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
                             `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
                         </td>
-                        <td style="font-weight:800">${r.score != null ? `<span style="color:var(--ok)">${r.score}/100</span>` : '<span class="muted">—</span>'}</td>
-                        <td class="small" style="max-width:220px;line-height:1.4">${esc(r.did_yesterday || '—')}</td>
-                        <td class="small" style="max-width:220px;line-height:1.4">${esc(r.doing_today || '—')}</td>
-                        <td>${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                        <td class="small" style="max-width:240px;font-weight:600;color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</td>
+                        <td style="font-weight:800;white-space:nowrap">${r.score != null ? `<span style="color:var(--ok)">${r.score}/100</span>` : '<span class="muted">—</span>'}</td>
+                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.did_yesterday || '')}">${esc(r.did_yesterday || '—')}</div></td>
+                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.doing_today || '')}">${esc(r.doing_today || '—')}</div></td>
+                        <td>${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" style="font-weight:600;color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td>
                         <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
                       </tr>
                     `;
@@ -451,7 +451,7 @@
           </div>
           ${pg.items.length ? `
             <div class="table-wrap"><table class="ds">
-              <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
+              <thead><tr><th class="sticky-col">Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
               <tbody>${pg.items.map(t => {
                 const actions = [
                   { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
@@ -459,11 +459,11 @@
                 ];
                 return `
                   <tr>
-                    <td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
-                    <td><span class="tag ${t.status === 'Done' ? 'ok' : t.status === 'In review' || t.status === 'In Review' ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span></td>
-                    <td>${esc(t.priority || '—')}</td>
-                    <td>${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
-                    <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                    <td class="sticky-col" style="font-weight:700;white-space:nowrap"><div class="table-cell-truncate" style="max-width:200px" title="${esc(t.title)}">${esc(t.title)}</div>${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</td>
+                    <td style="white-space:nowrap"><span class="tag ${t.status === 'Done' ? 'ok' : t.status === 'In review' || t.status === 'In Review' ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span></td>
+                    <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
+                    <td style="white-space:nowrap">${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
+                    <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
                     <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
                   </tr>
                 `;
@@ -705,12 +705,12 @@
       .filter(r => r.score != null)
       .sort((a, b) => String(b.report_date || '').localeCompare(String(a.report_date || '')));
     const scoredHtml = scored.length ? `<div class="table-wrap"><table class="ds">
-      <thead><tr><th>Date</th><th>Status</th><th>Score</th><th>Note</th></tr></thead>
+      <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Note</th></tr></thead>
       <tbody>${scored.slice(0, 10).map(r => `<tr>
-        <td style="font-weight:700">${fmtD(r.report_date)}</td>
-        <td>${statusTagLocal(r.status)}</td>
-        <td style="font-weight:800">${r.score}/100</td>
-        <td class="small">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>` : '';
+        <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}</td>
+        <td style="white-space:nowrap">${statusTagLocal(r.status)}</td>
+        <td style="font-weight:800;white-space:nowrap">${r.score}/100</td>
+        <td class="small"><div class="table-cell-truncate" style="max-width:240px" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td></tr>`).join('')}</tbody></table></div>` : '';
 
     // The headline figure is the weekly score when there is one; otherwise the
     // most recent scored submission, so a member always sees their latest mark.
@@ -753,11 +753,11 @@
       <div class="card">
         <div class="card-head"><h3>Weekly score sheet</h3></div>
         ${list.length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Week</th>${crits.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Score</th></tr></thead>
+          <thead><tr><th class="sticky-col">Week</th>${crits.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Score</th></tr></thead>
           <tbody>${list.map(s => `<tr>
-            <td style="font-weight:700">${esc(s.periods?.label || '')} ${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : ''}</td>
-            ${crits.map(c => `<td>${s.criterion_scores?.[c.key] ?? '—'}</td>`).join('')}
-            <td style="font-weight:800">${s.manual_override ?? s.weighted_total}/100</td></tr>`).join('')}</tbody></table></div>`
+            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(s.periods?.label || '')} ${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : ''}</td>
+            ${crits.map(c => `<td style="white-space:nowrap">${s.criterion_scores?.[c.key] ?? '—'}</td>`).join('')}
+            <td style="font-weight:800;white-space:nowrap">${s.manual_override ?? s.weighted_total}/100</td></tr>`).join('')}</tbody></table></div>`
         : `<div class="empty"><div class="big">No scores yet</div><div class="hint">Your weekly scores appear here after admin review.</div></div>`}
       </div>
 

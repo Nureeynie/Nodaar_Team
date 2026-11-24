@@ -8,8 +8,7 @@ row-level security in the database, not just hidden in the UI.
 
 ## 1. The five clickable steps
 
-This is the flow the brief asks for, end to end. It is automated in
-`tests/e2e-flow.py` and passes green.
+This is the primary flow of the system, end to end:
 
 ### Step 1 — Admin creates a user
 `Admin → Users → Create a user`

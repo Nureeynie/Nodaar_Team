@@ -122,15 +122,15 @@
       <div class="card">
         <div class="card-head"><h3>Per-member performance</h3><button class="btn sm ghost" data-go="scores">All scores</button></div>
         ${active.length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Member</th><th>Latest weekly</th><th>Period</th><th>State</th></tr></thead>
+          <thead><tr><th class="sticky-col">Member</th><th>Latest weekly</th><th>Period</th><th>State</th></tr></thead>
           <tbody>${active.map(p => {
             const s = latest[p.id];
             const val = s ? (s.manual_override ?? s.weighted_total) : null;
             return `<tr>
-              <td style="font-weight:700">${esc(nameOf(p))}</td>
-              <td>${val != null ? `<b>${val}/100</b>` : '<span class="muted">Not scored</span>'}</td>
-              <td>${s ? esc(s.periods?.label || '—') : '—'}</td>
-              <td>${s ? (s.periods?.locked ? '<span class="tag muted-tag">Period locked</span>' : '<span class="tag ok">Open</span>') : '<span class="tag muted-tag">No score</span>'}</td>
+              <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(p))}</td>
+              <td style="white-space:nowrap">${val != null ? `<b>${val}/100</b>` : '<span class="muted">Not scored</span>'}</td>
+              <td style="white-space:nowrap">${s ? esc(s.periods?.label || '—') : '—'}</td>
+              <td style="white-space:nowrap">${s ? (s.periods?.locked ? '<span class="tag muted-tag">Period locked</span>' : '<span class="tag ok">Open</span>') : '<span class="tag muted-tag">No score</span>'}</td>
             </tr>`;
           }).join('')}</tbody></table></div>`
         : emptyState('No members yet', 'Create users so the team can start reporting.', '<button class="btn primary sm" data-go="users">Create a user</button>')}
@@ -479,8 +479,8 @@
           <div class="card-head"><h3>Create a user</h3></div>
           <form id="nu-form" novalidate>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px">
-              <div class="field"><label class="label" for="nu-name">Full name</label><input class="input" id="nu-name" required placeholder="Amina Yusuf"></div>
-              <div class="field"><label class="label" for="nu-email">Email</label><input class="input" id="nu-email" type="email" required placeholder="amina@nodaar.com"></div>
+              <div class="field"><label class="label" for="nu-name">Full name</label><input class="input" id="nu-name" required placeholder="e.g. Alex Johnson"></div>
+              <div class="field"><label class="label" for="nu-email">Email</label><input class="input" id="nu-email" type="email" required placeholder="alex@company.com"></div>
               <div class="field"><label class="label" for="nu-pass">Temporary password</label><input class="input" id="nu-pass" required minlength="6" placeholder="At least 6 characters"></div>
               <div class="field"><label class="label" for="nu-role">Access level</label><select class="input" id="nu-role"><option>Member</option><option>Admin</option></select></div>
               <div class="field"><label class="label" for="nu-unit">Assign to unit</label><select class="input" id="nu-unit"><option value="">None yet</option>${(units || []).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
@@ -502,7 +502,7 @@
           </div>
           ${pg.items.length ? `
             <div class="table-wrap"><table class="ds">
-              <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+              <thead><tr><th class="sticky-col">Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
               <tbody>${pg.items.map(p => {
                 const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
                 const actions = [
@@ -520,11 +520,11 @@
                   }
                 ];
                 return `<tr>
-                  <td style="font-weight:700">${esc(nameOf(p))}</td>
-                  <td>${esc(p.email || '')}</td>
-                  <td>${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
-                  <td>${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
-                  <td>${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
+                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(p))}</td>
+                  <td style="white-space:nowrap">${esc(p.email || '')}</td>
+                  <td style="white-space:nowrap">${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
+                  <td style="white-space:nowrap">${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
+                  <td style="white-space:nowrap">${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
                   <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
                 </tr>`;
               }).join('')}</tbody>
@@ -778,7 +778,7 @@
         </div>
         ${(tasks || []).length ? `
           <div class="table-wrap"><table class="ds">
-            <thead><tr><th>Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
+            <thead><tr><th class="sticky-col">Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
             <tbody>${(tasks || []).slice(0, 25).map(t => {
               const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
               const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
@@ -788,12 +788,12 @@
                 { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
               ];
               return `<tr>
-                <td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
-                <td>${as.length ? esc(as.join(', ')) : '<span class="muted">Unassigned</span>'}</td>
-                <td><select class="input" style="min-height:34px;padding:4px 8px;font-size:12.5px" data-setst="${t.id}">${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-                <td>${esc(t.priority || '—')}</td>
-                <td>${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
-                <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                <td class="sticky-col" style="font-weight:700;white-space:nowrap"><div class="table-cell-truncate" style="max-width:220px" title="${esc(t.title)}">${esc(t.title)}</div>${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</td>
+                <td style="white-space:nowrap">${as.length ? esc(as.join(', ')) : '<span class="muted">Unassigned</span>'}</td>
+                <td><select class="input" style="min-height:30px;padding:2px 6px;font-size:12px" data-setst="${t.id}">${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+                <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
+                <td style="white-space:nowrap">${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
+                <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
                 <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
               </tr>`;
             }).join('')}</tbody></table></div>
@@ -804,14 +804,14 @@
       <div class="card">
         <div class="card-head"><h3>Create an OKR</h3></div>
         <form id="no-form" novalidate>
-          <div class="field"><label class="label" for="ok-title">Objective</label><input class="input" id="ok-title" required placeholder="Grow reseller activation to 40%"></div>
+          <div class="field"><label class="label" for="ok-title">Objective</label><input class="input" id="ok-title" required placeholder="e.g. Increase product adoption"></div>
           <div class="field"><label class="label" for="ok-desc">Description</label><textarea class="input" id="ok-desc"></textarea></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 16px">
             <div class="field"><label class="label" for="ok-unit">Unit</label><select class="input" id="ok-unit"><option value="">Company-wide</option>${units.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
             <div class="field"><label class="label" for="ok-status">Status</label><select class="input" id="ok-status"><option>On Track</option><option>At Risk</option><option>Off Track</option><option>Done</option></select></div>
             <div class="field"><label class="label" for="ok-prog">Progress %</label><input class="input" id="ok-prog" type="number" min="0" max="100" value="0"></div>
           </div>
-          <div class="field"><label class="label" for="ok-kr">Key result</label><input class="input" id="ok-kr" placeholder="30 active resellers by December"></div>
+          <div class="field"><label class="label" for="ok-kr">Key result</label><input class="input" id="ok-kr" placeholder="e.g. 50 active enterprise clients"></div>
           <div class="error-box hidden" id="ok-error" style="margin-bottom:14px"></div>
           <button class="btn primary" type="submit">Create OKR</button>
         </form>
@@ -1185,13 +1185,13 @@
       <div class="card">
         <div class="card-head"><h3>Weekly scores</h3></div>
         ${(weekly || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Member</th><th>Period</th><th>Breakdown</th><th>Total</th><th>State</th></tr></thead>
+          <thead><tr><th class="sticky-col">Member</th><th>Period</th><th>Breakdown</th><th>Total</th><th>State</th></tr></thead>
           <tbody>${weekly.map(s => `<tr>
-            <td style="font-weight:700">${esc(nameOf(pmap[s.user_id]))}</td>
-            <td>${esc(s.periods?.label || '—')}</td>
-            <td class="small">${Object.entries(s.criterion_scores || {}).map(([k, val]) => `${esc(k)} ${val}`).join(' · ') || '—'}</td>
-            <td style="font-weight:800">${s.manual_override ?? s.weighted_total}/100</td>
-            <td>${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
+            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(pmap[s.user_id]))}</td>
+            <td style="white-space:nowrap">${esc(s.periods?.label || '—')}</td>
+            <td class="small"><div class="table-cell-truncate" style="max-width:220px" title="${esc(Object.entries(s.criterion_scores || {}).map(([k, val]) => `${k}: ${val}`).join(', ')) }">${Object.entries(s.criterion_scores || {}).map(([k, val]) => `${esc(k)} ${val}`).join(' · ') || '—'}</div></td>
+            <td style="font-weight:800;white-space:nowrap">${s.manual_override ?? s.weighted_total}/100</td>
+            <td style="white-space:nowrap">${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
           </tr>`).join('')}</tbody></table></div>`
         : emptyState('No weekly scores yet', 'Scores appear here once you enter them above.')}
       </div>
@@ -1199,13 +1199,13 @@
       <div class="card">
         <div class="card-head"><h3>Monthly scores</h3></div>
         ${(monthly || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Member</th><th>Period</th><th>Weekly average</th><th>Final</th><th>State</th></tr></thead>
+          <thead><tr><th class="sticky-col">Member</th><th>Period</th><th>Weekly average</th><th>Final</th><th>State</th></tr></thead>
           <tbody>${monthly.map(m => `<tr>
-            <td style="font-weight:700">${esc(nameOf(pmap[m.user_id]))}</td>
-            <td>${esc(m.periods?.label || '—')}</td>
-            <td>${m.weekly_avg ?? '—'}</td>
-            <td style="font-weight:800">${m.final_score ?? m.weekly_avg}/100</td>
-            <td>${m.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
+            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(pmap[m.user_id]))}</td>
+            <td style="white-space:nowrap">${esc(m.periods?.label || '—')}</td>
+            <td style="white-space:nowrap">${m.weekly_avg ?? '—'}</td>
+            <td style="font-weight:800;white-space:nowrap">${m.final_score ?? m.weekly_avg}/100</td>
+            <td style="white-space:nowrap">${m.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
           </tr>`).join('')}</tbody></table></div>`
         : emptyState('No monthly scores yet', 'Monthly rollups appear when a month period is scored.')}
       </div>
@@ -1213,13 +1213,13 @@
       <div class="card">
         <div class="card-head"><h3>Audit log</h3><span class="tag muted-tag">Last 25 changes</span></div>
         ${(auditRows || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Change</th></tr></thead>
+          <thead><tr><th class="sticky-col">When</th><th>Who</th><th>Action</th><th>Target</th><th>Change</th></tr></thead>
           <tbody>${auditRows.map(a => `<tr>
-            <td>${fmtDT(a.created_at)}</td>
-            <td>${esc(nameOf(a.profiles))}</td>
-            <td>${esc(a.action)}</td>
-            <td class="small">${esc(a.target || '—')}</td>
-            <td class="small">${a.old_value ? esc(a.old_value) : '—'} → ${a.new_value ? esc(a.new_value) : '—'}</td>
+            <td class="sticky-col" style="white-space:nowrap">${fmtDT(a.created_at)}</td>
+            <td style="white-space:nowrap">${esc(nameOf(a.profiles))}</td>
+            <td style="white-space:nowrap">${esc(a.action)}</td>
+            <td class="small"><div class="table-cell-truncate" style="max-width:180px" title="${esc(a.target || '—')}">${esc(a.target || '—')}</div></td>
+            <td class="small"><div class="table-cell-truncate" style="max-width:200px" title="${esc(a.old_value || '')} → ${esc(a.new_value || '')}">${a.old_value ? esc(a.old_value) : '—'} → ${a.new_value ? esc(a.new_value) : '—'}</div></td>
           </tr>`).join('')}</tbody></table></div>`
         : emptyState('No changes recorded yet', 'Score edits, locks and user changes are logged here.')}
       </div>`;

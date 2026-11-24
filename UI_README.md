@@ -50,20 +50,3 @@ Two things to know if you deploy the edge functions yourself:
 2. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` must be set as function
    secrets.
 
-## Tests
-
-With the server running on port 8099:
-
-```bash
-pip install playwright && playwright install chromium
-python3 tests/e2e-flow.py       # admin creates a user -> first login forces a
-                                 # password change -> member reports -> admin
-                                 # reviews and scores -> member sees the score
-python3 tests/review-meeting.py # meeting report appears in the review queue,
-                                 # opens with an empty score, saves, and the
-                                 # member is notified
-python3 tests/verify-routes.py  # every admin and member route renders clean
-python3 tests/check-network.py  # no failed Supabase requests
-```
-
-The admin sign-in used by the tests is `nodaarltd@gmail.com` / `Nodaar@2026`.

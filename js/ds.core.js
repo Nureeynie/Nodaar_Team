@@ -198,16 +198,52 @@
         if (isHidden) {
           dropdown.classList.remove('hidden');
           btn.classList.add('active');
-          const rect = dropdown.getBoundingClientRect();
-          if (rect.bottom > window.innerHeight - 20) {
+
+          // Fixed positioning to prevent clipping inside .table-wrap or overflow containers
+          const rect = btn.getBoundingClientRect();
+          const dWidth = dropdown.offsetWidth || 190;
+          const dHeight = dropdown.offsetHeight || 160;
+
+          dropdown.style.position = 'fixed';
+          dropdown.style.zIndex = '9999';
+
+          // Align right edge to button's right edge
+          const rightEdge = window.innerWidth - rect.right;
+          if (rightEdge < 10) {
+            dropdown.style.right = '10px';
+            dropdown.style.left = 'auto';
+          } else if (rect.right - dWidth < 10) {
+            dropdown.style.left = '10px';
+            dropdown.style.right = 'auto';
+          } else {
+            dropdown.style.right = rightEdge + 'px';
+            dropdown.style.left = 'auto';
+          }
+
+          // Vertical placement
+          if (rect.bottom + dHeight > window.innerHeight - 15) {
+            dropdown.style.top = 'auto';
+            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
             dropdown.classList.add('drop-up');
           } else {
+            dropdown.style.bottom = 'auto';
+            dropdown.style.top = (rect.bottom + 4) + 'px';
             dropdown.classList.remove('drop-up');
           }
         }
       });
     });
   };
+
+  if (!window._dsActionScrollBound) {
+    window._dsActionScrollBound = true;
+    window.addEventListener('scroll', () => {
+      document.querySelectorAll('.action-dropdown:not(.hidden)').forEach(d => {
+        d.classList.add('hidden');
+        d.closest('.action-menu-wrap')?.querySelector('.action-dots-btn')?.classList.remove('active');
+      });
+    }, { passive: true, capture: true });
+  }
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.action-dropdown') && !e.target.closest('.action-dots-btn')) {
