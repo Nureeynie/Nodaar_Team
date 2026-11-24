@@ -1,11 +1,12 @@
 /* ============================================================
    NODAAR DESIGN SYSTEM — editorial, print-like, mobile-first
-   bg #F6F4EF · ink #14130F · alert #B83A17 · white cards, 1px ink borders
+   bg #F6F4EF · ink #07192F (brand navy) · accent #FE8A03 (brand orange)
+   alert #B83A17 · white cards, 1px ink borders
    ============================================================ */
 :root{
-  --bg:#F6F4EF; --ink:#14130F; --ink-60:rgba(20,19,15,.62); --ink-40:rgba(20,19,15,.4);
-  --card:#FFFFFF; --line:#14130F; --line-soft:rgba(20,19,15,.16);
-  --alert:#B83A17; --ok:#1E6B3C;
+  --bg:#F6F4EF; --ink:#07192F; --ink-60:rgba(7,25,47,.62); --ink-40:rgba(7,25,47,.4);
+  --card:#FFFFFF; --line:#07192F; --line-soft:rgba(7,25,47,.16);
+  --accent:#FE8A03; --alert:#B83A17; --ok:#1E6B3C;
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --r:14px; --r-sm:10px;
   --sp1:6px; --sp2:10px; --sp3:16px; --sp4:24px; --sp5:36px; --sp6:56px;
@@ -170,7 +171,7 @@ button{font-family:var(--font)}
 
 /* ── brand ── */
 .brand{display:flex;align-items:center;gap:var(--sp2);font-weight:900;font-size:18px;letter-spacing:-0.03em}
-.brand-mark{width:30px;height:30px;border:1.5px solid var(--ink);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:var(--card)}
+.brand-mark{width:30px;height:30px;border:0;border-radius:8px;object-fit:contain;background:transparent;flex:none}
 
 /* ── role switcher ── */
 .role-switch{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--card)}
