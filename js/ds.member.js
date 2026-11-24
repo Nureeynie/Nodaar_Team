@@ -278,6 +278,10 @@
 
       function renderReportView() {
         const pg = window.DS.paginate(myRecords, recordsPage, 25);
+        const initDone = existing?.did_yesterday || (draft ? draft.did_yesterday : '') || '';
+        const initPlan = existing?.doing_today || (draft ? draft.doing_today : '') || '';
+        const initBlock = existing?.blockers || (draft ? draft.blockers : '') || '';
+        const initEv = existing?.evidence_url || (draft ? draft.evidence_url : '') || '';
         v.innerHTML = `
           ${(!existing && draft) ? `
             <div class="draft-card" id="dr-draft-notice">
