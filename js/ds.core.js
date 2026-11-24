@@ -131,6 +131,39 @@
   $('#modal-root')?.addEventListener('click', (e) => { if (e.target.id === 'modal-root') closeModal(); });
   window.DS.modal = { open: openModal, close: closeModal };
 
+  window.DS.getInitials = function (name) {
+    const parts = String(name || '').trim().split(/\s+/);
+    if (!parts.length || !parts[0]) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  window.DS.showDetailsModal = function ({ title, subtitle, badgeHtml, rows, actions = [] }) {
+    const html = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)">
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h2 style="margin:0;font-size:18px;line-height:1.3;word-break:normal;overflow-wrap:break-word">${esc(title)}</h2>
+            ${badgeHtml || ''}
+          </div>
+          ${subtitle ? `<p class="muted small" style="margin:4px 0 0;word-break:normal;overflow-wrap:break-word">${esc(subtitle)}</p>` : ''}
+        </div>
+        <button type="button" class="btn sm ghost" onclick="window.DS.modal.close()" aria-label="Close" style="padding:4px 8px;font-size:16px;line-height:1;flex-shrink:0">✕</button>
+      </div>
+      <dl class="kv" style="margin-bottom:20px">
+        ${(rows || []).map(r => `
+          <dt>${esc(r.label)}</dt>
+          <dd style="word-break:normal;overflow-wrap:break-word">${r.isHtml ? r.value : esc(r.value || '—')}</dd>
+        `).join('')}
+      </dl>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--line-soft);flex-wrap:wrap">
+        ${actions.filter(Boolean).map(a => a).join('')}
+        <button type="button" class="btn sm" onclick="window.DS.modal.close()">Close</button>
+      </div>
+    `;
+    window.DS.modal.open(html);
+  };
+
   // ── icons (inline SVG, no emoji) ──
   const I = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   window.DS.icons = {

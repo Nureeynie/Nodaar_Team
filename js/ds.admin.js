@@ -501,11 +501,13 @@
             <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
           ${pg.items.length ? `
-            <div class="table-wrap"><table class="ds">
+            <div class="table-wrap desktop-only"><table class="ds">
               <thead><tr><th class="sticky-col">Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
               <tbody>${pg.items.map(p => {
                 const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
                 const actions = [
+                  { label: 'View user details', icon: '👤', attrs: `data-view-user="${p.id}"` },
+                  { divider: true },
                   { label: 'Reset password', icon: '🔑', attrs: `data-pw="${p.id}"` },
                   p.access_level === 'Admin'
                     ? { label: 'Make member', icon: '👤', attrs: `data-demote="${p.id}"`, disabled: p.id === S.user.id }
@@ -520,15 +522,63 @@
                   }
                 ];
                 return `<tr>
-                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(p))}</td>
+                  <td class="sticky-col" style="font-weight:700;white-space:nowrap"><span class="record-title">${esc(nameOf(p))}</span></td>
                   <td style="white-space:nowrap">${esc(p.email || '')}</td>
                   <td style="white-space:nowrap">${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
                   <td style="white-space:nowrap">${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
                   <td style="white-space:nowrap">${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
-                  <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                  <td style="text-align:right">
+                    <button type="button" class="btn sm ghost" data-view-user="${p.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
+                    ${window.DS.renderActionMenu(actions)}
+                  </td>
                 </tr>`;
               }).join('')}</tbody>
             </table></div>
+
+            <div class="records-list mobile-only">
+              ${pg.items.map(p => {
+                const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
+                const initials = window.DS.getInitials(nameOf(p));
+                const actions = [
+                  { label: 'View user details', icon: '👤', attrs: `data-view-user="${p.id}"` },
+                  { divider: true },
+                  { label: 'Reset password', icon: '🔑', attrs: `data-pw="${p.id}"` },
+                  p.access_level === 'Admin'
+                    ? { label: 'Make member', icon: '👤', attrs: `data-demote="${p.id}"`, disabled: p.id === S.user.id }
+                    : { label: 'Make admin', icon: '⭐', attrs: `data-promote="${p.id}"` },
+                  { divider: true },
+                  {
+                    label: p.active === false ? 'Reactivate account' : 'Deactivate account',
+                    icon: p.active === false ? '✓' : '🚫',
+                    isAlert: p.active !== false,
+                    attrs: `data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}"`,
+                    disabled: p.id === S.user.id
+                  }
+                ];
+                return `
+                  <div class="record-card">
+                    <div class="record-card-top">
+                      <div class="record-avatar">${esc(initials)}</div>
+                      <div class="record-header-info">
+                        <div class="record-title">${esc(nameOf(p))}</div>
+                        <div class="record-sub">${esc(p.email || 'No email registered')}</div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    <div class="record-tags">
+                      <span class="tag ${p.access_level === 'Admin' ? '' : 'muted-tag'}">${p.access_level}</span>
+                      ${myUnits.length ? `<span class="tag muted-tag">🏢 ${esc(myUnits.join(', '))}</span>` : ''}
+                      ${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}
+                    </div>
+                    <div class="record-footer">
+                      <span class="tiny muted">${p.must_change_password ? 'Temp password pending' : 'Active user'}</span>
+                      <button type="button" class="btn sm" data-view-user="${p.id}">View details</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
             ${pg.renderBar('users')}
           ` : emptyState('No users yet', 'Create the first account with the form above.')}
         </div>
@@ -543,6 +593,36 @@
     }
 
     function bindEvents() {
+      const openUserModal = (userId) => {
+        const p = people.find(x => x.id === userId);
+        if (!p) return;
+        const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
+        const actions = [
+          `<button class="btn sm" data-pw="${p.id}" onclick="window.DS.modal.close()">Reset password</button>`,
+          p.access_level === 'Admin'
+            ? (p.id === S.user.id ? '' : `<button class="btn sm" data-demote="${p.id}" onclick="window.DS.modal.close()">Make member</button>`)
+            : `<button class="btn sm" data-promote="${p.id}" onclick="window.DS.modal.close()">Make admin</button>`,
+          p.id === S.user.id ? '' : `<button class="btn sm ${p.active === false ? '' : 'alert'}" data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}" onclick="window.DS.modal.close()">${p.active === false ? 'Reactivate' : 'Deactivate'}</button>`
+        ];
+        window.DS.showDetailsModal({
+          title: nameOf(p),
+          subtitle: p.email || 'No email registered',
+          badgeHtml: p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>',
+          rows: [
+            { label: 'Full name', value: nameOf(p) },
+            { label: 'Work email', value: p.email || '—' },
+            { label: 'Access level', value: p.access_level || 'Member' },
+            { label: 'Assigned units', value: myUnits.length ? myUnits.join(', ') : 'None assigned yet' },
+            { label: 'Account status', isHtml: true, value: p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>' },
+            { label: 'Password status', value: p.must_change_password ? 'Temporary password (must change upon login)' : 'Password configured' },
+            { label: 'User ID', value: p.id }
+          ],
+          actions
+        });
+      };
+
+      $$('[data-view-user]', v).forEach(b => b.addEventListener('click', () => openUserModal(b.dataset.viewUser)));
+
       $('#nu-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const err = $('#nu-error');
@@ -777,12 +857,14 @@
           </select>
         </div>
         ${(tasks || []).length ? `
-          <div class="table-wrap"><table class="ds">
+          <div class="table-wrap desktop-only"><table class="ds">
             <thead><tr><th class="sticky-col">Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
             <tbody>${(tasks || []).slice(0, 25).map(t => {
               const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
               const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
               const actions = [
+                { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+                { divider: true },
                 t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
                 { divider: true },
                 { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
@@ -794,9 +876,47 @@
                 <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
                 <td style="white-space:nowrap">${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
                 <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                <td style="text-align:right">
+                  <button type="button" class="btn sm ghost" data-view-task="${t.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
+                  ${window.DS.renderActionMenu(actions)}
+                </td>
               </tr>`;
             }).join('')}</tbody></table></div>
+
+          <div class="records-list mobile-only">
+            ${(tasks || []).slice(0, 25).map(t => {
+              const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
+              const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+              const actions = [
+                { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+                { divider: true },
+                t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
+                { divider: true },
+                { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
+              ];
+              return `
+                <div class="record-card">
+                  <div class="record-card-top">
+                    <div class="record-header-info">
+                      <div class="record-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</div>
+                      <div class="record-sub">${as.length ? '👤 ' + esc(as.join(', ')) : 'Unassigned'} · Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}</div>
+                    </div>
+                    ${window.DS.renderActionMenu(actions)}
+                  </div>
+                  <div class="record-tags">
+                    <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                    ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
+                    ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
+                  </div>
+                  <div class="record-footer">
+                    ${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Link ↗</a>` : '<span class="tiny muted">No evidence</span>'}
+                    <button type="button" class="btn sm" data-view-task="${t.id}">View details</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
           ${window.DS.paginate(tasks || [], 1, 25).renderBar('tasks')}
         ` : emptyState('No tasks yet', 'Create one above and assign it to a member or a unit.')}
       </div>
@@ -917,6 +1037,35 @@
       });
     }));
 
+    const openTaskModal = (taskId) => {
+      const t = (tasks || []).find(x => x.id === taskId);
+      if (!t) return;
+      const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
+      const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+      window.DS.showDetailsModal({
+        title: t.title,
+        subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No deadline'}`,
+        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+        rows: [
+          { label: 'Task title', value: t.title },
+          { label: 'Description', value: t.description || 'No additional description provided' },
+          { label: 'Assignee(s)', value: as.length ? as.join(', ') : 'Unassigned' },
+          { label: 'Current status', value: t.status || 'To do' },
+          { label: 'Priority', value: t.priority || 'Normal' },
+          { label: 'Due date', isHtml: true, value: overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—') },
+          { label: 'Extension requested', isHtml: true, value: t.extension_requested ? `<span class="tag alert">Yes (${esc(t.extension_note || 'Requested by assignee')})</span>` : 'No' },
+          { label: 'Evidence URL', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open evidence link ↗</a>` : '<span class="muted">No evidence submitted</span>' },
+          { label: 'Task ID', value: t.id }
+        ],
+        actions: [
+          t.evidence_url ? `<a class="btn sm" href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open evidence ↗</a>` : '',
+          `<button class="btn sm alert" data-del-task="${t.id}" onclick="window.DS.modal.close()">Delete task</button>`
+        ]
+      });
+    };
+
+    $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
+
     $$('[data-del-task]', v).forEach(b => b.addEventListener('click', async () => {
       if (!confirm('Are you sure you want to delete this task?')) return;
       b.disabled = true;
@@ -937,82 +1086,180 @@
     ]);
     const { data: att } = await sb.from('meeting_attendance').select('*');
     const pmap = Object.fromEntries(people.map(p => [p.id, p]));
+    const list = meetings || [];
+    let meetPage = 1;
 
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>Create a meeting</h3></div>
-        <form id="nm-form" novalidate>
-          <div class="field"><label class="label" for="mt-title">Title</label><input class="input" id="mt-title" required placeholder="Weekly unit sync"></div>
-          <div class="field"><label class="label" for="mt-desc">Description</label><textarea class="input" id="mt-desc" placeholder="Agenda"></textarea></div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 16px">
-            <div class="field"><label class="label" for="mt-start">Starts</label><input class="input" id="mt-start" type="datetime-local" required></div>
-            <div class="field"><label class="label" for="mt-end">Ends</label><input class="input" id="mt-end" type="datetime-local"></div>
-            <div class="field"><label class="label" for="mt-unit">Invite unit</label><select class="input" id="mt-unit"><option value="">Everyone</option>${units.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
-          </div>
-          <div class="field"><label class="label" for="mt-link">Meeting link (URL)</label><input class="input" id="mt-link" type="url" placeholder="https://meet.google.com/…"></div>
-          <div class="field"><label class="label" for="mt-invite">Invite members</label>
-            <select class="input" id="mt-invite" multiple size="5" aria-label="Choose members to invite">${people.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}</select>
-            <div class="small muted" style="margin-top:4px">Hold Ctrl or Cmd to pick more than one. Everyone is invited when no unit is chosen.</div>
-          </div>
-          <div class="error-box hidden" id="nm-error" style="margin-bottom:14px"></div>
-          <button class="btn primary" type="submit">Create meeting</button>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h3>Meetings</h3></div>
-        ${(meetings || []).length ? (meetings || []).map(raw => {
-          const m = window.DS.meeting(raw);
-          const reports = (att || []).filter(a => a.meeting_id === m.id);
-          const yes = reports.filter(a => a.attended).length;
-          return `<div style="border-bottom:1px solid var(--line-soft);padding:var(--sp3) 0">
-            <div class="card-head" style="margin-bottom:8px">
-              <div><h3>${esc(m.title)}</h3><div class="small muted">${fmtDT(m.starts_at)}${m.ends_at ? ' – ' + fmtDT(m.ends_at) : ''} · ${esc(m.units?.name || 'Everyone')}</div></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn sm" data-att="${m.id}">Mark attendance</button>
-                <button class="btn sm" data-notes="${m.id}">Notes link</button>
-              </div>
+    function renderView() {
+      const pg = window.DS.paginate(list, meetPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head"><h3>Create a meeting</h3></div>
+          <form id="nm-form" novalidate>
+            <div class="field"><label class="label" for="mt-title">Title</label><input class="input" id="mt-title" required placeholder="Weekly unit sync"></div>
+            <div class="field"><label class="label" for="mt-desc">Description</label><textarea class="input" id="mt-desc" placeholder="Agenda"></textarea></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 16px">
+              <div class="field"><label class="label" for="mt-start">Starts</label><input class="input" id="mt-start" type="datetime-local" required></div>
+              <div class="field"><label class="label" for="mt-end">Ends</label><input class="input" id="mt-end" type="datetime-local"></div>
+              <div class="field"><label class="label" for="mt-unit">Invite unit</label><select class="input" id="mt-unit"><option value="">Everyone</option>${units.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
             </div>
-            <div class="small muted">${reports.length ? `${yes} of ${reports.length} reported attending` : 'No meeting reports yet'}${m.notes_link ? ' · Notes: ' + esc(m.notes_link) : ''}</div>
-          </div>`;
-        }).join('') : emptyState('No meetings yet', 'Create one above and invite a unit or individual members.')}
-      </div>`;
+            <div class="field"><label class="label" for="mt-link">Meeting link (URL)</label><input class="input" id="mt-link" type="url" placeholder="https://meet.google.com/…"></div>
+            <div class="field"><label class="label" for="mt-invite">Invite members</label>
+              <select class="input" id="mt-invite" multiple size="5" aria-label="Choose members to invite">${people.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}</select>
+              <div class="small muted" style="margin-top:4px">Hold Ctrl or Cmd to pick more than one. Everyone is invited when no unit is chosen.</div>
+            </div>
+            <div class="error-box hidden" id="nm-error" style="margin-bottom:14px"></div>
+            <button class="btn primary" type="submit">Create meeting</button>
+          </form>
+        </div>
 
-    $('#nm-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#nm-error');
-      err.classList.remove('show');
-      const title = $('#mt-title').value.trim();
-      const start = $('#mt-start').value;
-      if (!title || !start) { err.textContent = 'Title and start time are required.'; err.classList.add('show'); return; }
-      const { data: created, error } = await sb.from('meetings').insert({
-        title, description: $('#mt-desc').value.trim() || null,
-        agenda: $('#mt-desc').value.trim() || null,
-        starts_at: new Date(start).toISOString(),
-        ends_at: $('#mt-end').value ? new Date($('#mt-end').value).toISOString() : null,
-        unit_id: $('#mt-unit').value || null,
-        location: $('#mt-link').value.trim() || null,
-        meet_link: $('#mt-link').value.trim() || null,
-        organizer_id: S.user.id,
-      }).select().single();
-      if (error) { err.textContent = error.message; err.classList.add('show'); return; }
-      const picked = [...$('#mt-invite').selectedOptions].map(o => o.value);
-      for (const uid of picked) { try { await sb.from('meeting_attendance').insert({ meeting_id: created.id, user_id: uid, attended: false }); } catch (e) { /* best-effort */ } }
-      await audit('meeting_created', 'meetings:' + created.id, null, title);
-      for (const uid of picked) await notifyUser(uid, 'meeting', 'New meeting: ' + title, fmtDT(new Date(start).toISOString()), 'meetings');
-      toast('Meeting created.');
-      window.DS.navigate('meetings');
-    });
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Meetings</h3>
+              <p class="small muted" style="margin-top:2px">${list.length} meeting${list.length === 1 ? '' : 's'} recorded</p>
+            </div>
+          </div>
+          ${pg.items.length ? `
+            <div class="desktop-only" id="mt-desktop-list">
+              ${pg.items.map(raw => {
+                const m = window.DS.meeting(raw);
+                const reports = (att || []).filter(a => a.meeting_id === m.id);
+                const yes = reports.filter(a => a.attended).length;
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
+                  { label: 'Mark attendance', icon: '👥', attrs: `data-att="${m.id}"` },
+                  { label: 'Notes link', icon: '📄', attrs: `data-notes="${m.id}"` },
+                  m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
+                ];
+                return `<div style="border-bottom:1px solid var(--line-soft);padding:var(--sp3) 0">
+                  <div class="card-head" style="margin-bottom:8px">
+                    <div>
+                      <h3 style="word-break:normal;overflow-wrap:break-word">${esc(m.title)}</h3>
+                      <div class="small muted" style="word-break:normal;overflow-wrap:break-word">${fmtDT(m.starts_at)}${m.ends_at ? ' – ' + fmtDT(m.ends_at) : ''} · ${esc(m.units?.name || 'Everyone')}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                      <button type="button" class="btn sm ghost" data-view-meeting="${m.id}" style="padding:2px 8px;font-size:12px">View</button>
+                      <button class="btn sm" data-att="${m.id}">Mark attendance</button>
+                      <button class="btn sm ghost" data-notes="${m.id}">Notes</button>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                  </div>
+                  <div class="small muted">${reports.length ? `${yes} of ${reports.length} reported attending` : 'No meeting reports yet'}${m.notes_link ? ' · Notes: ' + esc(m.notes_link) : ''}</div>
+                </div>`;
+              }).join('')}
+            </div>
 
-    $$('[data-att]', v).forEach(b => b.addEventListener('click', () => attendanceModal(b.dataset.att, people)));
-    $$('[data-notes]', v).forEach(b => b.addEventListener('click', async () => {
-      const url = prompt('Notes link (URL):', 'https://');
-      if (url === null) return;
-      await sb.from('meetings').update({ minutes: url, drive_notes_link: url }).eq('id', b.dataset.notes);
-      await audit('meeting_notes_updated', 'meetings:' + b.dataset.notes);
-      toast('Notes link saved.');
-      window.DS.navigate('meetings');
-    }));
+            <div class="records-list mobile-only" id="mt-mobile-cards">
+              ${pg.items.map(raw => {
+                const m = window.DS.meeting(raw);
+                const reports = (att || []).filter(a => a.meeting_id === m.id);
+                const yes = reports.filter(a => a.attended).length;
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
+                  { label: 'Mark attendance', icon: '👥', attrs: `data-att="${m.id}"` },
+                  { label: 'Notes link', icon: '📄', attrs: `data-notes="${m.id}"` },
+                  m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
+                ];
+                return `
+                  <div class="record-card">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">👥 ${esc(m.title)}</div>
+                        <div class="record-sub">${fmtDT(m.starts_at)} · <span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span></div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    ${m.description || m.agenda ? `<div class="record-snippet">${esc((m.description || m.agenda).slice(0, 100))}</div>` : ''}
+                    <div class="record-footer">
+                      <span class="tiny muted">${reports.length ? `${yes} attended` : 'No reports'}</span>
+                      <div style="display:flex;gap:6px">
+                        <button type="button" class="btn sm" data-view-meeting="${m.id}">View</button>
+                        <button class="btn sm primary" data-att="${m.id}">Attendance</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            ${pg.renderBar('meetings')}
+          ` : emptyState('No meetings yet', 'Create one above and invite a unit or individual members.')}
+        </div>`;
+
+      bindEvents();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        meetPage = p;
+        renderView();
+      });
+    }
+
+    function bindEvents() {
+      $('#nm-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = $('#nm-error');
+        err.classList.remove('show');
+        const title = $('#mt-title').value.trim();
+        const start = $('#mt-start').value;
+        if (!title || !start) { err.textContent = 'Title and start time are required.'; err.classList.add('show'); return; }
+        const { data: created, error } = await sb.from('meetings').insert({
+          title, description: $('#mt-desc').value.trim() || null,
+          agenda: $('#mt-desc').value.trim() || null,
+          starts_at: new Date(start).toISOString(),
+          ends_at: $('#mt-end').value ? new Date($('#mt-end').value).toISOString() : null,
+          unit_id: $('#mt-unit').value || null,
+          location: $('#mt-link').value.trim() || null,
+          meet_link: $('#mt-link').value.trim() || null,
+          organizer_id: S.user.id,
+        }).select().single();
+        if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+        const picked = [...$('#mt-invite').selectedOptions].map(o => o.value);
+        for (const uid of picked) { try { await sb.from('meeting_attendance').insert({ meeting_id: created.id, user_id: uid, attended: false }); } catch (e) { /* best-effort */ } }
+        await audit('meeting_created', 'meetings:' + created.id, null, title);
+        for (const uid of picked) await notifyUser(uid, 'meeting', 'New meeting: ' + title, fmtDT(new Date(start).toISOString()), 'meetings');
+        toast('Meeting created.');
+        window.DS.navigate('meetings');
+      });
+
+      $$('[data-att]', v).forEach(b => b.addEventListener('click', () => attendanceModal(b.dataset.att, people)));
+      $$('[data-notes]', v).forEach(b => b.addEventListener('click', async () => {
+        const url = prompt('Notes link (URL):', 'https://');
+        if (url === null) return;
+        await sb.from('meetings').update({ minutes: url, drive_notes_link: url }).eq('id', b.dataset.notes);
+        await audit('meeting_notes_updated', 'meetings:' + b.dataset.notes);
+        toast('Notes link saved.');
+        window.DS.navigate('meetings');
+      }));
+
+      $$('[data-view-meeting]', v).forEach(b => b.addEventListener('click', () => {
+        const raw = list.find(x => x.id === b.dataset.viewMeeting);
+        if (!raw) return;
+        const m = window.DS.meeting(raw);
+        const reports = (att || []).filter(a => a.meeting_id === m.id);
+        const yes = reports.filter(a => a.attended).length;
+        window.DS.showDetailsModal({
+          title: m.title,
+          subtitle: `Meeting · ${fmtDT(m.starts_at)}`,
+          badgeHtml: `<span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span>`,
+          rows: [
+            { label: 'Title', value: m.title },
+            { label: 'Starts', value: fmtDT(m.starts_at) },
+            { label: 'Ends', value: m.ends_at ? fmtDT(m.ends_at) : '—' },
+            { label: 'Target unit', value: m.units?.name || 'Everyone' },
+            { label: 'Meeting link', isHtml: true, value: m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.link)} ↗</a>` : '<span class="muted">No link set</span>' },
+            { label: 'Description / agenda', value: m.description || m.agenda || 'No agenda provided' },
+            { label: 'Attendance', value: `${yes} attended (${reports.length} reported)` },
+            { label: 'Drive notes link', isHtml: true, value: m.minutes ? `<a href="${esc(m.minutes)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.minutes)} ↗</a>` : '<span class="muted">None</span>' }
+          ],
+          actions: [
+            `<button class="btn sm" data-att="${m.id}" onclick="window.DS.modal.close()">Mark attendance</button>`,
+            m.link ? `<a class="btn sm primary" href="${esc(m.link)}" target="_blank" rel="noopener">Join meeting ↗</a>` : ''
+          ]
+        });
+      }));
+    }
+
+    renderView();
   };
 
   function attendanceModal(meetingId, people) {
@@ -1048,66 +1295,157 @@
     const pmap = Object.fromEntries(people.map(p => [p.id, p]));
     const { data } = await sb.from('weekly_feedback').select('*, periods:period_id(label)').order('created_at', { ascending: false });
     const list = data || [];
+    let ideasPage = 1;
 
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>All submissions</h3>
-          <select class="input" id="if-filter" style="min-height:38px;width:auto" aria-label="Filter submissions">
-            <option value="">All</option><option value="idea">Ideas</option><option value="problem">Problems</option>
-            <option value="pending">Awaiting decision</option>
-          </select>
-        </div>
-        ${list.length ? `<div id="if-list">${list.map(f => `
-          <div class="row" data-type="${f.type}" data-pending="${['Submitted','Open'].includes(f.status) ? '1' : '0'}" style="align-items:flex-start">
-            <div class="row-main">
-              <div class="t">${f.type === 'idea' ? 'Idea' : 'Problem'}${f.title ? ' · ' + esc(f.title) : ''}</div>
-              <div class="s">${esc(nameOf(pmap[f.user_id]))} · ${esc(f.periods?.label || 'No period')} · ${esc(f.section || 'No section')}${f.severity ? ' · ' + esc(f.severity) : ''}</div>
-              <div class="s">${esc(f.content || '')}</div>
-              ${f.admin_note ? `<div class="s">Admin note: ${esc(f.admin_note)}</div>` : ''}
+    function renderView() {
+      const pg = window.DS.paginate(list, ideasPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>All submissions</h3>
+              <p class="small muted" style="margin-top:2px">${list.length} weekly idea${list.length === 1 ? '' : 's'} &amp; problem${list.length === 1 ? '' : 's'}</p>
             </div>
-            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-              ${statusTag(f.status)}
-              <button class="btn sm" data-dec="${f.id}">Decide</button>
+            <select class="input" id="if-filter" style="min-height:36px;width:auto" aria-label="Filter submissions">
+              <option value="">All</option><option value="idea">Ideas</option><option value="problem">Problems</option>
+              <option value="pending">Awaiting decision</option>
+            </select>
+          </div>
+
+          ${pg.items.length ? `
+            <div id="if-list" class="desktop-only">
+              ${pg.items.map(f => {
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-fb="${f.id}"` },
+                  { label: 'Make decision', icon: '⚖️', attrs: `data-dec="${f.id}"` },
+                ];
+                return `
+                  <div class="row" data-type="${f.type}" data-pending="${['Submitted','Open'].includes(f.status) ? '1' : '0'}" style="align-items:flex-start">
+                    <div class="row-main">
+                      <div class="t">${f.type === 'idea' ? '💡 Idea' : '⚠️ Problem'}${f.title ? ' · ' + esc(f.title) : ''}</div>
+                      <div class="s">${esc(nameOf(pmap[f.user_id]))} · ${esc(f.periods?.label || 'No period')} · ${esc(f.section || 'No section')}${f.severity ? ' · ' + esc(f.severity) : ''}</div>
+                      <div class="s">${esc(f.content || '')}</div>
+                      ${f.admin_note ? `<div class="s"><b>Admin note:</b> ${esc(f.admin_note)}</div>` : ''}
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <button type="button" class="btn sm ghost" data-view-fb="${f.id}" style="padding:2px 8px;font-size:12px">View</button>
+                      ${statusTag(f.status)}
+                      <button class="btn sm" data-dec="${f.id}">Decide</button>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
-          </div>`).join('')}</div>`
-        : emptyState('Nothing submitted yet', 'Members submit one idea and one problem each week. They land here.')}
-      </div>`;
 
-    $('#if-filter').addEventListener('change', () => {
-      const f = $('#if-filter').value;
-      $$('#if-list .row').forEach(r => {
-        const match = !f || r.dataset.type === f || (f === 'pending' && r.dataset.pending === '1');
-        r.style.display = match ? '' : 'none';
-      });
-    });
+            <div class="records-list mobile-only" id="if-cards">
+              ${pg.items.map(f => {
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-fb="${f.id}"` },
+                  { label: 'Make decision', icon: '⚖️', attrs: `data-dec="${f.id}"` },
+                ];
+                return `
+                  <div class="record-card" data-type="${f.type}" data-pending="${['Submitted','Open'].includes(f.status) ? '1' : '0'}">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">${f.type === 'idea' ? '💡' : '⚠️'} ${esc(f.title || f.type)}</div>
+                        <div class="record-sub">${esc(nameOf(pmap[f.user_id]))} · ${esc(f.periods?.label || '')}</div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    <div class="record-tags">
+                      ${statusTag(f.status)}
+                      <span class="tag muted-tag">${esc(f.section || 'General')}</span>
+                      ${f.severity ? `<span class="tag ${f.severity === 'Critical' || f.severity === 'High' ? 'alert' : 'muted-tag'}">${esc(f.severity)}</span>` : ''}
+                    </div>
+                    ${f.content ? `<div class="record-snippet">${esc(f.content.slice(0, 100))}${f.content.length > 100 ? '…' : ''}</div>` : ''}
+                    <div class="record-footer">
+                      <span class="tiny muted">${fmtDT(f.created_at)}</span>
+                      <div style="display:flex;gap:6px">
+                        <button type="button" class="btn sm" data-view-fb="${f.id}">View</button>
+                        <button class="btn sm primary" data-dec="${f.id}">Decide</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
 
-    $$('[data-dec]', v).forEach(b => b.addEventListener('click', async () => {
-      const { data: f } = await sb.from('weekly_feedback').select('*').eq('id', b.dataset.dec).single();
-      window.DS.modal.open(`
-        <h2 style="margin-bottom:6px">${f.type === 'idea' ? 'Idea' : 'Problem'} decision</h2>
-        <p class="muted small" style="margin-bottom:16px">${esc(f.title || '')} · ${esc(f.section || 'No section')}</p>
-        <div class="card" style="padding:14px;margin-bottom:16px"><div class="small">${esc(f.content || '')}</div></div>
-        <form id="dec-form" novalidate>
-          <div class="field"><label class="label" for="dec-status">Status</label>
-            <select class="input" id="dec-status">${FB_STATUS.map(s => `<option ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          <div class="field"><label class="label" for="dec-note">Reason / note</label><textarea class="input" id="dec-note" placeholder="Explain the decision — the member sees this.">${esc(f.admin_note || '')}</textarea></div>
-          <div style="display:flex;gap:10px"><button class="btn primary" style="flex:1" type="submit">Save decision</button><button class="btn" type="button" id="dec-cancel">Cancel</button></div>
-        </form>`);
-      $('#dec-cancel').addEventListener('click', window.DS.modal.close);
-      $('#dec-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const st = $('#dec-status').value;
-        const note = $('#dec-note').value.trim();
-        if (st === 'Rejected' && !note) { toast('Add a reason when rejecting.', true); return; }
-        const { error } = await sb.from('weekly_feedback').update({ status: st, admin_note: note || null, reviewed_by: S.user.id, reviewed_at: new Date().toISOString() }).eq('id', f.id);
-        if (error) return toast(error.message, true);
-        await audit('feedback_decision', 'weekly_feedback:' + f.id, f.status, st);
-        await notifyUser(f.user_id, 'feedback_status', `${f.type === 'idea' ? 'Idea' : 'Problem'} ${st.toLowerCase()}`, note || null, 'ideas');
-        window.DS.modal.close();
-        toast('Decision saved.');
-        window.DS.navigate('ideas');
+            ${pg.renderBar('ideas')}
+          ` : emptyState('Nothing submitted yet', 'Members submit one idea and one problem each week. They land here.')}
+        </div>`;
+
+      bindEvents();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        ideasPage = p;
+        renderView();
       });
-    }));
+    }
+
+    function bindEvents() {
+      $('#if-filter')?.addEventListener('change', () => {
+        const f = $('#if-filter').value;
+        $$('#if-list .row, #if-cards .record-card').forEach(r => {
+          const match = !f || r.dataset.type === f || (f === 'pending' && r.dataset.pending === '1');
+          r.style.display = match ? '' : 'none';
+        });
+      });
+
+      $$('[data-view-fb]', v).forEach(b => b.addEventListener('click', () => {
+        const f = list.find(x => x.id === b.dataset.viewFb);
+        if (!f) return;
+        window.DS.showDetailsModal({
+          title: `${f.type === 'idea' ? '💡 Idea' : '⚠️ Problem'}: ${f.title || 'Untitled'}`,
+          subtitle: `Submitted by ${nameOf(pmap[f.user_id])} · ${f.periods?.label || 'Current period'}`,
+          badgeHtml: statusTag(f.status),
+          rows: [
+            { label: 'Type', value: f.type === 'idea' ? 'Weekly Idea' : 'Weekly Problem' },
+            { label: 'Title', value: f.title || 'Untitled' },
+            { label: 'Submitted by', value: nameOf(pmap[f.user_id]) },
+            { label: 'Section / Department', value: f.section || 'General' },
+            { label: 'Severity', value: f.severity || 'Normal' },
+            { label: 'Full description', value: f.content || 'No details provided' },
+            { label: 'Current status', value: f.status },
+            { label: 'Admin review note', value: f.admin_note || 'No notes yet' },
+            { label: 'Submitted on', value: fmtDT(f.created_at) }
+          ],
+          actions: [
+            `<button class="btn sm primary" data-dec="${f.id}" onclick="window.DS.modal.close()">Make decision</button>`
+          ]
+        });
+      }));
+
+      $$('[data-dec]', v).forEach(b => b.addEventListener('click', async () => {
+        const { data: f } = await sb.from('weekly_feedback').select('*').eq('id', b.dataset.dec).single();
+        window.DS.modal.open(`
+          <h2 style="margin-bottom:6px">${f.type === 'idea' ? 'Idea' : 'Problem'} decision</h2>
+          <p class="muted small" style="margin-bottom:16px">${esc(f.title || '')} · ${esc(f.section || 'No section')}</p>
+          <div class="card" style="padding:14px;margin-bottom:16px"><div class="small">${esc(f.content || '')}</div></div>
+          <form id="dec-form" novalidate>
+            <div class="field"><label class="label" for="dec-status">Status</label>
+              <select class="input" id="dec-status">${FB_STATUS.map(s => `<option ${f.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+            <div class="field"><label class="label" for="dec-note">Reason / note</label><textarea class="input" id="dec-note" placeholder="Explain the decision — the member sees this.">${esc(f.admin_note || '')}</textarea></div>
+            <div style="display:flex;gap:10px"><button class="btn primary" style="flex:1" type="submit">Save decision</button><button class="btn" type="button" id="dec-cancel">Cancel</button></div>
+          </form>`);
+        $('#dec-cancel').addEventListener('click', window.DS.modal.close);
+        $('#dec-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const st = $('#dec-status').value;
+          const note = $('#dec-note').value.trim();
+          if (st === 'Rejected' && !note) { toast('Add a reason when rejecting.', true); return; }
+          const { error } = await sb.from('weekly_feedback').update({ status: st, admin_note: note || null, reviewed_by: S.user.id, reviewed_at: new Date().toISOString() }).eq('id', f.id);
+          if (error) return toast(error.message, true);
+          await audit('feedback_decision', 'weekly_feedback:' + f.id, f.status, st);
+          await notifyUser(f.user_id, 'feedback_status', `${f.type === 'idea' ? 'Idea' : 'Problem'} ${st.toLowerCase()}`, note || null, 'ideas');
+          window.DS.modal.close();
+          toast('Decision saved.');
+          window.DS.navigate('ideas');
+        });
+      }));
+    }
+
+    renderView();
   };
 
   /* ============================================================
@@ -1330,11 +1668,12 @@
         <div class="card-head"><h3>Leave requests</h3></div>
         ${(leaves || []).length ? (leaves || []).map(l => `<div class="row" style="align-items:flex-start">
           <div class="row-main">
-            <div class="t">${esc(nameOf(pmap[l.user_id]))}</div>
+            <div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(nameOf(pmap[l.user_id]))}</div>
             <div class="s">${fmtD(l.start_date)} → ${fmtD(l.end_date)}${l.reason ? ' · ' + esc(l.reason) : ''}</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             ${statusTag(l.status)}
+            <button type="button" class="btn sm ghost" data-view-leave="${l.id}" style="padding:2px 8px;font-size:12px">View</button>
             ${l.status === 'Pending' ? `
               <button class="btn sm primary" data-lv="1" data-id="${l.id}" data-who="${l.user_id}">Approve</button>
               <button class="btn sm alert" data-lv="0" data-id="${l.id}" data-who="${l.user_id}">Decline</button>` : ''}
@@ -1353,15 +1692,37 @@
           </div>
           <div style="display:flex;gap:10px"><button class="btn primary" type="submit">Add to calendar</button><button class="btn" type="button" id="ev-cancel">Cancel</button></div>
         </form>
-        ${(events || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Event</th><th>Type</th><th>Dates</th><th>Notes</th></tr></thead>
-          <tbody>${(events || []).map(e => `<tr>
-            <td style="font-weight:700">${esc(e.title)}</td>
-            <td>${esc(e.event_type)}</td>
-            <td>${fmtD(e.start_at)} → ${fmtD(e.end_at)}</td>
-            <td class="small">${esc(e.description || '')}</td>
-          </tr>`).join('')}</tbody></table></div>`
-        : emptyState('No calendar events', 'Add holidays and days off so the team knows when reports are not expected.')}
+        ${(events || []).length ? `
+          <div class="table-wrap desktop-only"><table class="ds">
+            <thead><tr><th class="sticky-col">Event</th><th>Type</th><th>Dates</th><th>Notes</th><th style="text-align:right">Action</th></tr></thead>
+            <tbody>${(events || []).map(e => `<tr>
+              <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(e.title)}</td>
+              <td style="white-space:nowrap">${esc(e.event_type)}</td>
+              <td style="white-space:nowrap">${fmtD(e.start_at)} → ${fmtD(e.end_at)}</td>
+              <td class="small">${esc(e.description || '')}</td>
+              <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-event="${e.id}" style="padding:2px 8px;font-size:12px">View</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+
+          <div class="records-list mobile-only">
+            ${(events || []).map(e => `
+              <div class="record-card">
+                <div class="record-card-top">
+                  <div class="record-header-info">
+                    <div class="record-title">📅 ${esc(e.title)}</div>
+                    <div class="record-sub">${fmtD(e.start_at)} → ${fmtD(e.end_at)}</div>
+                  </div>
+                  <span class="tag muted-tag">${esc(e.event_type)}</span>
+                </div>
+                ${e.description ? `<div class="record-snippet">${esc(e.description)}</div>` : ''}
+                <div class="record-footer">
+                  <span class="tiny muted">Calendar item</span>
+                  <button type="button" class="btn sm" data-view-event="${e.id}">View details</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : emptyState('No calendar events', 'Add holidays and days off so the team knows when reports are not expected.')}
       </div>
 
       <div class="card">
@@ -1373,6 +1734,47 @@
           <p class="tiny muted" style="margin-top:10px">Submissions after this time are flagged Late for the admin to judge — never penalised automatically.</p>
         </form>
       </div>`;
+
+    $$('[data-view-leave]', v).forEach(b => b.addEventListener('click', () => {
+      const l = (leaves || []).find(x => x.id === b.dataset.viewLeave);
+      if (!l) return;
+      const person = pmap[l.user_id];
+      window.DS.showDetailsModal({
+        title: `Leave request · ${nameOf(person)}`,
+        subtitle: `${fmtD(l.start_date)} → ${fmtD(l.end_date)}`,
+        badgeHtml: statusTag(l.status),
+        rows: [
+          { label: 'Member name', value: nameOf(person) },
+          { label: 'Member email', value: person?.email || '—' },
+          { label: 'Start date', value: fmtD(l.start_date) },
+          { label: 'End date', value: fmtD(l.end_date) },
+          { label: 'Reason / note', value: l.reason || 'No reason provided' },
+          { label: 'Status', value: l.status },
+          { label: 'Submitted on', value: fmtDT(l.created_at) },
+        ],
+        actions: l.status === 'Pending' ? [
+          `<button class="btn sm primary" data-lv="1" data-id="${l.id}" data-who="${l.user_id}" onclick="window.DS.modal.close()">Approve</button>`,
+          `<button class="btn sm alert" data-lv="0" data-id="${l.id}" data-who="${l.user_id}" onclick="window.DS.modal.close()">Decline</button>`
+        ] : []
+      });
+    }));
+
+    $$('[data-view-event]', v).forEach(b => b.addEventListener('click', () => {
+      const e = (events || []).find(x => x.id === b.dataset.viewEvent);
+      if (!e) return;
+      window.DS.showDetailsModal({
+        title: e.title,
+        subtitle: `${fmtD(e.start_at)} → ${fmtD(e.end_at)}`,
+        badgeHtml: `<span class="tag muted-tag">${esc(e.event_type || 'Event')}</span>`,
+        rows: [
+          { label: 'Event title', value: e.title },
+          { label: 'Event type', value: e.event_type || 'Holiday' },
+          { label: 'Starts', value: fmtD(e.start_at) },
+          { label: 'Ends', value: fmtD(e.end_at) },
+          { label: 'Description', value: e.description || 'No additional description' },
+        ]
+      });
+    }));
 
     $$('[data-lv]', v).forEach(b => b.addEventListener('click', async () => {
       const ok = b.dataset.lv === '1';
@@ -1479,10 +1881,12 @@
             </div>
           </div>
           ${pg.items.length ? `
-            <div id="li-list">
+            <div id="li-list" class="desktop-only">
               ${pg.items.map(i => {
                 const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
                   { label: 'Access permissions', icon: '👥', attrs: `data-grant="${i.id}"` },
+                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
                   { divider: true },
                   { label: 'Delete entry', icon: '🗑️', isAlert: true, attrs: `data-delitem="${i.id}"` },
                 ];
@@ -1495,6 +1899,7 @@
                       <div class="tiny muted">Added by ${esc(nameOf(i.profiles))} · ${i.open_count || 0} opens${i.last_broken_report_at ? ' · broken reported ' + fmtDT(i.last_broken_report_at) : ''}</div>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center">
+                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}" style="padding:2px 8px;font-size:12px">View</button>
                       <a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
                       ${window.DS.renderActionMenu(actions)}
                     </div>
@@ -1502,6 +1907,39 @@
                 `;
               }).join('')}
             </div>
+
+            <div class="records-list mobile-only" id="li-cards">
+              ${pg.items.map(i => {
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
+                  { label: 'Access permissions', icon: '👥', attrs: `data-grant="${i.id}"` },
+                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
+                  { divider: true },
+                  { label: 'Delete entry', icon: '🗑️', isAlert: true, attrs: `data-delitem="${i.id}"` },
+                ];
+                return `
+                  <div class="record-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">📄 ${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</div>
+                        <div class="record-sub">${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span> · ` : ''}Added by ${esc(nameOf(i.profiles))}</div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    ${i.description ? `<div class="record-snippet">${esc(i.description)}</div>` : ''}
+                    <div class="record-tags">${grantText(i.id)}</div>
+                    <div class="record-footer">
+                      <span class="tiny muted">${i.open_count || 0} opens</span>
+                      <div style="display:flex;gap:6px">
+                        <button type="button" class="btn sm" data-view-lib="${i.id}">View details</button>
+                        <a class="btn sm ghost" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
             ${pg.renderBar('lib')}
           ` : emptyState('The library is empty', 'Add a link above and grant access to the people who need it.')}
         </div>
@@ -1525,12 +1963,36 @@
     function bindLib() {
       const apply = () => {
         const q = $('#li-q').value.toLowerCase(), c = $('#li-cat-filter').value;
-        $$('#li-list .row').forEach(r => {
+        $$('#li-list .row, #li-cards .record-card').forEach(r => {
           r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
         });
       };
       $('#li-q')?.addEventListener('input', apply);
       $('#li-cat-filter')?.addEventListener('change', apply);
+
+      $$('[data-view-lib]', v).forEach(b => b.addEventListener('click', () => {
+        const item = itemList.find(x => x.id === b.dataset.viewLib);
+        if (!item) return;
+        window.DS.showDetailsModal({
+          title: item.title,
+          subtitle: `Library document · ${item.category || 'General'}`,
+          badgeHtml: item.broken_link ? '<span class="tag alert">Broken link</span>' : '<span class="tag ok">Active</span>',
+          rows: [
+            { label: 'Document title', value: item.title },
+            { label: 'Category', value: item.category || 'None' },
+            { label: 'Description', value: item.description || 'No description provided' },
+            { label: 'Link URL', isHtml: true, value: `<a href="${esc(item.url)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(item.url)} ↗</a>` },
+            { label: 'Access scope', isHtml: true, value: grantText(item.id) },
+            { label: 'Added by', value: nameOf(item.profiles) },
+            { label: 'Total opens', value: String(item.open_count || 0) },
+            { label: 'Broken link reported', value: item.last_broken_report_at ? fmtDT(item.last_broken_report_at) : 'No broken reports' }
+          ],
+          actions: [
+            `<a class="btn sm primary" href="${esc(item.url)}" target="_blank" rel="noopener">Open document ↗</a>`,
+            `<button class="btn sm" data-grant="${item.id}" onclick="window.DS.modal.close()">Access permissions</button>`
+          ]
+        });
+      }));
 
       $('#li-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();

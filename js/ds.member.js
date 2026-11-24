@@ -120,28 +120,56 @@
 
       <div class="card">
         <div class="card-head">
-          <h3>Recent submission records</h3>
+          <div>
+            <h3>Recent submission records</h3>
+            <p class="small muted" style="margin-top:2px">Your latest daily reports and scores</p>
+          </div>
           <button class="btn sm ghost" data-goto="report">View all records</button>
         </div>
         ${(pastReports && pastReports.length) ? `
-          <div class="table-wrap"><table class="ds">
-            <thead><tr><th>Date</th><th>Status</th><th>Score</th><th>Summary</th><th>Admin Feedback</th></tr></thead>
+          <div class="table-wrap desktop-only"><table class="ds">
+            <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Summary</th><th>Admin Feedback</th><th style="text-align:right">Action</th></tr></thead>
             <tbody>
               ${pastReports.map(r => `
                 <tr>
-                  <td style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</td>
-                  <td>
+                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</td>
+                  <td style="white-space:nowrap">
                     ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
                       r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
                       `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
                   </td>
-                  <td>${r.score != null ? `<b style="color:var(--ok)">${r.score}/100</b>` : '<span class="muted">—</span>'}</td>
-                  <td class="small" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.doing_today || r.did_yesterday || '—')}</td>
-                  <td class="small">${r.review_note ? `<span style="font-weight:600">${esc(r.review_note)}</span>` : '<span class="muted">—</span>'}</td>
+                  <td style="font-weight:800;white-space:nowrap">${r.score != null ? `<b style="color:var(--ok)">${r.score}/100</b>` : '<span class="muted">—</span>'}</td>
+                  <td class="small" style="max-width:240px"><div class="table-cell-truncate" title="${esc(r.doing_today || r.did_yesterday || '')}">${esc(r.doing_today || r.did_yesterday || '—')}</div></td>
+                  <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.review_note || '')}">${r.review_note ? `<span style="font-weight:600">${esc(r.review_note)}</span>` : '<span class="muted">—</span>'}</div></td>
+                  <td style="text-align:right"><button type="button" class="btn sm ghost" data-dash-view-rep="${r.id}" style="padding:2px 8px;font-size:12px">View</button></td>
                 </tr>
               `).join('')}
             </tbody>
           </table></div>
+
+          <div class="records-list mobile-only">
+            ${pastReports.map(r => `
+              <div class="record-card">
+                <div class="record-card-top">
+                  <div class="record-header-info">
+                    <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</div>
+                    <div class="record-sub">Submitted ${fmtDT(r.submitted_at)}</div>
+                  </div>
+                  ${r.score != null ? `<span class="tag ok"><b>${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending</span>'}
+                </div>
+                <div class="record-tags">
+                  ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                    r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                    `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                </div>
+                ${r.doing_today ? `<div class="record-snippet"><b>Plan:</b> ${esc(r.doing_today.slice(0, 100))}${r.doing_today.length > 100 ? '…' : ''}</div>` : ''}
+                <div class="record-footer">
+                  <span class="tiny muted">${r.mood ? `Mood ${r.mood}/5` : 'Standard scrum'}</span>
+                  <button type="button" class="btn sm" data-dash-view-rep="${r.id}">View details</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         ` : `<div class="empty" style="padding:20px"><div class="hint">No submission records yet. Submit your daily scrum to see records here.</div></div>`}
       </div>
 
@@ -149,26 +177,95 @@
         <div class="card-head"><h3>My tasks</h3><button class="btn sm ghost" data-goto="tasks">View all</button></div>
         ${openTasks.length ? openTasks.slice(0, 5).map(t => `
           <div class="row"><div class="row-main">
-            <div class="t">${esc(t.title)} ${t.due_date && t.due_date < date ? '<span class="tag alert">Overdue</span>' : ''}</div>
+            <div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(t.title)} ${t.due_date && t.due_date < date ? '<span class="tag alert">Overdue</span>' : ''}</div>
             <div class="s">${esc(t.status || 'To do')} · due ${fmtD(t.due_date)}${t.priority ? ' · ' + esc(t.priority) : ''}</div>
-          </div></div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">No open tasks. Nice.</div></div>`}
+          </div>
+          <button type="button" class="btn sm ghost" data-dash-view-task="${t.id}" style="padding:2px 8px;font-size:12px">View</button>
+          </div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">No open tasks. Nice.</div></div>`}
       </div>
 
       <div class="card">
         <div class="card-head"><h3>This week — idea & problem</h3><button class="btn sm ghost" data-goto="ideas">Open</button></div>
-        ${(fb && fb.length) ? fb.map(f => `<div class="row"><div class="row-main"><div class="t">${f.type === 'idea' ? 'Idea' : 'Problem'} · ${esc(f.periods?.label || '')}</div><div class="s">${esc(f.content).slice(0, 90)}</div></div><span class="tag ${f.status === 'Rejected' || f.status === 'Dismissed' ? 'alert' : f.status === 'Open' ? 'muted-tag' : 'ok'}">${f.status}</span></div>`).join('')
+        ${(fb && fb.length) ? fb.map(f => `<div class="row"><div class="row-main"><div class="t" style="word-break:normal;overflow-wrap:break-word">${f.type === 'idea' ? '💡 Idea' : '⚠️ Problem'} · ${esc(f.periods?.label || '')}</div><div class="s" style="word-break:normal;overflow-wrap:break-word">${esc(f.content).slice(0, 90)}…</div></div>
+          <span class="tag ${f.status === 'Rejected' || f.status === 'Dismissed' ? 'alert' : f.status === 'Open' ? 'muted-tag' : 'ok'}" style="white-space:nowrap">${f.status}</span>
+          <button type="button" class="btn sm ghost" data-dash-view-fb="${f.id}" style="padding:2px 8px;font-size:12px">View</button>
+        </div>`).join('')
         : `<div class="empty" style="padding:20px"><div class="hint">Submit one idea and one problem this week.</div><button class="btn sm" data-goto="ideas">Add now</button></div>`}
       </div>
 
       <div class="card">
         <div class="card-head"><h3>My units & OKRs</h3><button class="btn sm ghost" data-goto="units">View all</button></div>
-        ${units.length ? units.map(u => `<div class="row"><div class="row-main"><div class="t">${esc(u.units?.name || 'Unit')}</div><div class="s">${esc(u.positions?.title || 'Member')}</div></div></div>`).join('')
+        ${units.length ? units.map(u => `<div class="row"><div class="row-main"><div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(u.units?.name || 'Unit')}</div><div class="s">Role: ${esc(u.positions?.title || 'Member')}</div></div></div>`).join('')
         : `<div class="empty" style="padding:20px"><div class="hint">You are not in a unit yet.</div></div>`}
       </div>
 
       ${annPosts.length ? `<div class="card"><div class="card-head"><h3>Announcements</h3></div>
-        ${annPosts.map(a => `<div class="row"><div class="row-main"><div class="t">${esc(a.title || 'Announcement')}</div><div class="s">${esc((a.body || '').slice(0, 100))} · ${fmtDT(a.created_at)}</div></div></div>`).join('')}</div>` : ''}
+        ${annPosts.map(a => `<div class="row"><div class="row-main"><div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(a.title || 'Announcement')}</div><div class="s" style="word-break:normal;overflow-wrap:break-word">${esc((a.body || '').slice(0, 100))} · ${fmtDT(a.created_at)}</div></div></div>`).join('')}</div>` : ''}
     `;
+
+    $$('[data-dash-view-rep]', v).forEach(b => b.addEventListener('click', () => {
+      const r = (pastReports || []).find(x => x.id === b.dataset.dashViewRep);
+      if (!r) return;
+      window.DS.showDetailsModal({
+        title: `Daily Scrum — ${fmtD(r.report_date)}`,
+        subtitle: `Submitted ${fmtDT(r.submitted_at)}${r.is_late ? ` · Late by ${r.late_minutes}m` : ''}`,
+        badgeHtml: r.status === 'Approved' ? '<span class="status-pill approved">✓ Approved</span>' :
+                   r.status === 'Rejected' ? '<span class="status-pill rejected">✕ Resubmit</span>' :
+                   `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`,
+        rows: [
+          { label: 'Date', value: fmtD(r.report_date) },
+          { label: 'Status', value: r.status },
+          { label: 'Score', isHtml: true, value: r.score != null ? `<b style="color:var(--ok);font-size:16px">${r.score}/100</b>` : '<span class="muted">Pending review</span>' },
+          { label: 'Yesterday', value: r.did_yesterday || '—' },
+          { label: 'Today', value: r.doing_today || '—' },
+          { label: 'Blockers', value: r.blockers || 'None reported' },
+          { label: 'Evidence link', isHtml: true, value: r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost">Open drive link ↗</a>` : 'None' },
+          { label: 'Admin feedback', isHtml: true, value: r.review_note ? `<b style="color:var(--ok)">${esc(r.review_note)}</b>` : 'None' },
+        ],
+        actions: [
+          r.evidence_url ? `<a class="btn sm" href="${esc(r.evidence_url)}" target="_blank" rel="noopener">Open link ↗</a>` : ''
+        ]
+      });
+    }));
+
+    $$('[data-dash-view-task]', v).forEach(b => b.addEventListener('click', () => {
+      const t = (openTasks || []).find(x => x.id === b.dataset.dashViewTask);
+      if (!t) return;
+      window.DS.showDetailsModal({
+        title: t.title,
+        subtitle: `Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}`,
+        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+        rows: [
+          { label: 'Title', value: t.title },
+          { label: 'Description', value: t.description || 'No description' },
+          { label: 'Status', value: t.status || 'To do' },
+          { label: 'Priority', value: t.priority || 'Normal' },
+          { label: 'Due date', isHtml: true, value: t.due_date ? fmtD(t.due_date) : '—' },
+          { label: 'Evidence link', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost">Open evidence ↗</a>` : 'None' }
+        ],
+        actions: [
+          t.evidence_url ? `<a class="btn sm" href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open evidence ↗</a>` : ''
+        ]
+      });
+    }));
+
+    $$('[data-dash-view-fb]', v).forEach(b => b.addEventListener('click', () => {
+      const f = (fb || []).find(x => x.id === b.dataset.dashViewFb);
+      if (!f) return;
+      window.DS.showDetailsModal({
+        title: `${f.type === 'idea' ? '💡 Weekly Idea' : '⚠️ Weekly Problem'}`,
+        subtitle: `Period: ${esc(f.periods?.label || 'General')}`,
+        badgeHtml: `<span class="tag ${f.status === 'Approved' ? 'ok' : f.status === 'Rejected' ? 'alert' : 'muted-tag'}">${f.status}</span>`,
+        rows: [
+          { label: 'Type', value: f.type === 'idea' ? 'Idea' : 'Problem' },
+          { label: 'Period', value: f.periods?.label || 'Weekly' },
+          { label: 'Content', value: f.content || '—' },
+          { label: 'Severity', value: f.severity || '—' },
+          { label: 'Status', value: f.status },
+          { label: 'Admin response', value: f.admin_note || 'No notes yet' }
+        ]
+      });
+    }));
     $$('[data-goto]', v).forEach(b => b.addEventListener('click', () => window.DS.navigate(b.dataset.goto)));
   };
 
@@ -262,7 +359,7 @@
               <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
             </div>
             ${pg.items.length ? `
-              <div class="table-wrap"><table class="ds">
+              <div class="table-wrap desktop-only"><table class="ds">
                 <thead>
                   <tr>
                     <th class="sticky-col">Date</th>
@@ -278,6 +375,8 @@
                 <tbody>
                   ${pg.items.map(r => {
                     const actions = [
+                      { label: 'View full report', icon: '📄', attrs: `data-view-rep="${r.id}"` },
+                      { divider: true },
                       (r.status === 'Submitted' || r.status === 'Rejected')
                         ? { label: 'Edit in form', icon: '✏️', attrs: `data-fill-rep="${r.id}"` }
                         : null,
@@ -301,12 +400,55 @@
                         <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.doing_today || '')}">${esc(r.doing_today || '—')}</div></td>
                         <td>${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
                         <td class="small" style="max-width:200px"><div class="table-cell-truncate" style="font-weight:600;color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td>
-                        <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                        <td style="text-align:right">
+                          <button type="button" class="btn sm ghost" data-view-rep="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
+                          ${window.DS.renderActionMenu(actions)}
+                        </td>
                       </tr>
                     `;
                   }).join('')}
                 </tbody>
               </table></div>
+
+              <div class="records-list mobile-only">
+                ${pg.items.map(r => {
+                  const actions = [
+                    { label: 'View full report', icon: '📄', attrs: `data-view-rep="${r.id}"` },
+                    { divider: true },
+                    (r.status === 'Submitted' || r.status === 'Rejected')
+                      ? { label: 'Edit in form', icon: '✏️', attrs: `data-fill-rep="${r.id}"` }
+                      : null,
+                    r.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(r.evidence_url)}', '_blank')"` } : null,
+                    isAdmin() ? { divider: true } : null,
+                    isAdmin() ? { label: 'Delete record', icon: '🗑️', isAlert: true, attrs: `data-del-rep="${r.id}"` } : null,
+                  ];
+                  return `
+                    <div class="record-card">
+                      <div class="record-card-top">
+                        <div class="record-header-info">
+                          <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ` <span class="tag alert" style="font-size:9.5px">Late ${r.late_minutes}m</span>` : ''}</div>
+                          <div class="record-sub">Submitted ${fmtDT(r.submitted_at)}</div>
+                        </div>
+                        ${window.DS.renderActionMenu(actions)}
+                      </div>
+                      <div class="record-tags">
+                        ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                          r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                          `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                        ${r.score != null ? `<span class="tag ok"><b>Score: ${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending score</span>'}
+                        ${r.mood ? `<span class="tag muted-tag">Mood ${r.mood}/5</span>` : ''}
+                      </div>
+                      ${r.doing_today ? `<div class="record-snippet"><b>Today:</b> ${esc(r.doing_today.slice(0, 110))}${r.doing_today.length > 110 ? '…' : ''}</div>` : ''}
+                      ${r.review_note ? `<div class="record-snippet" style="background:#fefce8;border-color:#fef08a"><b>Feedback:</b> ${esc(r.review_note)}</div>` : ''}
+                      <div class="record-footer">
+                        ${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Drive Link ↗</a>` : '<span class="tiny muted">No evidence link</span>'}
+                        <button type="button" class="btn sm" data-view-rep="${r.id}">View details</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
               ${pg.renderBar('records')}
             ` : `<div class="empty"><div class="big">No submission records yet</div><div class="hint">Your daily scrum records will appear here as you submit them.</div></div>`}
           </div>
@@ -362,6 +504,50 @@
           toast('Draft discarded');
           window.DS.navigate('report');
         });
+
+        const openReportModal = (repId) => {
+          const r = myRecords.find(item => item.id === repId);
+          if (!r) return;
+          window.DS.showDetailsModal({
+            title: `Daily Scrum — ${fmtD(r.report_date)}`,
+            subtitle: `Submitted ${fmtDT(r.submitted_at)}${r.is_late ? ` · Late by ${r.late_minutes}m` : ''}`,
+            badgeHtml: r.status === 'Approved' ? '<span class="status-pill approved">✓ Approved</span>' :
+                       r.status === 'Rejected' ? '<span class="status-pill rejected">✕ Resubmit</span>' :
+                       `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`,
+            rows: [
+              { label: 'Report date', value: fmtD(r.report_date) },
+              { label: 'Status', value: r.status },
+              { label: 'Score', isHtml: true, value: r.score != null ? `<b style="color:var(--ok);font-size:16px">${r.score}/100</b>` : '<span class="muted">Pending review</span>' },
+              { label: 'Mood / Morale', value: r.mood ? `${r.mood}/5` : '—' },
+              { label: 'Yesterday', value: r.did_yesterday || '—' },
+              { label: 'Today', value: r.doing_today || '—' },
+              { label: 'Blockers', value: r.blockers || 'None reported' },
+              { label: 'Evidence link', isHtml: true, value: r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open drive link ↗</a>` : '<span class="muted">None attached</span>' },
+              { label: 'Admin feedback', isHtml: true, value: r.review_note ? `<b style="color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}">${esc(r.review_note)}</b>` : '<span class="muted">No feedback yet</span>' },
+            ],
+            actions: [
+              (r.status === 'Submitted' || r.status === 'Rejected')
+                ? `<button class="btn sm primary" data-fill-rep="${r.id}" onclick="window.DS.modal.close()">Edit in form</button>`
+                : '',
+              r.evidence_url ? `<a class="btn sm" href="${esc(r.evidence_url)}" target="_blank" rel="noopener">Open drive link ↗</a>` : '',
+              isAdmin() ? `<button class="btn sm alert" data-del-rep="${r.id}" onclick="window.DS.modal.close()">Delete report</button>` : ''
+            ]
+          });
+          const m = document.getElementById('modal-box');
+          if (m) {
+            m.querySelector(`[data-fill-rep="${r.id}"]`)?.addEventListener('click', () => {
+              $('#dr-done').value = r.did_yesterday || '';
+              $('#dr-plan').value = r.doing_today || '';
+              $('#dr-block').value = r.blockers || '';
+              $('#dr-ev').value = r.evidence_url || '';
+              $('#dr-done').focus();
+              toast('Loaded report into form.');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+          }
+        };
+
+        $$('[data-view-rep]', v).forEach(b => b.addEventListener('click', () => openReportModal(b.dataset.viewRep)));
 
         // Edit past report handler
         $$('[data-fill-rep]', v).forEach(b => b.addEventListener('click', () => {
@@ -450,10 +636,12 @@
             <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
           ${pg.items.length ? `
-            <div class="table-wrap"><table class="ds">
+            <div class="table-wrap desktop-only"><table class="ds">
               <thead><tr><th class="sticky-col">Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
               <tbody>${pg.items.map(t => {
                 const actions = [
+                  { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+                  { divider: true },
                   { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
                   t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
                 ];
@@ -464,14 +652,77 @@
                     <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
                     <td style="white-space:nowrap">${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
                     <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                    <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                    <td style="text-align:right">
+                      <button type="button" class="btn sm ghost" data-view-task="${t.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
+                      ${window.DS.renderActionMenu(actions)}
+                    </td>
                   </tr>
                 `;
               }).join('')}</tbody>
             </table></div>
+
+            <div class="records-list mobile-only">
+              ${pg.items.map(t => {
+                const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+                const actions = [
+                  { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+                  { divider: true },
+                  { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
+                  t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
+                ];
+                return `
+                  <div class="record-card">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</div>
+                        <div class="record-sub">Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}${t.priority ? ' · ' + esc(t.priority) : ''}</div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    <div class="record-tags">
+                      <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                      ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
+                    </div>
+                    ${t.description ? `<div class="record-snippet">${esc(t.description.slice(0, 100))}${t.description.length > 100 ? '…' : ''}</div>` : ''}
+                    <div class="record-footer">
+                      ${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Evidence ↗</a>` : '<span class="tiny muted">No evidence</span>'}
+                      <button type="button" class="btn sm" data-view-task="${t.id}">View details</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
             ${pg.renderBar('tasks')}
           ` : `<div class="empty"><div class="big">No tasks assigned</div><div class="hint">Tasks assigned to you will appear here.</div></div>`}
         </div>`;
+
+      const openTaskModal = (taskId) => {
+        const t = list.find(x => x.id === taskId);
+        if (!t) return;
+        const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+        window.DS.showDetailsModal({
+          title: t.title,
+          subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}`,
+          badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+          rows: [
+            { label: 'Task title', value: t.title },
+            { label: 'Description', value: t.description || 'No additional description provided' },
+            { label: 'Current status', value: t.status || 'To do' },
+            { label: 'Priority', value: t.priority || 'Normal' },
+            { label: 'Due date', isHtml: true, value: overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—') },
+            { label: 'Extension requested', isHtml: true, value: t.extension_requested ? `<span class="tag alert">Yes (${esc(t.extension_note || 'Requested by you')})</span>` : 'No' },
+            { label: 'Evidence link', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open evidence link ↗</a>` : '<span class="muted">None submitted</span>' },
+            { label: 'Task ID', value: t.id }
+          ],
+          actions: [
+            t.evidence_url ? `<a class="btn sm" href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open evidence ↗</a>` : '',
+            `<button class="btn sm" data-ext="${t.id}" onclick="window.DS.modal.close()">Request extension</button>`
+          ]
+        });
+      };
+
+      $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
 
       $$('[data-ext]', v).forEach(b => b.addEventListener('click', async () => {
         const reason = prompt('Reason for the extension request:');
@@ -542,18 +793,120 @@
 
   window.renderMeetingsMember = async function (v) {
     const { data } = await sb.from('meetings').select('*, units:unit_id(name)').gte('starts_at', new Date(Date.now() - 86400000).toISOString()).order('starts_at');
-    v.innerHTML = `<div class="card">${(data && data.length) ? data.map(raw => {
-      const m = window.DS.meeting(raw);
-      return `
-      <div class="row" style="align-items:flex-start"><div class="row-main">
-        <div class="t">${esc(m.title)}</div>
-        <div class="s">${fmtDT(m.starts_at)} · ${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">Join link</a>` : '—'} · ${esc(m.units?.name || 'Everyone')}</div>
-        ${m.minutes ? `<div class="s">Notes: ${esc(m.minutes)}</div>` : ''}
-      </div>
-      <button class="btn sm" data-mr="${m.id}" data-title="${esc(m.title)}">File meeting report</button></div>`;
-    }).join('')
-      : `<div class="empty"><div class="big">No meetings</div><div class="hint">Upcoming meetings will appear here.</div></div>`}</div>`;
-    $$('[data-mr]', v).forEach(b => b.addEventListener('click', () => meetingReportModal(b.dataset.mr, b.dataset.title)));
+    const list = data || [];
+    let meetPage = 1;
+
+    function renderView() {
+      const pg = window.DS.paginate(list, meetPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Upcoming meetings</h3>
+              <p class="small muted" style="margin-top:2px">${list.length} scheduled meeting${list.length === 1 ? '' : 's'}</p>
+            </div>
+          </div>
+          ${pg.items.length ? `
+            <div class="table-wrap desktop-only"><table class="ds">
+              <thead><tr><th class="sticky-col">Meeting</th><th>Date &amp; time</th><th>Target</th><th>Link</th><th style="text-align:right">Action</th></tr></thead>
+              <tbody>
+                ${pg.items.map(raw => {
+                  const m = window.DS.meeting(raw);
+                  const actions = [
+                    { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
+                    { label: 'File meeting report', icon: '📝', attrs: `data-mr="${m.id}" data-title="${esc(m.title)}"` },
+                    m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
+                    m.minutes ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.minutes)}', '_blank')"` } : null,
+                  ];
+                  return `
+                    <tr>
+                      <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(m.title)}</td>
+                      <td style="white-space:nowrap">${fmtDT(m.starts_at)}</td>
+                      <td style="white-space:nowrap"><span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span></td>
+                      <td style="white-space:nowrap">${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">Join link ↗</a>` : '<span class="muted">—</span>'}</td>
+                      <td style="text-align:right">
+                        <button type="button" class="btn sm ghost" data-view-meeting="${m.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
+                        <button class="btn sm" data-mr="${m.id}" data-title="${esc(m.title)}" style="padding:2px 8px;font-size:12px">Report</button>
+                        ${window.DS.renderActionMenu(actions)}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table></div>
+
+            <div class="records-list mobile-only">
+              ${pg.items.map(raw => {
+                const m = window.DS.meeting(raw);
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
+                  { label: 'File meeting report', icon: '📝', attrs: `data-mr="${m.id}" data-title="${esc(m.title)}"` },
+                  m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
+                  m.minutes ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.minutes)}', '_blank')"` } : null,
+                ];
+                return `
+                  <div class="record-card">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">👥 ${esc(m.title)}</div>
+                        <div class="record-sub">${fmtDT(m.starts_at)} · <span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span></div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    ${m.description || m.agenda ? `<div class="record-snippet">${esc((m.description || m.agenda).slice(0, 100))}</div>` : ''}
+                    <div class="record-footer">
+                      ${m.link ? `<a class="btn sm ghost" href="${esc(m.link)}" target="_blank" rel="noopener">Join ↗</a>` : '<span class="tiny muted">No link</span>'}
+                      <div style="display:flex;gap:6px">
+                        <button type="button" class="btn sm" data-view-meeting="${m.id}">View</button>
+                        <button class="btn sm primary" data-mr="${m.id}" data-title="${esc(m.title)}">Report</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            ${pg.renderBar('meetings')}
+          ` : `<div class="empty"><div class="big">No meetings</div><div class="hint">Upcoming meetings will appear here.</div></div>`}
+        </div>
+      `;
+
+      bindEvents();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        meetPage = p;
+        renderView();
+      });
+    }
+
+    function bindEvents() {
+      $$('[data-mr]', v).forEach(b => b.addEventListener('click', () => meetingReportModal(b.dataset.mr, b.dataset.title)));
+      $$('[data-view-meeting]', v).forEach(b => b.addEventListener('click', () => {
+        const raw = list.find(x => x.id === b.dataset.viewMeeting);
+        if (!raw) return;
+        const m = window.DS.meeting(raw);
+        window.DS.showDetailsModal({
+          title: m.title,
+          subtitle: `Meeting · ${fmtDT(m.starts_at)}`,
+          badgeHtml: `<span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span>`,
+          rows: [
+            { label: 'Title', value: m.title },
+            { label: 'Starts', value: fmtDT(m.starts_at) },
+            { label: 'Ends', value: m.ends_at ? fmtDT(m.ends_at) : '—' },
+            { label: 'Target unit', value: m.units?.name || 'Everyone' },
+            { label: 'Join link', isHtml: true, value: m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.link)} ↗</a>` : '<span class="muted">No video link specified</span>' },
+            { label: 'Agenda / description', value: m.description || m.agenda || 'No agenda specified' },
+            { label: 'Drive notes link', isHtml: true, value: m.minutes ? `<a href="${esc(m.minutes)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.minutes)} ↗</a>` : '<span class="muted">No notes link posted yet</span>' },
+          ],
+          actions: [
+            m.link ? `<a class="btn sm" href="${esc(m.link)}" target="_blank" rel="noopener">Join meeting ↗</a>` : '',
+            `<button class="btn sm primary" data-mr="${m.id}" data-title="${esc(m.title)}" onclick="window.DS.modal.close()">File report</button>`
+          ]
+        });
+      }));
+    }
+
+    renderView();
   };
 
   function meetingReportModal(meetingId, title) {
@@ -704,13 +1057,36 @@
     const scored = repList
       .filter(r => r.score != null)
       .sort((a, b) => String(b.report_date || '').localeCompare(String(a.report_date || '')));
-    const scoredHtml = scored.length ? `<div class="table-wrap"><table class="ds">
-      <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Note</th></tr></thead>
-      <tbody>${scored.slice(0, 10).map(r => `<tr>
-        <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}</td>
-        <td style="white-space:nowrap">${statusTagLocal(r.status)}</td>
-        <td style="font-weight:800;white-space:nowrap">${r.score}/100</td>
-        <td class="small"><div class="table-cell-truncate" style="max-width:240px" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td></tr>`).join('')}</tbody></table></div>` : '';
+    const scoredHtml = scored.length ? `
+      <div class="table-wrap desktop-only"><table class="ds">
+        <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Feedback note</th><th style="text-align:right">Action</th></tr></thead>
+        <tbody>${scored.slice(0, 10).map(r => `<tr>
+          <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}</td>
+          <td style="white-space:nowrap">${statusTagLocal(r.status)}</td>
+          <td style="font-weight:800;white-space:nowrap">${r.score}/100</td>
+          <td class="small"><div class="table-cell-truncate" style="max-width:240px" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td>
+          <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-scored-rep="${r.id}" style="padding:2px 8px;font-size:12px">View</button></td>
+        </tr>`).join('')}</tbody></table></div>
+
+      <div class="records-list mobile-only">
+        ${scored.slice(0, 10).map(r => `
+          <div class="record-card">
+            <div class="record-card-top">
+              <div class="record-header-info">
+                <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</div>
+                <div class="record-sub">Scored report</div>
+              </div>
+              <span class="tag ok"><b>${r.score}/100</b></span>
+            </div>
+            ${r.review_note ? `<div class="record-snippet"><b>Admin:</b> ${esc(r.review_note)}</div>` : ''}
+            <div class="record-footer">
+              <span class="tiny muted">${statusTagLocal(r.status)}</span>
+              <button type="button" class="btn sm" data-view-scored-rep="${r.id}">View details</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
 
     // The headline figure is the weekly score when there is one; otherwise the
     // most recent scored submission, so a member always sees their latest mark.
@@ -767,6 +1143,23 @@
         : `<div class="empty" style="padding:20px"><div class="hint">Monthly rollup appears at month end.</div></div>`}
       </div>
       <p class="tiny muted">Private: no rankings, no other members' data.</p>`;
+
+    $$('[data-view-scored-rep]', v).forEach(b => b.addEventListener('click', () => {
+      const r = repList.find(x => x.id === b.dataset.viewScoredRep);
+      if (!r) return;
+      window.DS.showDetailsModal({
+        title: `Daily report · ${fmtD(r.report_date)}`,
+        subtitle: `Scored by Admin`,
+        badgeHtml: `<span class="tag ok"><b>${r.score}/100</b></span>`,
+        rows: [
+          { label: 'Report date', value: fmtD(r.report_date) },
+          { label: 'Admin score', value: `${r.score}/100` },
+          { label: 'Status', value: r.status },
+          { label: 'Admin review note', value: r.review_note || 'No specific note added' },
+          { label: 'Late submission', isHtml: true, value: r.is_late ? `<span class="tag alert">Yes (Late by ${lateBy(r.late_minutes)})</span>` : 'No (On time)' },
+        ]
+      });
+    }));
   };
 
   // ── LIBRARY ──
@@ -781,46 +1174,136 @@
     const { data: items } = await sb.from('library_items').select('*, library_grants(scope), profiles:added_by(full_name)').order('created_at', { ascending: false });
     const list = items || [];
     const cats = [...new Set(list.map(i => i.category).filter(Boolean))];
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>Library</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input class="input" id="lib-q" placeholder="Search…" style="min-height:38px;width:180px" aria-label="Search library">
-            <select class="input" id="lib-cat" style="min-height:38px;width:auto" aria-label="Filter by category">
-              <option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}
-            </select>
+    let libPage = 1;
+
+    function renderView() {
+      const pg = window.DS.paginate(list, libPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Library</h3>
+              <p class="small muted" style="margin-top:2px">${list.length} resource${list.length === 1 ? '' : 's'} available to you</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input class="input" id="lib-q" placeholder="Search…" style="min-height:36px;width:170px" aria-label="Search library">
+              <select class="input" id="lib-cat" style="min-height:36px;width:auto" aria-label="Filter by category">
+                <option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}
+              </select>
+            </div>
           </div>
-        </div>
-        <div id="lib-list">
-        ${list.length ? list.map(i => `
-          <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
-            <div class="row-main"><div class="t">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Reported broken</span>' : ''}</div>
-              <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div></div>
-            <button class="btn sm" data-broken="${i.id}">Report broken link</button>
-            <a class="btn sm primary" href="${esc(i.url)}" target="_blank" rel="noopener">Open</a>
-          </div>`).join('')
-        : `<div class="empty"><div class="big">Nothing shared with you yet</div><div class="hint">Library links granted to you or your units appear here.</div></div>`}
-        </div>
-      </div>`;
-    const apply = () => {
-      const q = $('#lib-q').value.toLowerCase(), c = $('#lib-cat').value;
-      $$('#lib-list .row').forEach(r => {
-        r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
+          ${pg.items.length ? `
+            <div id="lib-list" class="desktop-only">
+              ${pg.items.map(i => {
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
+                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
+                  { divider: true },
+                  { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
+                ];
+                return `
+                  <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}" style="align-items:flex-start">
+                    <div class="row-main">
+                      <div class="t">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Reported broken</span>' : ''}</div>
+                      <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}" style="padding:2px 8px;font-size:12px">View</button>
+                      <a class="btn sm primary" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <div class="records-list mobile-only" id="lib-cards">
+              ${pg.items.map(i => {
+                const actions = [
+                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
+                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
+                  { divider: true },
+                  { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
+                ];
+                return `
+                  <div class="record-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
+                    <div class="record-card-top">
+                      <div class="record-header-info">
+                        <div class="record-title">📄 ${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</div>
+                        <div class="record-sub">${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : 'General resource'}</div>
+                      </div>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                    ${i.description ? `<div class="record-snippet">${esc(i.description)}</div>` : ''}
+                    <div class="record-footer">
+                      <span class="tiny muted">${i.category || 'Shared link'}</span>
+                      <div style="display:flex;gap:6px">
+                        <button type="button" class="btn sm" data-view-lib="${i.id}">View</button>
+                        <a class="btn sm ghost" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            ${pg.renderBar('lib')}
+          ` : `<div class="empty"><div class="big">Nothing shared with you yet</div><div class="hint">Library links granted to you or your units appear here.</div></div>`}
+        </div>`;
+
+      bindEvents();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        libPage = p;
+        renderView();
       });
-    };
-    $('#lib-q').addEventListener('input', apply);
-    $('#lib-cat').addEventListener('change', apply);
-    $$('[data-broken]', v).forEach(b => b.addEventListener('click', async () => {
-      await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', b.dataset.broken);
-      await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
-      await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + b.dataset.broken });
-      const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
-      for (const a of (admins || [])) {
-        await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
-      }
-      toast('Reported. Admins were notified.');
-      window.DS.navigate('library');
-    }));
+    }
+
+    function bindEvents() {
+      const apply = () => {
+        const q = $('#lib-q').value.toLowerCase(), c = $('#lib-cat').value;
+        $$('#lib-list .row, #lib-cards .record-card').forEach(r => {
+          r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
+        });
+      };
+      $('#lib-q')?.addEventListener('input', apply);
+      $('#lib-cat')?.addEventListener('change', apply);
+
+      $$('[data-view-lib]', v).forEach(b => b.addEventListener('click', () => {
+        const item = list.find(x => x.id === b.dataset.viewLib);
+        if (!item) return;
+        window.DS.showDetailsModal({
+          title: item.title,
+          subtitle: `Library document · ${item.category || 'General'}`,
+          badgeHtml: item.broken_link ? '<span class="tag alert">Reported broken</span>' : '<span class="tag ok">Available</span>',
+          rows: [
+            { label: 'Title', value: item.title },
+            { label: 'Category', value: item.category || 'None' },
+            { label: 'Description', value: item.description || 'No description provided' },
+            { label: 'URL', isHtml: true, value: `<a href="${esc(item.url)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(item.url)} ↗</a>` },
+            { label: 'Added by', value: nameOf(item.profiles) }
+          ],
+          actions: [
+            `<a class="btn sm primary" href="${esc(item.url)}" target="_blank" rel="noopener">Open document ↗</a>`,
+            `<button class="btn sm ghost" data-broken="${item.id}" onclick="window.DS.modal.close()">Report broken</button>`
+          ]
+        });
+      }));
+
+      $$('[data-broken]', v).forEach(b => b.addEventListener('click', async () => {
+        await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', b.dataset.broken);
+        await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
+        await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + b.dataset.broken });
+        const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
+        for (const a of (admins || [])) {
+          await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
+        }
+        toast('Reported. Admins were notified.');
+        window.DS.navigate('library');
+      }));
+    }
+
+    renderView();
   };
 
   // ── LEAVE ──
@@ -832,25 +1315,78 @@
 
   window.renderLeave = async function (v) {
     const { data: mine } = await sb.from('leave_requests').select('*').eq('user_id', S.user.id).order('created_at', { ascending: false });
+    const list = mine || [];
     v.innerHTML = `
       <div class="card"><div class="card-head"><h3>Request leave</h3></div>
         <form id="lv-form" novalidate>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
             <div class="field"><label class="label" for="lv-s">Start date</label><input class="input" id="lv-s" type="date" required></div>
             <div class="field"><label class="label" for="lv-e">End date</label><input class="input" id="lv-e" type="date" required></div>
           </div>
-          <div class="field"><label class="label" for="lv-r">Reason</label><input class="input" id="lv-r"></div>
+          <div class="field"><label class="label" for="lv-r">Reason</label><input class="input" id="lv-r" placeholder="Reason for time off"></div>
           <button class="btn primary" style="width:100%" type="submit">Submit request</button>
         </form>
       </div>
-      <div class="card"><div class="card-head"><h3>My requests</h3></div>
-        ${(mine && mine.length) ? mine.map(l => `<div class="row"><div class="row-main"><div class="t">${fmtD(l.start_date)} → ${fmtD(l.end_date)}</div><div class="s">${esc(l.reason || '')}</div></div>
-          <span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span></div>`).join('')
-        : `<div class="empty" style="padding:20px"><div class="hint">No leave requests yet.</div></div>`}
+
+      <div class="card"><div class="card-head"><h3>My leave requests</h3></div>
+        ${list.length ? `
+          <div class="table-wrap desktop-only"><table class="ds">
+            <thead><tr><th class="sticky-col">Dates</th><th>Reason</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
+            <tbody>
+              ${list.map(l => `
+                <tr>
+                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(l.start_date)} → ${fmtD(l.end_date)}</td>
+                  <td class="small">${esc(l.reason || '—')}</td>
+                  <td style="white-space:nowrap"><span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span></td>
+                  <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-leave="${l.id}" style="padding:2px 8px;font-size:12px">View</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+
+          <div class="records-list mobile-only">
+            ${list.map(l => `
+              <div class="record-card">
+                <div class="record-card-top">
+                  <div class="record-header-info">
+                    <div class="record-title">🌴 ${fmtD(l.start_date)} → ${fmtD(l.end_date)}</div>
+                    <div class="record-sub">Submitted ${fmtDT(l.created_at)}</div>
+                  </div>
+                  <span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span>
+                </div>
+                ${l.reason ? `<div class="record-snippet">${esc(l.reason)}</div>` : ''}
+                <div class="record-footer">
+                  <span class="tiny muted">Leave status</span>
+                  <button type="button" class="btn sm" data-view-leave="${l.id}">View details</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<div class="empty" style="padding:20px"><div class="hint">No leave requests yet.</div></div>`}
       </div>`;
+
+    $$('[data-view-leave]', v).forEach(b => b.addEventListener('click', () => {
+      const l = list.find(x => x.id === b.dataset.viewLeave);
+      if (!l) return;
+      window.DS.showDetailsModal({
+        title: 'Leave request',
+        subtitle: `${fmtD(l.start_date)} → ${fmtD(l.end_date)}`,
+        badgeHtml: `<span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span>`,
+        rows: [
+          { label: 'Start date', value: fmtD(l.start_date) },
+          { label: 'End date', value: fmtD(l.end_date) },
+          { label: 'Reason', value: l.reason || 'None specified' },
+          { label: 'Status', value: l.status },
+          { label: 'Submitted on', value: fmtDT(l.created_at) }
+        ]
+      });
+    }));
+
     $('#lv-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const { error } = await sb.from('leave_requests').insert({ user_id: S.user.id, start_date: $('#lv-s').value, end_date: $('#lv-e').value, reason: $('#lv-r').value.trim() || null });
+      const s = $('#lv-s').value, end = $('#lv-e').value;
+      if (!s || !end) return toast('Please select start and end dates.', true);
+      const { error } = await sb.from('leave_requests').insert({ user_id: S.user.id, start_date: s, end_date: end, reason: $('#lv-r').value.trim() || null });
       if (error) return toast(error.message, true);
       toast('Leave request submitted.');
       window.DS.navigate('leave');

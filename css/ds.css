@@ -29,13 +29,13 @@ button{font-family:var(--font)}
 /* ── layout ── */
 #ds-app{display:flex;min-height:100vh;min-height:100dvh}
 #ds-sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--bg);border-right:1px solid var(--line);padding:var(--sp4) var(--sp3);display:flex;flex-direction:column;gap:var(--sp3);position:sticky;top:0;height:100vh;height:100dvh;overflow-y:auto}
-#ds-main{flex:1;min-width:0;padding:var(--sp4) var(--sp5) 120px;overflow-x:hidden}
-#ds-main-narrow{width:100%;max-width:1360px;margin:0 auto}
+#ds-main{flex:1;min-width:0;padding:var(--sp4) var(--sp4) 120px;overflow-x:hidden}
+#ds-main-narrow{width:100%;max-width:100%;margin:0}
 @media(max-width:900px){
   #ds-sidebar{display:none}
   #ds-app{flex-direction:column}
-  #ds-main{padding:var(--sp3) var(--sp3) 120px}
-  #ds-main-narrow{width:100%;max-width:100%}
+  #ds-main{padding:14px 14px 120px}
+  #ds-main-narrow{width:100%;max-width:100%;margin:0}
 }
 
 /* ── mobile header & drawer ── */
@@ -345,7 +345,7 @@ table.ds select.input:hover{background:var(--bg)}
 
 /* ── mobile: stack page actions ── */
 @media(max-width:640px){
-  #ds-main{padding:var(--sp3) var(--sp3) 150px}
+  #ds-main{padding:10px 10px 140px}
   #page-action{width:100%}
   #page-action .btn{width:100%}
   .stat-grid{grid-template-columns:1fr 1fr;gap:var(--sp2)}
@@ -545,6 +545,160 @@ table.ds select.input:hover{background:var(--bg)}
   .table-cell-truncate{
     max-width:140px;
   }
+}
+
+/* ── Word wrap and long name protection ── */
+.row-main .t,
+.record-title,
+.card-head h3,
+.chat-room-title,
+.chat-author,
+table.ds td,
+.modal h2 {
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.text-nowrap {
+  white-space: nowrap !important;
+}
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Responsive list cards & mobile records ── */
+.desktop-only { display: block; }
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+}
+
+.records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.record-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 13px 14px;
+  box-shadow: 0 1px 3px rgba(20,19,15,.03);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.record-card:hover {
+  border-color: var(--line);
+  box-shadow: 0 3px 10px rgba(20,19,15,.06);
+}
+
+.record-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.record-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  letter-spacing: .02em;
+}
+
+.record-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.record-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.record-sub {
+  font-size: 12px;
+  color: var(--ink-60);
+  margin-top: 2px;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-main .t {
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.row-main .s {
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.record-snippet {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.record-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.record-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+
+.record-footer .btn {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 3px 10px;
 }
 
 @media(max-width:540px){
