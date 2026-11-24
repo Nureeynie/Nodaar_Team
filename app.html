@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nodaar — Team Management Platform</title>
+<meta name="theme-color" content="#F6F4EF">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/ds.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="ds-auth">
+  <div class="auth-card" id="auth-card">
+    <div class="brand" style="margin-bottom:24px"><span class="brand-mark">N</span> Nodaar</div>
+    <div id="auth-view"></div>
+  </div>
+</div>
+
+<!-- FORCED PASSWORD MODAL -->
+<div class="modal-back" id="pw-modal" role="dialog" aria-modal="true" aria-labelledby="pw-title">
+  <div class="modal">
+    <h2 id="pw-title" style="margin-bottom:6px">Set a new password</h2>
+    <p class="muted small" style="margin-bottom:20px">For security, change your temporary password before continuing.</p>
+    <div class="error-box hidden" id="pw-error" style="margin-bottom:14px"></div>
+    <form id="pw-form" novalidate>
+      <div class="field"><label class="label" for="pw1">New password</label><input class="input" id="pw1" type="password" minlength="6" required autocomplete="new-password"></div>
+      <div class="field"><label class="label" for="pw2">Confirm new password</label><input class="input" id="pw2" type="password" minlength="6" required autocomplete="new-password"></div>
+      <button class="btn primary" style="width:100%" type="submit">Update password</button>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="ds-app" class="hidden">
+  <aside id="ds-sidebar" aria-label="Main navigation">
+    <div class="brand"><span class="brand-mark">N</span> Nodaar</div>
+    <div>
+      <span class="label">Viewing as</span>
+      <div class="role-switch" id="role-switch" role="group" aria-label="Role switcher">
+        <button type="button" data-role="Member" aria-pressed="true">Member</button>
+        <button type="button" data-role="Admin" aria-pressed="false" id="role-admin-btn">Admin</button>
+      </div>
+    </div>
+    <nav id="ds-nav" aria-label="Sections"></nav>
+    <div style="margin-top:auto">
+      <button class="nav-btn" id="nav-notif" type="button" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        Notifications <span class="nav-badge hidden" id="notif-badge">0</span>
+      </button>
+      <button class="nav-btn" id="nav-profile" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
+        Profile
+      </button>
+      <button class="nav-btn" id="nav-logout" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <main id="ds-main">
+    <div id="ds-main-narrow">
+      <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px;flex-wrap:wrap">
+        <div><h1 id="page-title">Dashboard</h1><p class="muted" id="page-sub" style="margin-top:4px"></p></div>
+        <div id="page-action"></div>
+      </header>
+      <div id="ds-view" class="stack"></div>
+    </div>
+  </main>
+
+  <nav id="ds-tabbar" aria-label="Mobile navigation"></nav>
+</div>
+
+<!-- MODAL ROOT -->
+<div class="modal-back" id="modal-root" role="dialog" aria-modal="true"><div class="modal" id="modal-box"></div></div>
+
+<script src="./js/ds.core.js"></script>
+<script src="./js/ds.member.js"></script>
+<script src="./js/ds.admin.js"></script>
+<script src="./js/ds.boot.js"></script>
+</body>
+</html>
