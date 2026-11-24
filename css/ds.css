@@ -270,10 +270,11 @@ table.ds tr:hover td{background:rgba(20,19,15,.015)}
 .loading{padding:var(--sp5);text-align:center;color:var(--ink-60);font-size:13.5px}
 .error-box{border:1px solid var(--alert);background:var(--card);color:var(--alert);border-radius:var(--r-sm);padding:var(--sp2) var(--sp3);font-size:13px;font-weight:600}
 .error-box.show{display:block !important}
-.error-box:empty{display:none !important}
+.error-box.hidden, .error-box:empty{display:none !important}
 
 /* ── auth screens ── */
 #ds-auth{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:var(--sp4);background:var(--bg)}
+#ds-auth.hidden, #ds-app.hidden{display:none !important}
 .auth-card{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:var(--sp5)}
 
 /* ── modal ── */

@@ -1777,12 +1777,19 @@
 
   // ── PROFILE ──
   window.renderProfilePage = async function (v) {
-    const p = S.profile;
-    v.innerHTML = `<div class="card"><div class="card-head"><h3>Profile</h3></div>
+    const p = S.profile || {};
+    v.innerHTML = `<div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Profile</h3>
+          <p class="small muted" style="margin-top:2px">Your account details</p>
+        </div>
+        <button type="button" class="btn sm" id="profile-signout-btn" style="color:var(--alert);border-color:var(--alert)">Sign out</button>
+      </div>
       <dl class="kv">
         <dt>Name</dt><dd>${esc(p.full_name || '—')}</dd>
-        <dt>Email</dt><dd>${esc(p.email)}</dd>
-        <dt>Role</dt><dd>${esc(p.access_level)}</dd>
+        <dt>Email</dt><dd>${esc(p.email || '—')}</dd>
+        <dt>Role</dt><dd>${esc(p.access_level || 'Member')}</dd>
         <dt>Status</dt><dd>${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</dd>
       </dl></div>
       <div class="card"><div class="card-head"><h3>Change password</h3></div>
@@ -1790,11 +1797,16 @@
           <div class="field"><label class="label" for="cp1">New password</label><input class="input" id="cp1" type="password" minlength="6" required autocomplete="new-password"></div>
           <button class="btn" type="submit">Update password</button>
         </form></div>`;
-    $('#cp-form').addEventListener('submit', async (e) => {
+    $('#cp-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const { error } = await sb.auth.updateUser({ password: $('#cp1').value });
       if (error) return toast(error.message, true);
       toast('Password updated.');
+    });
+    $('#profile-signout-btn')?.addEventListener('click', () => {
+      if (window.DS?.auth?.signOut) {
+        window.DS.auth.signOut();
+      }
     });
   };
 })();

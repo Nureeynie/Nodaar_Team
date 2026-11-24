@@ -41,7 +41,14 @@
 
   const isAdminProfile = () => S.profile?.access_level === 'Admin';
   const isAdmin = () => S.role === 'Admin' && isAdminProfile();
-  window.DS.auth = { isAdmin, isAdminProfile };
+  window.DS.auth = {
+    isAdmin,
+    isAdminProfile,
+    get signOut() { return signOut; },
+    get executeSignIn() { return executeSignIn; },
+    get boot() { return boot; }
+  };
+  window.DS.signOut = (...args) => signOut(...args);
 
   // meetings table carries both a legacy shape (meeting_date + time columns)
   // and a PRD shape (starts_at / ends_at). This normalises to one object.
@@ -375,6 +382,12 @@
   };
   window.DS.NAV = NAV;
 
+  function closeDrawer() {
+    $('#ds-mobile-drawer')?.classList.add('hidden');
+    $('#ds-drawer-backdrop')?.classList.add('hidden');
+  }
+  window.DS.closeDrawer = closeDrawer;
+
   function renderNav() {
     const nav = $('#ds-nav');
     const drawerNav = $('#ds-drawer-nav');
@@ -407,10 +420,6 @@
       drawer?.classList.remove('hidden');
       backdrop?.classList.remove('hidden');
     }
-    function closeDrawer() {
-      drawer?.classList.add('hidden');
-      backdrop?.classList.add('hidden');
-    }
 
     if (openBtn && !openBtn._boundDrawer) {
       openBtn._boundDrawer = true;
@@ -422,9 +431,21 @@
     // Mobile header role tag & notifications
     const mobileRoleTag = $('#mobile-role-tag');
     if (mobileRoleTag) mobileRoleTag.textContent = S.role;
-    $('#mobile-notif-btn')?.addEventListener('click', () => navigate('notifications'));
-    $('#drawer-profile')?.addEventListener('click', () => { closeDrawer(); navigate('profile'); });
-    $('#drawer-logout')?.addEventListener('click', () => { closeDrawer(); window.DS.auth.signOut(); });
+    const mobileNotifBtn = $('#mobile-notif-btn');
+    if (mobileNotifBtn && !mobileNotifBtn._boundNotif) {
+      mobileNotifBtn._boundNotif = true;
+      mobileNotifBtn.addEventListener('click', () => navigate('notifications'));
+    }
+    const drawerProfile = $('#drawer-profile');
+    if (drawerProfile && !drawerProfile._boundProfile) {
+      drawerProfile._boundProfile = true;
+      drawerProfile.addEventListener('click', () => { closeDrawer(); navigate('profile'); });
+    }
+    const drawerLogout = $('#drawer-logout');
+    if (drawerLogout && !drawerLogout._boundLogout) {
+      drawerLogout._boundLogout = true;
+      drawerLogout.addEventListener('click', () => { closeDrawer(); signOut(); });
+    }
 
     // mobile tabbar (member core actions)
     const tb = $('#ds-tabbar');
@@ -524,6 +545,61 @@
     });
   }
 
+  // Unified Sign Out
+  async function signOut() {
+    try {
+      toast('Signing out…');
+      closeDrawer();
+      if (S.sb?.auth?.signOut) {
+        await S.sb.auth.signOut();
+      }
+    } catch (err) {
+      console.warn('[Nodaar] Sign out error:', err);
+    } finally {
+      S.user = null;
+      S.session = null;
+      S.profile = null;
+      S.role = 'Member';
+
+      // Clear token keys from localStorage so stale tokens do not persist
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const toRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('sb-') || k.includes('supabase.auth.token'))) {
+              toRemove.push(k);
+            }
+          }
+          toRemove.forEach(k => localStorage.removeItem(k));
+        }
+      } catch (_) {}
+
+      $('#ds-app')?.classList.add('hidden');
+      $('#ds-auth')?.classList.remove('hidden');
+
+      const submitBtn = $('#login-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+        submitBtn.style.background = '';
+        submitBtn.style.borderColor = '';
+      }
+      const pwInput = $('#li-pass');
+      if (pwInput) pwInput.value = '';
+      const err = $('#login-error');
+      if (err) {
+        err.textContent = '';
+        err.classList.add('hidden');
+        err.classList.remove('show');
+      }
+      toast('Signed out successfully');
+      setTimeout(() => {
+        window.location.reload();
+      }, 150);
+    }
+  }
+
   // Execute Sign In
   async function executeSignIn(email, password) {
     const err = $('#login-error');
@@ -536,6 +612,8 @@
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Signing in…';
+      submitBtn.style.background = '';
+      submitBtn.style.borderColor = '';
     }
     try {
       if (typeof localStorage !== 'undefined') {
@@ -553,6 +631,8 @@
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Sign in';
+          submitBtn.style.background = '';
+          submitBtn.style.borderColor = '';
         }
         toast(error.message, true);
         return;
@@ -563,9 +643,7 @@
         submitBtn.style.background = '#1E6B3C';
         submitBtn.style.borderColor = '#1E6B3C';
       }
-      setTimeout(async () => {
-        await boot();
-      }, 400);
+      await boot(data?.session);
     } catch (e) {
       if (err) {
         err.textContent = e.message || 'Error signing in. Please check your network connection.';
@@ -575,14 +653,24 @@
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Sign in';
+        submitBtn.style.background = '';
+        submitBtn.style.borderColor = '';
       }
       toast(e.message || 'Error signing in', true);
     }
   }
 
   async function fetchProfile() {
-    const { data } = await sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle();
-    S.profile = data || { id: S.user.id, email: S.user.email, access_level: 'Member', full_name: S.user.email };
+    try {
+      const { data, error } = await sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle();
+      if (error) {
+        console.warn('[Nodaar] Profile fetch warning:', error.message);
+      }
+      S.profile = data || { id: S.user.id, email: S.user.email, access_level: 'Member', full_name: S.user.email };
+    } catch (err) {
+      console.warn('[Nodaar] Profile fetch exception:', err);
+      S.profile = { id: S.user.id, email: S.user.email, access_level: 'Member', full_name: S.user.email };
+    }
   }
 
   let appEventsBound = false;
@@ -615,60 +703,106 @@
       toast('Password updated.');
     });
 
+    $('#pw-signout-btn')?.addEventListener('click', () => {
+      $('#pw-modal')?.classList.remove('open');
+      signOut();
+    });
+
     $$('#role-switch button').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.role === 'Admin' && !isAdminProfile()) return;
       S.role = b.dataset.role;
       navigate('dashboard');
     }));
     $('#role-switch')?.addEventListener('click', () => setTimeout(loadReviewBadge, 0));
-    $('#nav-logout')?.addEventListener('click', async () => {
-      await sb.auth.signOut();
-      location.reload();
-    });
+    $('#nav-logout')?.addEventListener('click', () => signOut());
     $('#nav-profile')?.addEventListener('click', () => navigate('profile'));
     $('#nav-notif')?.addEventListener('click', () => navigate('notifications'));
   }
 
-  async function boot() {
+  let isBooting = false;
+  async function boot(forcedSession) {
+    if (isBooting && !forcedSession) return;
+    isBooting = true;
     initAuth();
     const client = S.sb;
     if (!client) {
       console.warn('[Nodaar] Supabase client not ready yet');
+      isBooting = false;
       return;
     }
     try {
-      const { data: { session }, error: sessErr } = await client.auth.getSession();
-      if (sessErr || !session) {
-        $('#ds-auth')?.classList.remove('hidden');
-        $('#ds-app')?.classList.add('hidden');
-        return;
+      let session = forcedSession;
+      if (!session) {
+        const { data: sessData, error: sessErr } = await client.auth.getSession();
+        if (sessErr || !sessData?.session) {
+          $('#ds-auth')?.classList.remove('hidden');
+          $('#ds-app')?.classList.add('hidden');
+          const submitBtn = $('#login-submit-btn');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Sign in';
+            submitBtn.style.background = '';
+            submitBtn.style.borderColor = '';
+          }
+          isBooting = false;
+          return;
+        }
+        session = sessData.session;
       }
       S.user = session.user;
       S.session = session;
       await fetchProfile();
-      if (S.profile.active === false) {
-        await client.auth.signOut();
+      if (S.profile?.active === false) {
+        await signOut();
         const err = $('#login-error');
         if (err) {
           err.textContent = 'This account has been deactivated. Contact an admin.';
           err.classList.remove('hidden');
           err.classList.add('show');
         }
+        isBooting = false;
         return;
       }
       $('#ds-auth')?.classList.add('hidden');
       $('#ds-app')?.classList.remove('hidden');
-      if (S.profile.must_change_password) { $('#pw-modal')?.classList.add('open'); }
-      if (!isAdminProfile()) {
+      if (S.profile?.must_change_password) {
+        $('#pw-modal')?.classList.add('open');
+      }
+      if (isAdminProfile()) {
+        S.role = 'Admin';
+        const btn = $('#role-admin-btn');
+        if (btn) btn.style.display = '';
+        const drawerBtn = $('#drawer-role-admin-btn');
+        if (drawerBtn) drawerBtn.style.display = '';
+      } else {
+        S.role = 'Member';
         const btn = $('#role-admin-btn');
         if (btn) btn.style.display = 'none';
-        S.role = 'Member';
+        const drawerBtn = $('#drawer-role-admin-btn');
+        if (drawerBtn) drawerBtn.style.display = 'none';
       }
       bindAppEvents();
-      navigate('dashboard');
+      navigate(S.route || 'dashboard');
       loadNotifBadge();
     } catch (e) {
       console.error('[Nodaar] Boot error:', e);
+      const submitBtn = $('#login-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+        submitBtn.style.background = '';
+        submitBtn.style.borderColor = '';
+      }
+      const err = $('#login-error');
+      if (err) {
+        err.textContent = e.message || 'Error initializing workspace. Please try again.';
+        err.classList.remove('hidden');
+        err.classList.add('show');
+      }
+      $('#ds-auth')?.classList.remove('hidden');
+      $('#ds-app')?.classList.add('hidden');
+    } finally {
+      isBooting = false;
     }
   }
 
@@ -706,7 +840,27 @@
   window.DS.boot = boot;
   window.DS.initAuth = initAuth;
 
-  sb.auth?.onAuthStateChange?.((_e, session) => { if (!session) return; });
+  sb.auth?.onAuthStateChange?.((event, session) => {
+    if (event === 'SIGNED_OUT' || !session) {
+      S.user = null;
+      S.session = null;
+      S.profile = null;
+      S.role = 'Member';
+      $('#ds-app')?.classList.add('hidden');
+      $('#ds-auth')?.classList.remove('hidden');
+      const submitBtn = $('#login-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+        submitBtn.style.background = '';
+        submitBtn.style.borderColor = '';
+      }
+    } else if (event === 'SIGNED_IN' && session) {
+      if (!$('#ds-app') || $('#ds-app').classList.contains('hidden')) {
+        boot(session);
+      }
+    }
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
