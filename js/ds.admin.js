@@ -120,20 +120,44 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Per-member performance</h3><button class="btn sm ghost" data-go="scores">All scores</button></div>
-        ${active.length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th class="sticky-col">Member</th><th>Latest weekly</th><th>Period</th><th>State</th></tr></thead>
-          <tbody>${active.map(p => {
-            const s = latest[p.id];
-            const val = s ? (s.manual_override ?? s.weighted_total) : null;
-            return `<tr>
-              <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(p))}</td>
-              <td style="white-space:nowrap">${val != null ? `<b>${val}/100</b>` : '<span class="muted">Not scored</span>'}</td>
-              <td style="white-space:nowrap">${s ? esc(s.periods?.label || '—') : '—'}</td>
-              <td style="white-space:nowrap">${s ? (s.periods?.locked ? '<span class="tag muted-tag">Period locked</span>' : '<span class="tag ok">Open</span>') : '<span class="tag muted-tag">No score</span>'}</td>
-            </tr>`;
-          }).join('')}</tbody></table></div>`
-        : emptyState('No members yet', 'Create users so the team can start reporting.', '<button class="btn primary sm" data-go="users">Create a user</button>')}
+        <div class="card-head">
+          <div>
+            <h3>Per-member performance</h3>
+            <p class="small muted" style="margin-top:2px">Latest scored week for active team members</p>
+          </div>
+          <button class="btn sm ghost" data-go="scores">All scores</button>
+        </div>
+        ${active.length ? `
+          <div class="ds-list">
+            ${active.map(p => {
+              const s = latest[p.id];
+              const val = s ? (s.manual_override ?? s.weighted_total) : null;
+              const initials = window.DS.getInitials(nameOf(p));
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-avatar">${esc(initials)}</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(nameOf(p))}</span>
+                        ${val != null ? `<span class="tag ok"><b>${val}/100</b></span>` : '<span class="tag muted-tag">Not scored</span>'}
+                        ${s ? (s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>') : ''}
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>Period: <b>${s ? esc(s.periods?.label || '—') : 'No period yet'}</b></span>
+                        <span>·</span>
+                        <span>Role: ${esc(p.access_level || 'Member')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button class="btn sm" data-go="scores">View</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : emptyState('No members yet', 'Create users so the team can start reporting.', '<button class="btn primary sm" data-go="users">Create a user</button>')}
       </div>
 
       <div class="card">
@@ -501,41 +525,7 @@
             <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
           ${pg.items.length ? `
-            <div class="table-wrap desktop-only"><table class="ds">
-              <thead><tr><th class="sticky-col">Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
-              <tbody>${pg.items.map(p => {
-                const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
-                const actions = [
-                  { label: 'View user details', icon: '👤', attrs: `data-view-user="${p.id}"` },
-                  { divider: true },
-                  { label: 'Reset password', icon: '🔑', attrs: `data-pw="${p.id}"` },
-                  p.access_level === 'Admin'
-                    ? { label: 'Make member', icon: '👤', attrs: `data-demote="${p.id}"`, disabled: p.id === S.user.id }
-                    : { label: 'Make admin', icon: '⭐', attrs: `data-promote="${p.id}"` },
-                  { divider: true },
-                  {
-                    label: p.active === false ? 'Reactivate account' : 'Deactivate account',
-                    icon: p.active === false ? '✓' : '🚫',
-                    isAlert: p.active !== false,
-                    attrs: `data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}"`,
-                    disabled: p.id === S.user.id
-                  }
-                ];
-                return `<tr>
-                  <td class="sticky-col" style="font-weight:700;white-space:nowrap"><span class="record-title">${esc(nameOf(p))}</span></td>
-                  <td style="white-space:nowrap">${esc(p.email || '')}</td>
-                  <td style="white-space:nowrap">${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
-                  <td style="white-space:nowrap">${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
-                  <td style="white-space:nowrap">${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
-                  <td style="text-align:right">
-                    <button type="button" class="btn sm ghost" data-view-user="${p.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
-                    ${window.DS.renderActionMenu(actions)}
-                  </td>
-                </tr>`;
-              }).join('')}</tbody>
-            </table></div>
-
-            <div class="records-list mobile-only">
+            <div class="ds-list">
               ${pg.items.map(p => {
                 const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
                 const initials = window.DS.getInitials(nameOf(p));
@@ -556,29 +546,30 @@
                   }
                 ];
                 return `
-                  <div class="record-card">
-                    <div class="record-card-top">
-                      <div class="record-avatar">${esc(initials)}</div>
-                      <div class="record-header-info">
-                        <div class="record-title">${esc(nameOf(p))}</div>
-                        <div class="record-sub">${esc(p.email || 'No email registered')}</div>
+                  <div class="ds-list-card">
+                    <div class="ds-list-main">
+                      <div class="ds-list-avatar">${esc(initials)}</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(nameOf(p))}</span>
+                          <span class="tag ${p.access_level === 'Admin' ? '' : 'muted-tag'}">${p.access_level}</span>
+                          ${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}
+                          ${myUnits.length ? `<span class="tag muted-tag">🏢 ${esc(myUnits.join(', '))}</span>` : ''}
+                        </div>
+                        <div class="ds-list-sub">
+                          <span>📧 ${esc(p.email || 'No email registered')}</span>
+                          ${p.must_change_password ? '<span>·</span><span class="tag muted-tag">Temp password</span>' : ''}
+                        </div>
                       </div>
+                    </div>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn sm" data-view-user="${p.id}">View</button>
                       ${window.DS.renderActionMenu(actions)}
-                    </div>
-                    <div class="record-tags">
-                      <span class="tag ${p.access_level === 'Admin' ? '' : 'muted-tag'}">${p.access_level}</span>
-                      ${myUnits.length ? `<span class="tag muted-tag">🏢 ${esc(myUnits.join(', '))}</span>` : ''}
-                      ${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}
-                    </div>
-                    <div class="record-footer">
-                      <span class="tiny muted">${p.must_change_password ? 'Temp password pending' : 'Active user'}</span>
-                      <button type="button" class="btn sm" data-view-user="${p.id}">View details</button>
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
-
             ${pg.renderBar('users')}
           ` : emptyState('No users yet', 'Create the first account with the form above.')}
         </div>
@@ -857,33 +848,7 @@
           </select>
         </div>
         ${(tasks || []).length ? `
-          <div class="table-wrap desktop-only"><table class="ds">
-            <thead><tr><th class="sticky-col">Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
-            <tbody>${(tasks || []).slice(0, 25).map(t => {
-              const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
-              const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
-              const actions = [
-                { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
-                { divider: true },
-                t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
-                { divider: true },
-                { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
-              ];
-              return `<tr>
-                <td class="sticky-col" style="font-weight:700;white-space:nowrap"><div class="table-cell-truncate" style="max-width:220px" title="${esc(t.title)}">${esc(t.title)}</div>${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</td>
-                <td style="white-space:nowrap">${as.length ? esc(as.join(', ')) : '<span class="muted">Unassigned</span>'}</td>
-                <td><select class="input" style="min-height:30px;padding:2px 6px;font-size:12px" data-setst="${t.id}">${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-                <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
-                <td style="white-space:nowrap">${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
-                <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                <td style="text-align:right">
-                  <button type="button" class="btn sm ghost" data-view-task="${t.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
-                  ${window.DS.renderActionMenu(actions)}
-                </td>
-              </tr>`;
-            }).join('')}</tbody></table></div>
-
-          <div class="records-list mobile-only">
+          <div class="ds-list">
             ${(tasks || []).slice(0, 25).map(t => {
               const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
               const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
@@ -895,22 +860,32 @@
                 { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
               ];
               return `
-                <div class="record-card">
-                  <div class="record-card-top">
-                    <div class="record-header-info">
-                      <div class="record-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</div>
-                      <div class="record-sub">${as.length ? '👤 ' + esc(as.join(', ')) : 'Unassigned'} · Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}</div>
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-icon">🎯</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(t.title)}</span>
+                        <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                        ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
+                        ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
+                        ${t.extension_requested ? '<span class="tag muted-tag">Extension</span>' : ''}
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>👤 <b>${as.length ? esc(as.join(', ')) : 'Unassigned'}</b></span>
+                        <span>·</span>
+                        <span>Due: ${t.due_date ? fmtD(t.due_date) : 'No due date'}</span>
+                        ${t.evidence_url ? `<span>·</span><a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Evidence link ↗</a>` : ''}
+                      </div>
+                      ${t.description ? `<div class="ds-list-snippet">${esc(t.description)}</div>` : ''}
                     </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <select class="input" style="min-height:32px;padding:2px 8px;font-size:12px;width:auto" data-setst="${t.id}" aria-label="Change task status">
+                      ${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                    <button type="button" class="btn sm" data-view-task="${t.id}">View</button>
                     ${window.DS.renderActionMenu(actions)}
-                  </div>
-                  <div class="record-tags">
-                    <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
-                    ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
-                    ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
-                  </div>
-                  <div class="record-footer">
-                    ${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Link ↗</a>` : '<span class="tiny muted">No evidence</span>'}
-                    <button type="button" class="btn sm" data-view-task="${t.id}">View details</button>
                   </div>
                 </div>
               `;
@@ -1479,23 +1454,41 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Periods</h3>
+        <div class="card-head">
+          <div>
+            <h3>Periods</h3>
+            <p class="small muted" style="margin-top:2px">Weekly and monthly reporting cycles</p>
+          </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn sm" id="new-period">New period</button>
           </div>
         </div>
-        ${(periods || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Period</th><th>Type</th><th>Dates</th><th>State</th><th>Actions</th></tr></thead>
-          <tbody>${(periods || []).map(p => `<tr>
-            <td style="font-weight:700">${esc(p.label)}</td>
-            <td>${p.type === 'weekly' ? 'Weekly' : 'Monthly'}</td>
-            <td>${fmtD(p.start_date)} → ${fmtD(p.end_date)}</td>
-            <td>${p.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
-            <td>${p.locked
-              ? `<button class="btn sm" data-unlock="${p.id}" data-label="${esc(p.label)}">Reopen</button>`
-              : `<button class="btn sm" data-lock="${p.id}" data-label="${esc(p.label)}">Lock</button>`}</td>
-          </tr>`).join('')}</tbody></table></div>`
-        : emptyState('No periods yet', 'Create a weekly period so reports and scores have somewhere to land.')}
+        ${(periods || []).length ? `
+          <div class="ds-list">
+            ${(periods || []).map(p => `
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">🗓️</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(p.label)}</span>
+                      <span class="tag muted-tag">${p.type === 'weekly' ? 'Weekly' : 'Monthly'}</span>
+                      ${p.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}
+                    </div>
+                    <div class="ds-list-sub">
+                      <span>${fmtD(p.start_date)} → ${fmtD(p.end_date)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="ds-list-actions">
+                  ${p.locked
+                    ? `<button class="btn sm" data-unlock="${p.id}" data-label="${esc(p.label)}">Reopen</button>`
+                    : `<button class="btn sm ghost" data-lock="${p.id}" data-label="${esc(p.label)}">Lock</button>`}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : emptyState('No periods yet', 'Create a weekly period so reports and scores have somewhere to land.')}
       </div>
 
       <div class="card">
@@ -1521,45 +1514,132 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Weekly scores</h3></div>
-        ${(weekly || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th class="sticky-col">Member</th><th>Period</th><th>Breakdown</th><th>Total</th><th>State</th></tr></thead>
-          <tbody>${weekly.map(s => `<tr>
-            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(pmap[s.user_id]))}</td>
-            <td style="white-space:nowrap">${esc(s.periods?.label || '—')}</td>
-            <td class="small"><div class="table-cell-truncate" style="max-width:220px" title="${esc(Object.entries(s.criterion_scores || {}).map(([k, val]) => `${k}: ${val}`).join(', ')) }">${Object.entries(s.criterion_scores || {}).map(([k, val]) => `${esc(k)} ${val}`).join(' · ') || '—'}</div></td>
-            <td style="font-weight:800;white-space:nowrap">${s.manual_override ?? s.weighted_total}/100</td>
-            <td style="white-space:nowrap">${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
-          </tr>`).join('')}</tbody></table></div>`
-        : emptyState('No weekly scores yet', 'Scores appear here once you enter them above.')}
+        <div class="card-head">
+          <div>
+            <h3>Weekly scores</h3>
+            <p class="small muted" style="margin-top:2px">Calculated performance reviews for each member</p>
+          </div>
+          <span class="tag muted-tag">${(weekly || []).length} recorded</span>
+        </div>
+        ${(weekly || []).length ? `
+          <div class="ds-list">
+            ${weekly.map(s => {
+              const person = pmap[s.user_id];
+              const initials = window.DS.getInitials(nameOf(person));
+              const val = s.manual_override ?? s.weighted_total;
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-avatar">${esc(initials)}</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(nameOf(person))}</span>
+                        <span class="tag ok"><b>${val}/100</b></span>
+                        ${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>Period: <b>${esc(s.periods?.label || '—')}</b></span>
+                        <span>·</span>
+                        <span>Scored ${fmtDT(s.scored_at)}</span>
+                      </div>
+                      ${s.note ? `<div class="ds-list-snippet">Note: ${esc(s.note)}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-wscore="${s.id}">View</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : emptyState('No weekly scores yet', 'Scores appear here once you enter them above.')}
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Monthly scores</h3></div>
-        ${(monthly || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th class="sticky-col">Member</th><th>Period</th><th>Weekly average</th><th>Final</th><th>State</th></tr></thead>
-          <tbody>${monthly.map(m => `<tr>
-            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(nameOf(pmap[m.user_id]))}</td>
-            <td style="white-space:nowrap">${esc(m.periods?.label || '—')}</td>
-            <td style="white-space:nowrap">${m.weekly_avg ?? '—'}</td>
-            <td style="font-weight:800;white-space:nowrap">${m.final_score ?? m.weekly_avg}/100</td>
-            <td style="white-space:nowrap">${m.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}</td>
-          </tr>`).join('')}</tbody></table></div>`
-        : emptyState('No monthly scores yet', 'Monthly rollups appear when a month period is scored.')}
+        <div class="card-head">
+          <div>
+            <h3>Monthly scores</h3>
+            <p class="small muted" style="margin-top:2px">End of month cumulative evaluations</p>
+          </div>
+          <span class="tag muted-tag">${(monthly || []).length} recorded</span>
+        </div>
+        ${(monthly || []).length ? `
+          <div class="ds-list">
+            ${monthly.map(m => {
+              const person = pmap[m.user_id];
+              const initials = window.DS.getInitials(nameOf(person));
+              const val = m.final_score ?? m.weekly_avg;
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-avatar">${esc(initials)}</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(nameOf(person))}</span>
+                        <span class="tag ok"><b>${val != null ? Math.round(val) + '/100' : '—'}</b></span>
+                        ${m.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : '<span class="tag ok">Open</span>'}
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>Period: <b>${esc(m.periods?.label || '—')}</b></span>
+                        <span>·</span>
+                        <span>Weekly avg: ${m.weekly_avg != null ? Math.round(m.weekly_avg) + '%' : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-mscore="${m.id}">View</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : emptyState('No monthly scores yet', 'Monthly rollups appear when a month period is scored.')}
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Audit log</h3><span class="tag muted-tag">Last 25 changes</span></div>
-        ${(auditRows || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th class="sticky-col">When</th><th>Who</th><th>Action</th><th>Target</th><th>Change</th></tr></thead>
-          <tbody>${auditRows.map(a => `<tr>
-            <td class="sticky-col" style="white-space:nowrap">${fmtDT(a.created_at)}</td>
-            <td style="white-space:nowrap">${esc(nameOf(a.profiles))}</td>
-            <td style="white-space:nowrap">${esc(a.action)}</td>
-            <td class="small"><div class="table-cell-truncate" style="max-width:180px" title="${esc(a.target || '—')}">${esc(a.target || '—')}</div></td>
-            <td class="small"><div class="table-cell-truncate" style="max-width:200px" title="${esc(a.old_value || '')} → ${esc(a.new_value || '')}">${a.old_value ? esc(a.old_value) : '—'} → ${a.new_value ? esc(a.new_value) : '—'}</div></td>
-          </tr>`).join('')}</tbody></table></div>`
-        : emptyState('No changes recorded yet', 'Score edits, locks and user changes are logged here.')}
+        <div class="card-head">
+          <div>
+            <h3>Audit log</h3>
+            <p class="small muted" style="margin-top:2px">Activity record of administrative and system actions</p>
+          </div>
+          <span class="tag muted-tag">Last ${(auditRows || []).length} changes</span>
+        </div>
+        ${(auditRows || []).length ? `
+          <div class="ds-list">
+            ${auditRows.map(a => {
+              const actNice = (a.action || 'action').replace(/_/g, ' ');
+              const actTitle = actNice.charAt(0).toUpperCase() + actNice.slice(1);
+              const hasDiff = a.old_value || a.new_value;
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-icon">🛡️</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(actTitle)}</span>
+                        <span class="tag muted-tag">${esc(a.action)}</span>
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>👤 <b>${esc(nameOf(a.profiles))}</b></span>
+                        <span>·</span>
+                        <span>🕒 ${fmtDT(a.created_at)}</span>
+                        ${a.target ? `<span>·</span><span>Target: <code>${esc(a.target)}</code></span>` : ''}
+                      </div>
+                      ${hasDiff ? `
+                        <div class="ds-list-snippet">
+                          <b>Change:</b> ${a.old_value ? esc(a.old_value) : '<span class="muted">None</span>'} → ${a.new_value ? esc(a.new_value) : '<span class="muted">None</span>'}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-audit="${a.id}">View</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : emptyState('No changes recorded yet', 'Score edits, locks and user changes are logged here.')}
       </div>`;
 
     $('#wt-save').addEventListener('click', async () => {
@@ -1649,6 +1729,76 @@
       toast('Weekly score saved.');
       window.DS.navigate('scores');
     });
+
+    $$('[data-view-audit]', v).forEach(b => b.addEventListener('click', () => {
+      const a = (auditRows || []).find(x => x.id === b.dataset.viewAudit);
+      if (!a) return;
+      const actNice = (a.action || 'action').replace(/_/g, ' ');
+      const actTitle = actNice.charAt(0).toUpperCase() + actNice.slice(1);
+      window.DS.showDetailsModal({
+        title: `Audit log · ${actTitle}`,
+        subtitle: `Recorded on ${fmtDT(a.created_at)}`,
+        badgeHtml: `<span class="tag muted-tag">${esc(a.action)}</span>`,
+        rows: [
+          { label: 'Action performed', value: a.action },
+          { label: 'Actor name', value: nameOf(a.profiles) },
+          { label: 'Actor ID', value: a.actor_id || '—' },
+          { label: 'Date & time', value: fmtDT(a.created_at) },
+          { label: 'Target entity', value: a.target || 'None specified' },
+          { label: 'Previous value', value: a.old_value || 'None' },
+          { label: 'New value', value: a.new_value || 'None' },
+          { label: 'Audit record ID', value: a.id },
+        ]
+      });
+    }));
+
+    $$('[data-view-wscore]', v).forEach(b => b.addEventListener('click', () => {
+      const s = (weekly || []).find(x => x.id === b.dataset.viewWscore);
+      if (!s) return;
+      const person = pmap[s.user_id];
+      const val = s.manual_override ?? s.weighted_total;
+      const rows = [
+        { label: 'Member name', value: nameOf(person) },
+        { label: 'Period label', value: s.periods?.label || '—' },
+        { label: 'Weighted total score', value: `${val}/100` },
+        { label: 'Period state', value: s.periods?.locked ? 'Locked' : 'Open' },
+        { label: 'Scored at', value: fmtDT(s.scored_at) },
+        { label: 'Admin evaluation note', value: s.note || 'No note added' },
+      ];
+      if (s.criterion_scores && Object.keys(s.criterion_scores).length) {
+        rows.push({
+          label: 'Criteria breakdown',
+          isHtml: true,
+          value: Object.entries(s.criterion_scores).map(([k, pts]) => `<div><b>${esc(k)}:</b> ${pts} pts</div>`).join('')
+        });
+      }
+      window.DS.showDetailsModal({
+        title: `Weekly score · ${nameOf(person)}`,
+        subtitle: `Period ${s.periods?.label || ''}`,
+        badgeHtml: `<span class="tag ok"><b>${val}/100</b></span>`,
+        rows
+      });
+    }));
+
+    $$('[data-view-mscore]', v).forEach(b => b.addEventListener('click', () => {
+      const m = (monthly || []).find(x => x.id === b.dataset.viewMscore);
+      if (!m) return;
+      const person = pmap[m.user_id];
+      const val = m.final_score ?? m.weekly_avg;
+      window.DS.showDetailsModal({
+        title: `Monthly score · ${nameOf(person)}`,
+        subtitle: `Period ${m.periods?.label || ''}`,
+        badgeHtml: `<span class="tag ok"><b>${val != null ? Math.round(val) + '/100' : '—'}</b></span>`,
+        rows: [
+          { label: 'Member name', value: nameOf(person) },
+          { label: 'Month period', value: m.periods?.label || '—' },
+          { label: 'Weekly average', value: m.weekly_avg != null ? `${Math.round(m.weekly_avg)}%` : '—' },
+          { label: 'Final monthly score', value: m.final_score != null ? `${m.final_score}/100` : '—' },
+          { label: 'Period state', value: m.periods?.locked ? 'Locked' : 'Open' },
+          { label: 'Scored at', value: fmtDT(m.scored_at) },
+        ]
+      });
+    }));
   };
 
   /* ============================================================
@@ -1665,20 +1815,46 @@
 
     v.innerHTML = `
       <div class="card">
-        <div class="card-head"><h3>Leave requests</h3></div>
-        ${(leaves || []).length ? (leaves || []).map(l => `<div class="row" style="align-items:flex-start">
-          <div class="row-main">
-            <div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(nameOf(pmap[l.user_id]))}</div>
-            <div class="s">${fmtD(l.start_date)} → ${fmtD(l.end_date)}${l.reason ? ' · ' + esc(l.reason) : ''}</div>
+        <div class="card-head">
+          <div>
+            <h3>Leave requests</h3>
+            <p class="small muted" style="margin-top:2px">Time-off requests from team members</p>
           </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            ${statusTag(l.status)}
-            <button type="button" class="btn sm ghost" data-view-leave="${l.id}" style="padding:2px 8px;font-size:12px">View</button>
-            ${l.status === 'Pending' ? `
-              <button class="btn sm primary" data-lv="1" data-id="${l.id}" data-who="${l.user_id}">Approve</button>
-              <button class="btn sm alert" data-lv="0" data-id="${l.id}" data-who="${l.user_id}">Decline</button>` : ''}
+          <span class="tag muted-tag">${(leaves || []).length} total</span>
+        </div>
+        ${(leaves || []).length ? `
+          <div class="ds-list">
+            ${(leaves || []).map(l => {
+              const person = pmap[l.user_id];
+              const initials = window.DS.getInitials(nameOf(person));
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-avatar">${esc(initials)}</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(nameOf(person))}</span>
+                        ${statusTag(l.status)}
+                      </div>
+                      <div class="ds-list-sub">
+                        <span>🌴 <b>${fmtD(l.start_date)} → ${fmtD(l.end_date)}</b></span>
+                        <span>·</span>
+                        <span>Submitted ${fmtDT(l.created_at)}</span>
+                      </div>
+                      ${l.reason ? `<div class="ds-list-snippet">Reason: ${esc(l.reason)}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-leave="${l.id}">View</button>
+                    ${l.status === 'Pending' ? `
+                      <button class="btn sm primary" data-lv="1" data-id="${l.id}" data-who="${l.user_id}">Approve</button>
+                      <button class="btn sm alert" data-lv="0" data-id="${l.id}" data-who="${l.user_id}">Decline</button>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
-        </div>`).join('') : emptyState('No leave requests', 'Requests from members appear here for approval.')}
+        ` : emptyState('No leave requests', 'Requests from members appear here for approval.')}
       </div>
 
       <div class="card">
@@ -1693,31 +1869,24 @@
           <div style="display:flex;gap:10px"><button class="btn primary" type="submit">Add to calendar</button><button class="btn" type="button" id="ev-cancel">Cancel</button></div>
         </form>
         ${(events || []).length ? `
-          <div class="table-wrap desktop-only"><table class="ds">
-            <thead><tr><th class="sticky-col">Event</th><th>Type</th><th>Dates</th><th>Notes</th><th style="text-align:right">Action</th></tr></thead>
-            <tbody>${(events || []).map(e => `<tr>
-              <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(e.title)}</td>
-              <td style="white-space:nowrap">${esc(e.event_type)}</td>
-              <td style="white-space:nowrap">${fmtD(e.start_at)} → ${fmtD(e.end_at)}</td>
-              <td class="small">${esc(e.description || '')}</td>
-              <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-event="${e.id}" style="padding:2px 8px;font-size:12px">View</button></td>
-            </tr>`).join('')}</tbody>
-          </table></div>
-
-          <div class="records-list mobile-only">
+          <div class="ds-list">
             ${(events || []).map(e => `
-              <div class="record-card">
-                <div class="record-card-top">
-                  <div class="record-header-info">
-                    <div class="record-title">📅 ${esc(e.title)}</div>
-                    <div class="record-sub">${fmtD(e.start_at)} → ${fmtD(e.end_at)}</div>
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">📅</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(e.title)}</span>
+                      <span class="tag muted-tag">${esc(e.event_type)}</span>
+                    </div>
+                    <div class="ds-list-sub">
+                      <span>${fmtD(e.start_at)} → ${fmtD(e.end_at)}</span>
+                    </div>
+                    ${e.description ? `<div class="ds-list-snippet">${esc(e.description)}</div>` : ''}
                   </div>
-                  <span class="tag muted-tag">${esc(e.event_type)}</span>
                 </div>
-                ${e.description ? `<div class="record-snippet">${esc(e.description)}</div>` : ''}
-                <div class="record-footer">
-                  <span class="tiny muted">Calendar item</span>
-                  <button type="button" class="btn sm" data-view-event="${e.id}">View details</button>
+                <div class="ds-list-actions">
+                  <button type="button" class="btn sm" data-view-event="${e.id}">View</button>
                 </div>
               </div>
             `).join('')}
@@ -1881,7 +2050,7 @@
             </div>
           </div>
           ${pg.items.length ? `
-            <div id="li-list" class="desktop-only">
+            <div class="ds-list" id="li-list">
               ${pg.items.map(i => {
                 const actions = [
                   { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
@@ -1891,55 +2060,34 @@
                   { label: 'Delete entry', icon: '🗑️', isAlert: true, attrs: `data-delitem="${i.id}"` },
                 ];
                 return `
-                  <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}" data-broken="${i.broken_link ? '1' : '0'}" style="align-items:flex-start">
-                    <div class="row-main">
-                      <div class="t">${esc(i.title)} ${i.broken_link ? '<span class="tag alert">Broken link</span>' : ''}</div>
-                      <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div>
-                      <div class="s">${grantText(i.id)}</div>
-                      <div class="tiny muted">Added by ${esc(nameOf(i.profiles))} · ${i.open_count || 0} opens${i.last_broken_report_at ? ' · broken reported ' + fmtDT(i.last_broken_report_at) : ''}</div>
+                  <div class="ds-list-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
+                    <div class="ds-list-main">
+                      <div class="ds-list-icon">📄</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(i.title)}</span>
+                          ${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : ''}
+                          ${i.broken_link ? '<span class="tag alert">Broken link</span>' : ''}
+                        </div>
+                        <div class="ds-list-sub">
+                          <span>👤 Added by ${esc(nameOf(i.profiles))}</span>
+                          <span>·</span>
+                          <span>${i.open_count || 0} opens</span>
+                          <span>·</span>
+                          <span>Access: ${grantText(i.id)}</span>
+                        </div>
+                        ${i.description ? `<div class="ds-list-snippet">${esc(i.description)}</div>` : ''}
+                      </div>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}" style="padding:2px 8px;font-size:12px">View</button>
-                      <a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn sm" data-view-lib="${i.id}">View</button>
+                      <a class="btn sm ghost" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
                       ${window.DS.renderActionMenu(actions)}
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
-
-            <div class="records-list mobile-only" id="li-cards">
-              ${pg.items.map(i => {
-                const actions = [
-                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
-                  { label: 'Access permissions', icon: '👥', attrs: `data-grant="${i.id}"` },
-                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
-                  { divider: true },
-                  { label: 'Delete entry', icon: '🗑️', isAlert: true, attrs: `data-delitem="${i.id}"` },
-                ];
-                return `
-                  <div class="record-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
-                    <div class="record-card-top">
-                      <div class="record-header-info">
-                        <div class="record-title">📄 ${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</div>
-                        <div class="record-sub">${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span> · ` : ''}Added by ${esc(nameOf(i.profiles))}</div>
-                      </div>
-                      ${window.DS.renderActionMenu(actions)}
-                    </div>
-                    ${i.description ? `<div class="record-snippet">${esc(i.description)}</div>` : ''}
-                    <div class="record-tags">${grantText(i.id)}</div>
-                    <div class="record-footer">
-                      <span class="tiny muted">${i.open_count || 0} opens</span>
-                      <div style="display:flex;gap:6px">
-                        <button type="button" class="btn sm" data-view-lib="${i.id}">View details</button>
-                        <a class="btn sm ghost" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
-                      </div>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-
             ${pg.renderBar('lib')}
           ` : emptyState('The library is empty', 'Add a link above and grant access to the people who need it.')}
         </div>
@@ -1963,7 +2111,7 @@
     function bindLib() {
       const apply = () => {
         const q = $('#li-q').value.toLowerCase(), c = $('#li-cat-filter').value;
-        $$('#li-list .row, #li-cards .record-card').forEach(r => {
+        $$('#li-list .ds-list-card').forEach(r => {
           r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
         });
       };

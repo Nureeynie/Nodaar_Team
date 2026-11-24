@@ -127,45 +127,32 @@
           <button class="btn sm ghost" data-goto="report">View all records</button>
         </div>
         ${(pastReports && pastReports.length) ? `
-          <div class="table-wrap desktop-only"><table class="ds">
-            <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Summary</th><th>Admin Feedback</th><th style="text-align:right">Action</th></tr></thead>
-            <tbody>
-              ${pastReports.map(r => `
-                <tr>
-                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</td>
-                  <td style="white-space:nowrap">
-                    ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
-                      r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
-                      `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
-                  </td>
-                  <td style="font-weight:800;white-space:nowrap">${r.score != null ? `<b style="color:var(--ok)">${r.score}/100</b>` : '<span class="muted">—</span>'}</td>
-                  <td class="small" style="max-width:240px"><div class="table-cell-truncate" title="${esc(r.doing_today || r.did_yesterday || '')}">${esc(r.doing_today || r.did_yesterday || '—')}</div></td>
-                  <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.review_note || '')}">${r.review_note ? `<span style="font-weight:600">${esc(r.review_note)}</span>` : '<span class="muted">—</span>'}</div></td>
-                  <td style="text-align:right"><button type="button" class="btn sm ghost" data-dash-view-rep="${r.id}" style="padding:2px 8px;font-size:12px">View</button></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table></div>
-
-          <div class="records-list mobile-only">
+          <div class="ds-list">
             ${pastReports.map(r => `
-              <div class="record-card">
-                <div class="record-card-top">
-                  <div class="record-header-info">
-                    <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</div>
-                    <div class="record-sub">Submitted ${fmtDT(r.submitted_at)}</div>
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">📅</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</span>
+                      ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                        r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                        `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                      ${r.score != null ? `<span class="tag ok"><b>${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending</span>'}
+                    </div>
+                    <div class="ds-list-sub">
+                      Submitted ${fmtDT(r.submitted_at)}${r.mood ? ` · Mood ${r.mood}/5` : ''}
+                    </div>
+                    ${(r.doing_today || r.review_note) ? `
+                      <div class="ds-list-snippet">
+                        ${r.doing_today ? `<b>Plan:</b> ${esc(r.doing_today.slice(0, 100))}${r.doing_today.length > 100 ? '…' : ''}` : ''}
+                        ${r.review_note ? `${r.doing_today ? ' · ' : ''}<b>Feedback:</b> ${esc(r.review_note)}` : ''}
+                      </div>
+                    ` : ''}
                   </div>
-                  ${r.score != null ? `<span class="tag ok"><b>${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending</span>'}
                 </div>
-                <div class="record-tags">
-                  ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
-                    r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
-                    `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
-                </div>
-                ${r.doing_today ? `<div class="record-snippet"><b>Plan:</b> ${esc(r.doing_today.slice(0, 100))}${r.doing_today.length > 100 ? '…' : ''}</div>` : ''}
-                <div class="record-footer">
-                  <span class="tiny muted">${r.mood ? `Mood ${r.mood}/5` : 'Standard scrum'}</span>
-                  <button type="button" class="btn sm" data-dash-view-rep="${r.id}">View details</button>
+                <div class="ds-list-actions">
+                  <button type="button" class="btn sm" data-dash-view-rep="${r.id}">View</button>
                 </div>
               </div>
             `).join('')}
@@ -359,58 +346,7 @@
               <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
             </div>
             ${pg.items.length ? `
-              <div class="table-wrap desktop-only"><table class="ds">
-                <thead>
-                  <tr>
-                    <th class="sticky-col">Date</th>
-                    <th>Status</th>
-                    <th>Score</th>
-                    <th>Yesterday's Work</th>
-                    <th>Today's Plan</th>
-                    <th>Evidence</th>
-                    <th>Admin Feedback</th>
-                    <th style="text-align:right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${pg.items.map(r => {
-                    const actions = [
-                      { label: 'View full report', icon: '📄', attrs: `data-view-rep="${r.id}"` },
-                      { divider: true },
-                      (r.status === 'Submitted' || r.status === 'Rejected')
-                        ? { label: 'Edit in form', icon: '✏️', attrs: `data-fill-rep="${r.id}"` }
-                        : null,
-                      r.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(r.evidence_url)}', '_blank')"` } : null,
-                      isAdmin() ? { divider: true } : null,
-                      isAdmin() ? { label: 'Delete record', icon: '🗑️', isAlert: true, attrs: `data-del-rep="${r.id}"` } : null,
-                    ];
-                    return `
-                      <tr>
-                        <td class="sticky-col" style="font-weight:700;white-space:nowrap">
-                          ${fmtD(r.report_date)}
-                          ${r.is_late ? `<br><span class="tag alert" style="font-size:10px;padding:1px 6px">Late by ${r.late_minutes}m</span>` : ''}
-                        </td>
-                        <td style="white-space:nowrap">
-                          ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
-                            r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
-                            `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
-                        </td>
-                        <td style="font-weight:800;white-space:nowrap">${r.score != null ? `<span style="color:var(--ok)">${r.score}/100</span>` : '<span class="muted">—</span>'}</td>
-                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.did_yesterday || '')}">${esc(r.did_yesterday || '—')}</div></td>
-                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" title="${esc(r.doing_today || '')}">${esc(r.doing_today || '—')}</div></td>
-                        <td>${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                        <td class="small" style="max-width:200px"><div class="table-cell-truncate" style="font-weight:600;color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td>
-                        <td style="text-align:right">
-                          <button type="button" class="btn sm ghost" data-view-rep="${r.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
-                          ${window.DS.renderActionMenu(actions)}
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table></div>
-
-              <div class="records-list mobile-only">
+              <div class="ds-list">
                 ${pg.items.map(r => {
                   const actions = [
                     { label: 'View full report', icon: '📄', attrs: `data-view-rep="${r.id}"` },
@@ -423,26 +359,32 @@
                     isAdmin() ? { label: 'Delete record', icon: '🗑️', isAlert: true, attrs: `data-del-rep="${r.id}"` } : null,
                   ];
                   return `
-                    <div class="record-card">
-                      <div class="record-card-top">
-                        <div class="record-header-info">
-                          <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ` <span class="tag alert" style="font-size:9.5px">Late ${r.late_minutes}m</span>` : ''}</div>
-                          <div class="record-sub">Submitted ${fmtDT(r.submitted_at)}</div>
+                    <div class="ds-list-card">
+                      <div class="ds-list-main">
+                        <div class="ds-list-icon">📅</div>
+                        <div class="ds-list-content">
+                          <div class="ds-list-title-row">
+                            <span class="ds-list-title">${fmtD(r.report_date)}${r.is_late ? ` <span class="tag alert" style="font-size:10px;padding:1px 6px">Late by ${r.late_minutes}m</span>` : ''}</span>
+                            ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                              r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                              `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                            ${r.score != null ? `<span class="tag ok"><b>Score: ${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending score</span>'}
+                            ${r.mood ? `<span class="tag muted-tag">Mood ${r.mood}/5</span>` : ''}
+                          </div>
+                          <div class="ds-list-sub">
+                            Submitted ${fmtDT(r.submitted_at)}${r.evidence_url ? ` · <a href="${esc(r.evidence_url)}" target="_blank" rel="noopener">Evidence link ↗</a>` : ''}
+                          </div>
+                          ${(r.doing_today || r.review_note) ? `
+                            <div class="ds-list-snippet">
+                              ${r.doing_today ? `<b>Today:</b> ${esc(r.doing_today.slice(0, 110))}${r.doing_today.length > 110 ? '…' : ''}` : ''}
+                              ${r.review_note ? `${r.doing_today ? ' · ' : ''}<b>Feedback:</b> ${esc(r.review_note)}` : ''}
+                            </div>
+                          ` : ''}
                         </div>
+                      </div>
+                      <div class="ds-list-actions">
+                        <button type="button" class="btn sm" data-view-rep="${r.id}">View</button>
                         ${window.DS.renderActionMenu(actions)}
-                      </div>
-                      <div class="record-tags">
-                        ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
-                          r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
-                          `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
-                        ${r.score != null ? `<span class="tag ok"><b>Score: ${r.score}/100</b></span>` : '<span class="tag muted-tag">Pending score</span>'}
-                        ${r.mood ? `<span class="tag muted-tag">Mood ${r.mood}/5</span>` : ''}
-                      </div>
-                      ${r.doing_today ? `<div class="record-snippet"><b>Today:</b> ${esc(r.doing_today.slice(0, 110))}${r.doing_today.length > 110 ? '…' : ''}</div>` : ''}
-                      ${r.review_note ? `<div class="record-snippet" style="background:#fefce8;border-color:#fef08a"><b>Feedback:</b> ${esc(r.review_note)}</div>` : ''}
-                      <div class="record-footer">
-                        ${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Drive Link ↗</a>` : '<span class="tiny muted">No evidence link</span>'}
-                        <button type="button" class="btn sm" data-view-rep="${r.id}">View details</button>
                       </div>
                     </div>
                   `;
@@ -636,32 +578,7 @@
             <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
           ${pg.items.length ? `
-            <div class="table-wrap desktop-only"><table class="ds">
-              <thead><tr><th class="sticky-col">Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
-              <tbody>${pg.items.map(t => {
-                const actions = [
-                  { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
-                  { divider: true },
-                  { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
-                  t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
-                ];
-                return `
-                  <tr>
-                    <td class="sticky-col" style="font-weight:700;white-space:nowrap"><div class="table-cell-truncate" style="max-width:200px" title="${esc(t.title)}">${esc(t.title)}</div>${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</td>
-                    <td style="white-space:nowrap"><span class="tag ${t.status === 'Done' ? 'ok' : t.status === 'In review' || t.status === 'In Review' ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span></td>
-                    <td style="white-space:nowrap">${esc(t.priority || '—')}</td>
-                    <td style="white-space:nowrap">${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
-                    <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px;white-space:nowrap">Link ↗</a>` : '<span class="muted">—</span>'}</td>
-                    <td style="text-align:right">
-                      <button type="button" class="btn sm ghost" data-view-task="${t.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
-                      ${window.DS.renderActionMenu(actions)}
-                    </td>
-                  </tr>
-                `;
-              }).join('')}</tbody>
-            </table></div>
-
-            <div class="records-list mobile-only">
+            <div class="ds-list">
               ${pg.items.map(t => {
                 const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
                 const actions = [
@@ -671,22 +588,24 @@
                   t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
                 ];
                 return `
-                  <div class="record-card">
-                    <div class="record-card-top">
-                      <div class="record-header-info">
-                        <div class="record-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</div>
-                        <div class="record-sub">Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}${t.priority ? ' · ' + esc(t.priority) : ''}</div>
+                  <div class="ds-list-card">
+                    <div class="ds-list-main">
+                      <div class="ds-list-icon">📋</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</span>
+                          <span class="tag ${t.status === 'Done' ? 'ok' : t.status && t.status.toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                          ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
+                        </div>
+                        <div class="ds-list-sub">
+                          Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}${t.priority ? ' · ' + esc(t.priority) : ''}${t.evidence_url ? ` · <a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Evidence ↗</a>` : ''}
+                        </div>
+                        ${t.description ? `<div class="ds-list-snippet">${esc(t.description.slice(0, 110))}${t.description.length > 110 ? '…' : ''}</div>` : ''}
                       </div>
+                    </div>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn sm" data-view-task="${t.id}">View</button>
                       ${window.DS.renderActionMenu(actions)}
-                    </div>
-                    <div class="record-tags">
-                      <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
-                      ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
-                    </div>
-                    ${t.description ? `<div class="record-snippet">${esc(t.description.slice(0, 100))}${t.description.length > 100 ? '…' : ''}</div>` : ''}
-                    <div class="record-footer">
-                      ${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:11.5px">Evidence ↗</a>` : '<span class="tiny muted">No evidence</span>'}
-                      <button type="button" class="btn sm" data-view-task="${t.id}">View details</button>
                     </div>
                   </div>
                 `;
@@ -807,35 +726,7 @@
             </div>
           </div>
           ${pg.items.length ? `
-            <div class="table-wrap desktop-only"><table class="ds">
-              <thead><tr><th class="sticky-col">Meeting</th><th>Date &amp; time</th><th>Target</th><th>Link</th><th style="text-align:right">Action</th></tr></thead>
-              <tbody>
-                ${pg.items.map(raw => {
-                  const m = window.DS.meeting(raw);
-                  const actions = [
-                    { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
-                    { label: 'File meeting report', icon: '📝', attrs: `data-mr="${m.id}" data-title="${esc(m.title)}"` },
-                    m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
-                    m.minutes ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.minutes)}', '_blank')"` } : null,
-                  ];
-                  return `
-                    <tr>
-                      <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(m.title)}</td>
-                      <td style="white-space:nowrap">${fmtDT(m.starts_at)}</td>
-                      <td style="white-space:nowrap"><span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span></td>
-                      <td style="white-space:nowrap">${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">Join link ↗</a>` : '<span class="muted">—</span>'}</td>
-                      <td style="text-align:right">
-                        <button type="button" class="btn sm ghost" data-view-meeting="${m.id}" style="padding:2px 8px;font-size:12px;margin-right:4px">View</button>
-                        <button class="btn sm" data-mr="${m.id}" data-title="${esc(m.title)}" style="padding:2px 8px;font-size:12px">Report</button>
-                        ${window.DS.renderActionMenu(actions)}
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table></div>
-
-            <div class="records-list mobile-only">
+            <div class="ds-list">
               ${pg.items.map(raw => {
                 const m = window.DS.meeting(raw);
                 const actions = [
@@ -845,21 +736,24 @@
                   m.minutes ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.minutes)}', '_blank')"` } : null,
                 ];
                 return `
-                  <div class="record-card">
-                    <div class="record-card-top">
-                      <div class="record-header-info">
-                        <div class="record-title">👥 ${esc(m.title)}</div>
-                        <div class="record-sub">${fmtDT(m.starts_at)} · <span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span></div>
+                  <div class="ds-list-card">
+                    <div class="ds-list-main">
+                      <div class="ds-list-icon">👥</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(m.title)}</span>
+                          <span class="tag muted-tag">${esc(m.units?.name || 'Everyone')}</span>
+                        </div>
+                        <div class="ds-list-sub">
+                          ${fmtDT(m.starts_at)}${m.link ? ` · <a href="${esc(m.link)}" target="_blank" rel="noopener">Join link ↗</a>` : ''}
+                        </div>
+                        ${(m.description || m.agenda) ? `<div class="ds-list-snippet">${esc((m.description || m.agenda).slice(0, 110))}${(m.description || m.agenda).length > 110 ? '…' : ''}</div>` : ''}
                       </div>
-                      ${window.DS.renderActionMenu(actions)}
                     </div>
-                    ${m.description || m.agenda ? `<div class="record-snippet">${esc((m.description || m.agenda).slice(0, 100))}</div>` : ''}
-                    <div class="record-footer">
-                      ${m.link ? `<a class="btn sm ghost" href="${esc(m.link)}" target="_blank" rel="noopener">Join ↗</a>` : '<span class="tiny muted">No link</span>'}
-                      <div style="display:flex;gap:6px">
-                        <button type="button" class="btn sm" data-view-meeting="${m.id}">View</button>
-                        <button class="btn sm primary" data-mr="${m.id}" data-title="${esc(m.title)}">Report</button>
-                      </div>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn sm ghost" data-view-meeting="${m.id}">View</button>
+                      <button type="button" class="btn sm" data-mr="${m.id}" data-title="${esc(m.title)}">Report</button>
+                      ${window.DS.renderActionMenu(actions)}
                     </div>
                   </div>
                 `;
@@ -1058,30 +952,23 @@
       .filter(r => r.score != null)
       .sort((a, b) => String(b.report_date || '').localeCompare(String(a.report_date || '')));
     const scoredHtml = scored.length ? `
-      <div class="table-wrap desktop-only"><table class="ds">
-        <thead><tr><th class="sticky-col">Date</th><th>Status</th><th>Score</th><th>Feedback note</th><th style="text-align:right">Action</th></tr></thead>
-        <tbody>${scored.slice(0, 10).map(r => `<tr>
-          <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}</td>
-          <td style="white-space:nowrap">${statusTagLocal(r.status)}</td>
-          <td style="font-weight:800;white-space:nowrap">${r.score}/100</td>
-          <td class="small"><div class="table-cell-truncate" style="max-width:240px" title="${esc(r.review_note || '')}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</div></td>
-          <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-scored-rep="${r.id}" style="padding:2px 8px;font-size:12px">View</button></td>
-        </tr>`).join('')}</tbody></table></div>
-
-      <div class="records-list mobile-only">
+      <div class="ds-list">
         ${scored.slice(0, 10).map(r => `
-          <div class="record-card">
-            <div class="record-card-top">
-              <div class="record-header-info">
-                <div class="record-title">📅 ${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</div>
-                <div class="record-sub">Scored report</div>
+          <div class="ds-list-card">
+            <div class="ds-list-main">
+              <div class="ds-list-icon">📅</div>
+              <div class="ds-list-content">
+                <div class="ds-list-title-row">
+                  <span class="ds-list-title">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</span>
+                  <span class="tag ok"><b>${r.score}/100</b></span>
+                  ${statusTagLocal(r.status)}
+                </div>
+                <div class="ds-list-sub">Scored daily report</div>
+                ${r.review_note ? `<div class="ds-list-snippet"><b>Feedback:</b> ${esc(r.review_note)}</div>` : ''}
               </div>
-              <span class="tag ok"><b>${r.score}/100</b></span>
             </div>
-            ${r.review_note ? `<div class="record-snippet"><b>Admin:</b> ${esc(r.review_note)}</div>` : ''}
-            <div class="record-footer">
-              <span class="tiny muted">${statusTagLocal(r.status)}</span>
-              <button type="button" class="btn sm" data-view-scored-rep="${r.id}">View details</button>
+            <div class="ds-list-actions">
+              <button type="button" class="btn sm" data-view-scored-rep="${r.id}">View</button>
             </div>
           </div>
         `).join('')}
@@ -1128,13 +1015,30 @@
 
       <div class="card">
         <div class="card-head"><h3>Weekly score sheet</h3></div>
-        ${list.length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th class="sticky-col">Week</th>${crits.map(c => `<th>${esc(c.label)}</th>`).join('')}<th>Score</th></tr></thead>
-          <tbody>${list.map(s => `<tr>
-            <td class="sticky-col" style="font-weight:700;white-space:nowrap">${esc(s.periods?.label || '')} ${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : ''}</td>
-            ${crits.map(c => `<td style="white-space:nowrap">${s.criterion_scores?.[c.key] ?? '—'}</td>`).join('')}
-            <td style="font-weight:800;white-space:nowrap">${s.manual_override ?? s.weighted_total}/100</td></tr>`).join('')}</tbody></table></div>`
-        : `<div class="empty"><div class="big">No scores yet</div><div class="hint">Your weekly scores appear here after admin review.</div></div>`}
+        ${list.length ? `
+          <div class="ds-list">
+            ${list.map(s => `
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">📊</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(s.periods?.label || 'Weekly score')} ${s.periods?.locked ? '<span class="tag muted-tag">Locked</span>' : ''}</span>
+                      <span class="tag ok"><b>${s.manual_override ?? s.weighted_total}/100</b></span>
+                    </div>
+                    <div class="ds-list-sub">Weighted score breakdown</div>
+                    <div class="ds-list-snippet">
+                      ${crits.map(c => `${esc(c.label)}: <b>${s.criterion_scores?.[c.key] ?? '—'}</b>`).join(' · ')}
+                    </div>
+                  </div>
+                </div>
+                <div class="ds-list-actions">
+                  <button type="button" class="btn sm ghost" data-view-wsheet="${s.id}">View</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<div class="empty"><div class="big">No scores yet</div><div class="hint">Your weekly scores appear here after admin review.</div></div>`}
       </div>
 
       <div class="card">
@@ -1157,6 +1061,25 @@
           { label: 'Status', value: r.status },
           { label: 'Admin review note', value: r.review_note || 'No specific note added' },
           { label: 'Late submission', isHtml: true, value: r.is_late ? `<span class="tag alert">Yes (Late by ${lateBy(r.late_minutes)})</span>` : 'No (On time)' },
+        ]
+      });
+    }));
+
+    $$('[data-view-wsheet]', v).forEach(b => b.addEventListener('click', () => {
+      const s = list.find(x => x.id === b.dataset.viewWsheet);
+      if (!s) return;
+      window.DS.showDetailsModal({
+        title: s.periods?.label || 'Weekly score',
+        subtitle: `Score sheet ${s.periods?.locked ? '· Locked' : ''}`,
+        badgeHtml: `<span class="tag ok"><b>${s.manual_override ?? s.weighted_total}/100</b></span>`,
+        rows: [
+          { label: 'Period', value: s.periods?.label || '—' },
+          { label: 'Total score', isHtml: true, value: `<b style="font-size:16px;color:var(--ok)">${s.manual_override ?? s.weighted_total}/100</b>` },
+          { label: 'Status', value: s.periods?.locked ? 'Locked (Final)' : 'Open' },
+          ...crits.map(c => ({
+            label: c.label,
+            value: s.criterion_scores?.[c.key] != null ? `${s.criterion_scores[c.key]} points` : '—'
+          }))
         ]
       });
     }));
@@ -1193,7 +1116,7 @@
             </div>
           </div>
           ${pg.items.length ? `
-            <div id="lib-list" class="desktop-only">
+            <div id="lib-list" class="ds-list">
               ${pg.items.map(i => {
                 const actions = [
                   { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
@@ -1202,45 +1125,24 @@
                   { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
                 ];
                 return `
-                  <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}" style="align-items:flex-start">
-                    <div class="row-main">
-                      <div class="t">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Reported broken</span>' : ''}</div>
-                      <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div>
+                  <div class="ds-list-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
+                    <div class="ds-list-main">
+                      <div class="ds-list-icon">📄</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</span>
+                          ${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : ''}
+                        </div>
+                        <div class="ds-list-sub">
+                          ${i.category ? esc(i.category) + ' · ' : ''}Added by ${esc(nameOf(i.profiles))}
+                        </div>
+                        ${i.description ? `<div class="ds-list-snippet">${esc(i.description)}</div>` : ''}
+                      </div>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}" style="padding:2px 8px;font-size:12px">View</button>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}">View</button>
                       <a class="btn sm primary" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
                       ${window.DS.renderActionMenu(actions)}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-
-            <div class="records-list mobile-only" id="lib-cards">
-              ${pg.items.map(i => {
-                const actions = [
-                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
-                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
-                  { divider: true },
-                  { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
-                ];
-                return `
-                  <div class="record-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
-                    <div class="record-card-top">
-                      <div class="record-header-info">
-                        <div class="record-title">📄 ${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</div>
-                        <div class="record-sub">${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : 'General resource'}</div>
-                      </div>
-                      ${window.DS.renderActionMenu(actions)}
-                    </div>
-                    ${i.description ? `<div class="record-snippet">${esc(i.description)}</div>` : ''}
-                    <div class="record-footer">
-                      <span class="tiny muted">${i.category || 'Shared link'}</span>
-                      <div style="display:flex;gap:6px">
-                        <button type="button" class="btn sm" data-view-lib="${i.id}">View</button>
-                        <a class="btn sm ghost" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
-                      </div>
                     </div>
                   </div>
                 `;
@@ -1262,7 +1164,7 @@
     function bindEvents() {
       const apply = () => {
         const q = $('#lib-q').value.toLowerCase(), c = $('#lib-cat').value;
-        $$('#lib-list .row, #lib-cards .record-card').forEach(r => {
+        $$('#lib-list .ds-list-card').forEach(r => {
           r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
         });
       };
@@ -1330,37 +1232,31 @@
 
       <div class="card"><div class="card-head"><h3>My leave requests</h3></div>
         ${list.length ? `
-          <div class="table-wrap desktop-only"><table class="ds">
-            <thead><tr><th class="sticky-col">Dates</th><th>Reason</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
-            <tbody>
-              ${list.map(l => `
-                <tr>
-                  <td class="sticky-col" style="font-weight:700;white-space:nowrap">${fmtD(l.start_date)} → ${fmtD(l.end_date)}</td>
-                  <td class="small">${esc(l.reason || '—')}</td>
-                  <td style="white-space:nowrap"><span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span></td>
-                  <td style="text-align:right"><button type="button" class="btn sm ghost" data-view-leave="${l.id}" style="padding:2px 8px;font-size:12px">View</button></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table></div>
-
-          <div class="records-list mobile-only">
-            ${list.map(l => `
-              <div class="record-card">
-                <div class="record-card-top">
-                  <div class="record-header-info">
-                    <div class="record-title">🌴 ${fmtD(l.start_date)} → ${fmtD(l.end_date)}</div>
-                    <div class="record-sub">Submitted ${fmtDT(l.created_at)}</div>
+          <div class="ds-list">
+            ${list.map(l => {
+              const actions = [
+                { label: 'View details', icon: '📋', attrs: `data-view-leave="${l.id}"` }
+              ];
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-icon">🌴</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${fmtD(l.start_date)} → ${fmtD(l.end_date)}</span>
+                        <span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span>
+                      </div>
+                      <div class="ds-list-sub">Submitted ${fmtDT(l.created_at)}</div>
+                      ${l.reason ? `<div class="ds-list-snippet">${esc(l.reason)}</div>` : ''}
+                    </div>
                   </div>
-                  <span class="tag ${l.status === 'Approved' ? 'ok' : l.status === 'Declined' ? 'alert' : 'muted-tag'}">${l.status}</span>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-leave="${l.id}">View</button>
+                    ${window.DS.renderActionMenu(actions)}
+                  </div>
                 </div>
-                ${l.reason ? `<div class="record-snippet">${esc(l.reason)}</div>` : ''}
-                <div class="record-footer">
-                  <span class="tiny muted">Leave status</span>
-                  <button type="button" class="btn sm" data-view-leave="${l.id}">View details</button>
-                </div>
-              </div>
-            `).join('')}
+              `;
+            }).join('')}
           </div>
         ` : `<div class="empty" style="padding:20px"><div class="hint">No leave requests yet.</div></div>`}
       </div>`;
