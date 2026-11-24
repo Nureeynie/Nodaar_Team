@@ -56,16 +56,22 @@
   }
 
   // notify every admin (and optionally the subject)
+  // NOTE: supabase-js query builders are thenables, not Promises — they have no
+  // .catch(). Always await them inside a try/catch and inspect .error instead.
   async function notifyAdmins(subject, title, body, linkTab) {
-    const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin').eq('active', true);
-    for (const a of (admins || [])) {
-      if (a.id === subject) continue;
-      await sb.from('notifications').insert({ user_id: a.id, type: 'admin', title, body: body || null, link_tab: linkTab || null }).catch(() => {});
-    }
+    try {
+      const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin').eq('active', true);
+      for (const a of (admins || [])) {
+        if (a.id === subject) continue;
+        try { await sb.from('notifications').insert({ user_id: a.id, type: 'admin', title, body: body || null, link_tab: linkTab || null }); }
+        catch (e) { /* notification is best-effort */ }
+      }
+    } catch (e) { /* best-effort */ }
   }
   async function notifyUser(userId, type, title, body, linkTab) {
     if (!userId) return;
-    await sb.from('notifications').insert({ user_id: userId, type, title, body: body || null, link_tab: linkTab || null }).catch(() => {});
+    try { await sb.from('notifications').insert({ user_id: userId, type, title, body: body || null, link_tab: linkTab || null }); }
+    catch (e) { /* notification is best-effort — never block the save on it */ }
   }
 
   /* ============================================================
@@ -176,46 +182,62 @@
     }
     items.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
 
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head">
-          <h3>${items.length} item${items.length === 1 ? '' : 's'} waiting</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <select class="input" id="rq-kind" style="min-height:38px;width:auto" aria-label="Filter by type">
-              <option value="">All types</option><option value="daily">Daily reports</option>
-              <option value="meeting">Meeting reports</option><option value="feedback">Ideas &amp; problems</option>
-            </select>
-            <select class="input" id="rq-who" style="min-height:38px;width:auto" aria-label="Filter by member">
-              <option value="">Everyone</option>${people.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div id="rq-list">
-        ${items.length ? items.map(it => `
-          <div class="row" data-kind="${it.kind}" data-who="${it.who?.id || ''}">
-            <div class="row-main">
-              <div class="t">${esc(it.title)}${it.late ? ` <span class="tag alert">Late by ${lateBy(it.lateMin)}</span>` : ''}${it.missed ? ' <span class="tag alert">Missed</span>' : ''}</div>
-              <div class="s">${esc(nameOf(it.who))} · submitted ${fmtDT(it.ts)}</div>
-              ${it.sub ? `<div class="s">${esc(it.sub)}</div>` : ''}
-            </div>
-            <button class="btn primary sm" data-open="${it.kind}:${it.id}">Open &amp; score</button>
-          </div>`).join('')
-        : emptyState('Nothing to review', 'Every submission has been handled. New reports land here automatically.')}
-        </div>
-      </div>`;
+    let reviewPage = 1;
 
-    const apply = () => {
-      const k = $('#rq-kind').value, w = $('#rq-who').value;
-      $$('#rq-list .row').forEach(r => {
-        r.style.display = (!k || r.dataset.kind === k) && (!w || r.dataset.who === w) ? '' : 'none';
+    function renderReviewView() {
+      const pg = window.DS.paginate(items, reviewPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>${items.length} item${items.length === 1 ? '' : 's'} waiting</h3>
+              <p class="small muted" style="margin-top:2px">Daily scrums, meeting reports, and weekly ideas needing decisions</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select class="input" id="rq-kind" style="min-height:36px;width:auto" aria-label="Filter by type">
+                <option value="">All types</option><option value="daily">Daily reports</option>
+                <option value="meeting">Meeting reports</option><option value="feedback">Ideas &amp; problems</option>
+              </select>
+              <select class="input" id="rq-who" style="min-height:36px;width:auto" aria-label="Filter by member">
+                <option value="">Everyone</option>${people.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div id="rq-list">
+          ${pg.items.length ? pg.items.map(it => `
+            <div class="row" data-kind="${it.kind}" data-who="${it.who?.id || ''}">
+              <div class="row-main">
+                <div class="t">${esc(it.title)}${it.late ? ` <span class="tag alert">Late by ${lateBy(it.lateMin)}</span>` : ''}${it.missed ? ' <span class="tag alert">Missed</span>' : ''}</div>
+                <div class="s">${esc(nameOf(it.who))} · submitted ${fmtDT(it.ts)}</div>
+                ${it.sub ? `<div class="s">${esc(it.sub)}</div>` : ''}
+              </div>
+              <button class="btn primary sm" data-open="${it.kind}:${it.id}">Open &amp; score</button>
+            </div>`).join('')
+          : emptyState('Nothing to review', 'Every submission has been handled. New reports land here automatically.')}
+          </div>
+          ${pg.renderBar('review')}
+        </div>`;
+
+      const apply = () => {
+        const k = $('#rq-kind').value, w = $('#rq-who').value;
+        $$('#rq-list .row').forEach(r => {
+          r.style.display = (!k || r.dataset.kind === k) && (!w || r.dataset.who === w) ? '' : 'none';
+        });
+      };
+      $('#rq-kind')?.addEventListener('change', apply);
+      $('#rq-who')?.addEventListener('change', apply);
+      $$('[data-open]', v).forEach(b => b.addEventListener('click', () => {
+        const [kind, id] = b.dataset.open.split(':');
+        openReview(kind, id);
+      }));
+
+      window.DS.bindPagination(v, (p) => {
+        reviewPage = p;
+        renderReviewView();
       });
-    };
-    $('#rq-kind').addEventListener('change', apply);
-    $('#rq-who').addEventListener('change', apply);
-    $$('[data-open]', v).forEach(b => b.addEventListener('click', () => {
-      const [kind, id] = b.dataset.open.split(':');
-      openReview(kind, id);
-    }));
+    }
+
+    renderReviewView();
   };
 
   /* ── REVIEW & SCORE modal ── */
@@ -274,6 +296,14 @@
           await audit('daily_report_reject', 'daily_reports:' + id, null, note);
           await notifyUser(r.user_id, 'report_rejected', 'Daily report needs resubmission', note || 'Please resubmit your daily report.', 'report');
           toast('Rejected — member asked to resubmit.', true);
+          window.DS.modal.close(); window.DS.navigate('review');
+        },
+        onDelete: async () => {
+          const { error } = await sb.from('daily_reports').delete().eq('id', id);
+          if (error) return toast(error.message, true);
+          await audit('daily_report_delete', 'daily_reports:' + id);
+          await notifyUser(r.user_id, 'report_deleted', 'Daily report removed by admin', `Your daily report for ${fmtD(r.report_date)} was removed by an administrator.`, 'report');
+          toast('✓ Report deleted');
           window.DS.modal.close(); window.DS.navigate('review');
         },
       });
@@ -393,11 +423,12 @@
         <button class="btn primary" style="flex:1;min-width:180px" id="rv-save" type="button">${E(o.saveLabel || 'Approve and save score')}</button>
         <button class="btn alert" style="flex:1;min-width:160px" id="rv-reject" type="button">Reject and ask to resubmit</button>
       </div>
+      ${o.onDelete ? `<button class="btn ghost alert sm" style="width:100%;margin-top:12px" id="rv-del" type="button">Delete submission permanently</button>` : ''}
       <p class="tiny muted" style="margin-top:12px">The system never suggests a score — you decide. Late submissions are shown with their exact time and are not penalised automatically.</p>`}`;
 
     // wiring, called by the caller once the markup is in the DOM
     const bind = () => {
-      const save = $('#rv-save'), rej = $('#rv-reject'), sc = $('#rv-score'), nt = $('#rv-note');
+      const save = $('#rv-save'), rej = $('#rv-reject'), sc = $('#rv-score'), nt = $('#rv-note'), del = $('#rv-del');
       if (!save) return;
       save.addEventListener('click', async () => {
         const err = $('#rv-score-err');
@@ -416,6 +447,12 @@
         rej.disabled = true;
         try { await o.onReject(note); } catch (e) { toast(e.message || 'Could not reject.', true); rej.disabled = false; }
       });
+      del?.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to permanently delete this submission?')) return;
+        del.disabled = true;
+        try { await o.onDelete(); }
+        catch (e) { toast(e.message || 'Could not delete.', true); del.disabled = false; }
+      });
     };
     return { html, bind };
   }
@@ -433,126 +470,158 @@
     const { data: units } = await sb.from('units').select('id,name');
     const { data: um } = await sb.from('unit_members').select('*');
     const unitMap = Object.fromEntries((units || []).map(u => [u.id, u.name]));
+    let userPage = 1;
 
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>Create a user</h3></div>
-        <form id="nu-form" novalidate>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px">
-            <div class="field"><label class="label" for="nu-name">Full name</label><input class="input" id="nu-name" required placeholder="Amina Yusuf"></div>
-            <div class="field"><label class="label" for="nu-email">Email</label><input class="input" id="nu-email" type="email" required placeholder="amina@nodaar.com"></div>
-            <div class="field"><label class="label" for="nu-pass">Temporary password</label><input class="input" id="nu-pass" required minlength="6" placeholder="At least 6 characters"></div>
-            <div class="field"><label class="label" for="nu-role">Access level</label><select class="input" id="nu-role"><option>Member</option><option>Admin</option></select></div>
-            <div class="field"><label class="label" for="nu-unit">Assign to unit</label><select class="input" id="nu-unit"><option value="">None yet</option>${(units || []).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
-            <div class="field"><label class="label" for="nu-position">Role in unit</label><input class="input" id="nu-position" placeholder="e.g. Lead, Analyst"></div>
+    function renderView() {
+      const pg = window.DS.paginate(people, userPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head"><h3>Create a user</h3></div>
+          <form id="nu-form" novalidate>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px">
+              <div class="field"><label class="label" for="nu-name">Full name</label><input class="input" id="nu-name" required placeholder="Amina Yusuf"></div>
+              <div class="field"><label class="label" for="nu-email">Email</label><input class="input" id="nu-email" type="email" required placeholder="amina@nodaar.com"></div>
+              <div class="field"><label class="label" for="nu-pass">Temporary password</label><input class="input" id="nu-pass" required minlength="6" placeholder="At least 6 characters"></div>
+              <div class="field"><label class="label" for="nu-role">Access level</label><select class="input" id="nu-role"><option>Member</option><option>Admin</option></select></div>
+              <div class="field"><label class="label" for="nu-unit">Assign to unit</label><select class="input" id="nu-unit"><option value="">None yet</option>${(units || []).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
+              <div class="field"><label class="label" for="nu-position">Role in unit</label><input class="input" id="nu-position" placeholder="e.g. Lead, Analyst"></div>
+            </div>
+            <div class="error-box hidden" id="nu-error" style="margin-bottom:14px"></div>
+            <button class="btn primary" type="submit">Create user</button>
+            <p class="tiny muted" style="margin-top:10px">The user signs in with the temporary password and must set a new one before seeing anything.</p>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Team members</h3>
+              <p class="small muted" style="margin-top:2px">${people.length} user${people.length === 1 ? '' : 's'} registered in system</p>
+            </div>
+            <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
-          <div class="error-box hidden" id="nu-error" style="margin-bottom:14px"></div>
-          <button class="btn primary" type="submit">Create user</button>
-          <p class="tiny muted" style="margin-top:10px">The user signs in with the temporary password and must set a new one before seeing anything.</p>
-        </form>
-      </div>
+          ${pg.items.length ? `
+            <div class="table-wrap"><table class="ds">
+              <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+              <tbody>${pg.items.map(p => {
+                const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
+                const actions = [
+                  { label: 'Reset password', icon: '🔑', attrs: `data-pw="${p.id}"` },
+                  p.access_level === 'Admin'
+                    ? { label: 'Make member', icon: '👤', attrs: `data-demote="${p.id}"`, disabled: p.id === S.user.id }
+                    : { label: 'Make admin', icon: '⭐', attrs: `data-promote="${p.id}"` },
+                  { divider: true },
+                  {
+                    label: p.active === false ? 'Reactivate account' : 'Deactivate account',
+                    icon: p.active === false ? '✓' : '🚫',
+                    isAlert: p.active !== false,
+                    attrs: `data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}"`,
+                    disabled: p.id === S.user.id
+                  }
+                ];
+                return `<tr>
+                  <td style="font-weight:700">${esc(nameOf(p))}</td>
+                  <td>${esc(p.email || '')}</td>
+                  <td>${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
+                  <td>${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
+                  <td>${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
+                  <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table></div>
+            ${pg.renderBar('users')}
+          ` : emptyState('No users yet', 'Create the first account with the form above.')}
+        </div>
+      `;
 
-      <div class="card">
-        <div class="card-head"><h3>${people.length} people</h3></div>
-        ${people.length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Units</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>${people.map(p => {
-            const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
-            return `<tr>
-              <td style="font-weight:700">${esc(nameOf(p))}</td>
-              <td>${esc(p.email || '')}</td>
-              <td>${p.access_level === 'Admin' ? '<span class="tag">Admin</span>' : '<span class="tag muted-tag">Member</span>'}</td>
-              <td>${myUnits.length ? esc(myUnits.join(', ')) : '<span class="muted">—</span>'}</td>
-              <td>${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</td>
-              <td>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="btn sm" data-pw="${p.id}">Reset password</button>
-                  ${p.access_level === 'Admin'
-                    ? `<button class="btn sm" data-demote="${p.id}" ${p.id === S.user.id ? 'disabled title="You cannot demote yourself"' : ''}>Make member</button>`
-                    : `<button class="btn sm" data-promote="${p.id}">Make admin</button>`}
-                  <button class="btn sm ${p.active === false ? '' : 'alert'}" data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}" ${p.id === S.user.id ? 'disabled title="You cannot deactivate yourself"' : ''}>${p.active === false ? 'Reactivate' : 'Deactivate'}</button>
-                </div>
-              </td></tr>`;
-          }).join('')}</tbody></table></div>`
-        : emptyState('No users yet', 'Create the first account with the form above.')}
-      </div>`;
-
-    $('#nu-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#nu-error');
-      err.classList.remove('show');
-      const email = $('#nu-email').value.trim();
-      const password = $('#nu-pass').value;
-      const full_name = $('#nu-name').value.trim();
-      const access_level = $('#nu-role').value;
-      if (!full_name || !email || !password) { err.textContent = 'Name, email and temporary password are all required.'; err.classList.add('show'); return; }
-      if (password.length < 6) { err.textContent = 'Temporary password must be at least 6 characters.'; err.classList.add('show'); return; }
-
-      err.textContent = 'Creating account…';
-      err.classList.add('show');
-      const res = await fetch('https://xzrczuoxlujzmztkupbz.supabase.co/functions/v1/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (S.session?.access_token || '') },
-        body: JSON.stringify({
-          email, password, full_name,
-          role: access_level, access_level,
-          unit_id: $('#nu-unit').value || null,
-          position_title: ($('#nu-position').value || '').trim() || null,
-        }),
+      bindEvents();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (newPage) => {
+        userPage = newPage;
+        renderView();
       });
-      let body = {};
-      try { body = await res.json(); } catch (e) { /* non-JSON */ }
-      if (!res.ok) {
-        err.textContent = body.error || 'Could not create the account.';
+    }
+
+    function bindEvents() {
+      $('#nu-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = $('#nu-error');
+        err.classList.remove('show');
+        const email = $('#nu-email').value.trim();
+        const password = $('#nu-pass').value;
+        const full_name = $('#nu-name').value.trim();
+        const access_level = $('#nu-role').value;
+        if (!full_name || !email || !password) { err.textContent = 'Name, email and temporary password are all required.'; err.classList.add('show'); return; }
+        if (password.length < 6) { err.textContent = 'Temporary password must be at least 6 characters.'; err.classList.add('show'); return; }
+
+        err.textContent = 'Creating account…';
         err.classList.add('show');
-        return;
-      }
-      const newId = body.user?.id;
-      if (newId) {
-        await sb.from('profiles').update({ access_level, must_change_password: true, active: true }).eq('id', newId);
-        await audit('user_created', 'profiles:' + newId, null, email);
-      }
-      toast(`User created. Temporary password: ${password}`);
-      window.DS.navigate('users');
-    });
+        const res = await fetch('https://xzrczuoxlujzmztkupbz.supabase.co/functions/v1/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (S.session?.access_token || '') },
+          body: JSON.stringify({
+            email, password, full_name,
+            role: access_level, access_level,
+            unit_id: $('#nu-unit').value || null,
+            position_title: ($('#nu-position').value || '').trim() || null,
+          }),
+        });
+        let body = {};
+        try { body = await res.json(); } catch (errJson) { /* non-JSON */ }
+        if (!res.ok) {
+          err.textContent = body.error || 'Could not create the account.';
+          err.classList.add('show');
+          return;
+        }
+        const newId = body.user?.id;
+        if (newId) {
+          await sb.from('profiles').update({ access_level, must_change_password: true, active: true }).eq('id', newId);
+          await audit('user_created', 'profiles:' + newId, null, email);
+        }
+        toast(`✓ User created. Temporary password: ${password}`);
+        window.DS.navigate('users');
+      });
 
-    $$('[data-pw]', v).forEach(b => b.addEventListener('click', async () => {
-      const pw = prompt('New temporary password (at least 6 characters):');
-      if (!pw) return;
-      if (pw.length < 6) return toast('Password must be at least 6 characters.', true);
-      const { error } = await sb.auth.admin.setUserPassword
-        ? await sb.auth.admin.setUserPassword(b.dataset.pw, pw)
-        : await sb.auth.admin.updateUserById(b.dataset.pw, { password: pw });
-      if (error) return toast(error.message, true);
-      await sb.from('profiles').update({ must_change_password: true }).eq('id', b.dataset.pw);
-      await audit('user_password_reset', 'profiles:' + b.dataset.pw);
-      toast(`Password reset. Give the user this temporary password: ${pw}`);
-    }));
+      $$('[data-pw]', v).forEach(b => b.addEventListener('click', async () => {
+        const pw = prompt('New temporary password (at least 6 characters):');
+        if (!pw) return;
+        if (pw.length < 6) return toast('Password must be at least 6 characters.', true);
+        const { error } = await sb.auth.admin.setUserPassword
+          ? await sb.auth.admin.setUserPassword(b.dataset.pw, pw)
+          : await sb.auth.admin.updateUserById(b.dataset.pw, { password: pw });
+        if (error) return toast(error.message, true);
+        await sb.from('profiles').update({ must_change_password: true }).eq('id', b.dataset.pw);
+        await audit('user_password_reset', 'profiles:' + b.dataset.pw);
+        toast(`✓ Password reset: ${pw}`);
+      }));
 
-    $$('[data-promote]', v).forEach(b => b.addEventListener('click', async () => {
-      const { error } = await sb.from('profiles').update({ access_level: 'Admin' }).eq('id', b.dataset.promote);
-      if (error) return toast(error.message, true);
-      await audit('user_promoted', 'profiles:' + b.dataset.promote, 'Member', 'Admin');
-      toast('Promoted to admin.');
-      window.DS.navigate('users');
-    }));
+      $$('[data-promote]', v).forEach(b => b.addEventListener('click', async () => {
+        const { error } = await sb.from('profiles').update({ access_level: 'Admin' }).eq('id', b.dataset.promote);
+        if (error) return toast(error.message, true);
+        await audit('user_promoted', 'profiles:' + b.dataset.promote, 'Member', 'Admin');
+        toast('✓ Promoted to admin.');
+        window.DS.navigate('users');
+      }));
 
-    $$('[data-demote]', v).forEach(b => b.addEventListener('click', async () => {
-      const { error } = await sb.from('profiles').update({ access_level: 'Member' }).eq('id', b.dataset.demote);
-      if (error) return toast(error.message, true);
-      await audit('user_demoted', 'profiles:' + b.dataset.demote, 'Admin', 'Member');
-      toast('Changed to member.', true);
-      window.DS.navigate('users');
-    }));
+      $$('[data-demote]', v).forEach(b => b.addEventListener('click', async () => {
+        const { error } = await sb.from('profiles').update({ access_level: 'Member' }).eq('id', b.dataset.demote);
+        if (error) return toast(error.message, true);
+        await audit('user_demoted', 'profiles:' + b.dataset.demote, 'Admin', 'Member');
+        toast('Changed to member.', true);
+        window.DS.navigate('users');
+      }));
 
-    $$('[data-tog]', v).forEach(b => b.addEventListener('click', async () => {
-      const active = b.dataset.active === '1';
-      const { error } = await sb.from('profiles').update({ active: !active }).eq('id', b.dataset.tog);
-      if (error) return toast(error.message, true);
-      await audit(active ? 'user_deactivated' : 'user_reactivated', 'profiles:' + b.dataset.tog);
-      toast(active ? 'Account deactivated.' : 'Account reactivated.');
-      window.DS.navigate('users');
-    }));
+      $$('[data-tog]', v).forEach(b => b.addEventListener('click', async () => {
+        const active = b.dataset.active === '1';
+        const { error } = await sb.from('profiles').update({ active: !active }).eq('id', b.dataset.tog);
+        if (error) return toast(error.message, true);
+        await audit(active ? 'user_deactivated' : 'user_reactivated', 'profiles:' + b.dataset.tog);
+        toast(active ? '✓ Account deactivated.' : '✓ Account reactivated.');
+        window.DS.navigate('users');
+      }));
+    }
+
+    renderView();
   };
 
   /* ============================================================
@@ -698,26 +767,38 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Tasks</h3>
-          <select class="input" id="tf-status" style="min-height:38px;width:auto" aria-label="Filter tasks by status">
+        <div class="card-head">
+          <div>
+            <h3>Tasks</h3>
+            <p class="small muted" style="margin-top:2px">${(tasks || []).length} total deliverables</p>
+          </div>
+          <select class="input" id="tf-status" style="min-height:36px;width:auto" aria-label="Filter tasks by status">
             <option value="">All statuses</option>${TASK_STATUS.map(s => `<option>${s}</option>`).join('')}
           </select>
         </div>
-        ${(tasks || []).length ? `<div class="table-wrap"><table class="ds">
-          <thead><tr><th>Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th></tr></thead>
-          <tbody>${(tasks || []).map(t => {
-            const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
-            const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
-            return `<tr>
-              <td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
-              <td>${as.length ? esc(as.join(', ')) : '<span class="muted">Unassigned</span>'}</td>
-              <td><select class="input" style="min-height:34px;padding:4px 8px;font-size:12.5px" data-setst="${t.id}">${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-              <td>${esc(t.priority || '—')}</td>
-              <td>${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
-              <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open</a>` : '<span class="muted">—</span>'}</td>
-            </tr>`;
-          }).join('')}</tbody></table></div>`
-        : emptyState('No tasks yet', 'Create one above and assign it to a member or a unit.')}
+        ${(tasks || []).length ? `
+          <div class="table-wrap"><table class="ds">
+            <thead><tr><th>Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>${(tasks || []).slice(0, 25).map(t => {
+              const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
+              const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+              const actions = [
+                t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
+                { divider: true },
+                { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
+              ];
+              return `<tr>
+                <td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
+                <td>${as.length ? esc(as.join(', ')) : '<span class="muted">Unassigned</span>'}</td>
+                <td><select class="input" style="min-height:34px;padding:4px 8px;font-size:12.5px" data-setst="${t.id}">${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+                <td>${esc(t.priority || '—')}</td>
+                <td>${overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—')}</td>
+                <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+              </tr>`;
+            }).join('')}</tbody></table></div>
+          ${window.DS.paginate(tasks || [], 1, 25).renderBar('tasks')}
+        ` : emptyState('No tasks yet', 'Create one above and assign it to a member or a unit.')}
       </div>
 
       <div class="card">
@@ -835,6 +916,15 @@
         window.DS.navigate('tasks');
       });
     }));
+
+    $$('[data-del-task]', v).forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this task?')) return;
+      b.disabled = true;
+      const { error } = await sb.from('tasks').delete().eq('id', b.dataset.delTask);
+      if (error) { toast(error.message, true); b.disabled = false; return; }
+      toast('✓ Task deleted.');
+      window.DS.navigate('tasks');
+    }));
   };
 
   /* ============================================================
@@ -907,7 +997,7 @@
       }).select().single();
       if (error) { err.textContent = error.message; err.classList.add('show'); return; }
       const picked = [...$('#mt-invite').selectedOptions].map(o => o.value);
-      for (const uid of picked) await sb.from('meeting_attendance').insert({ meeting_id: created.id, user_id: uid, attended: false }).catch(() => {});
+      for (const uid of picked) { try { await sb.from('meeting_attendance').insert({ meeting_id: created.id, user_id: uid, attended: false }); } catch (e) { /* best-effort */ } }
       await audit('meeting_created', 'meetings:' + created.id, null, title);
       for (const uid of picked) await notifyUser(uid, 'meeting', 'New meeting: ' + title, fmtDT(new Date(start).toISOString()), 'meetings');
       toast('Meeting created.');
@@ -1332,6 +1422,8 @@
     const { data: items } = await sb.from('library_items').select('*, profiles:added_by(full_name)').order('created_at', { ascending: false });
     const { data: grants } = await sb.from('library_grants').select('*');
     const { data: broken } = await sb.from('notifications').select('*').eq('type', 'broken_link').order('created_at', { ascending: false });
+    const itemList = items || [];
+    let libPage = 1;
 
     const grantText = (id) => {
       const g = (grants || []).filter(x => x.item_id === id);
@@ -1350,96 +1442,126 @@
       }).join(' ');
     };
 
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>Add a library entry</h3></div>
-        <form id="li-form" novalidate>
-          <div class="field"><label class="label" for="li-name">Name</label><input class="input" id="li-name" required placeholder="Pricing playbook 2026"></div>
-          <div class="field"><label class="label" for="li-url">URL</label><input class="input" id="li-url" type="url" required placeholder="https://docs.google.com/…"></div>
-          <div class="field"><label class="label" for="li-desc">Short description</label><input class="input" id="li-desc" placeholder="One line on what it covers"></div>
-          <div class="field"><label class="label" for="li-cat">Category</label>
-            <select class="input" id="li-cat"><option value="">No category</option>${SECTIONS.map(s => `<option>${s}</option>`).join('')}<option>Playbook</option><option>Template</option></select></div>
-          <div class="field"><label class="label" for="li-scope">Grant access to</label>
-            <select class="input" id="li-scope">
-              <option value="everyone">Everyone</option>
-              <optgroup label="Units">${units.map(u => `<option value="unit:${u.id}">${esc(u.name)}</option>`).join('')}</optgroup>
-              <optgroup label="Members">${people.map(p => `<option value="member:${p.id}">${esc(nameOf(p))}</option>`).join('')}</optgroup>
-            </select></div>
-          <div class="error-box hidden" id="li-error" style="margin-bottom:14px"></div>
-          <button class="btn primary" type="submit">Add entry</button>
-          <p class="tiny muted" style="margin-top:10px">Documents are shared as links only — there is no file upload anywhere in the platform.</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h3>Library entries</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input class="input" id="li-q" placeholder="Search…" style="min-height:38px;width:170px" aria-label="Search library entries">
-            <select class="input" id="li-cat-filter" style="min-height:38px;width:auto" aria-label="Filter by category">
-              <option value="">All categories</option>${[...new Set((items || []).map(i => i.category).filter(Boolean))].map(c => `<option>${esc(c)}</option>`).join('')}
-            </select>
-          </div>
+    function renderLib() {
+      const pg = window.DS.paginate(itemList, libPage, 25);
+      v.innerHTML = `
+        <div class="card">
+          <div class="card-head"><h3>Add a library entry</h3></div>
+          <form id="li-form" novalidate>
+            <div class="field"><label class="label" for="li-name">Name</label><input class="input" id="li-name" required placeholder="Pricing playbook 2026"></div>
+            <div class="field"><label class="label" for="li-url">URL</label><input class="input" id="li-url" type="url" required placeholder="https://docs.google.com/…"></div>
+            <div class="field"><label class="label" for="li-desc">Short description</label><input class="input" id="li-desc" placeholder="One line on what it covers"></div>
+            <div class="field"><label class="label" for="li-cat">Category</label>
+              <select class="input" id="li-cat"><option value="">No category</option>${SECTIONS.map(s => `<option>${s}</option>`).join('')}<option>Playbook</option><option>Template</option></select></div>
+            <div class="field"><label class="label" for="li-scope">Grant access to</label>
+              <select class="input" id="li-scope">
+                <option value="everyone">Everyone</option>
+                <optgroup label="Units">${units.map(u => `<option value="unit:${u.id}">${esc(u.name)}</option>`).join('')}</optgroup>
+                <optgroup label="Members">${people.map(p => `<option value="member:${p.id}">${esc(nameOf(p))}</option>`).join('')}</optgroup>
+              </select></div>
+            <div class="error-box hidden" id="li-error" style="margin-bottom:14px"></div>
+            <button class="btn primary" type="submit">Add entry</button>
+            <p class="tiny muted" style="margin-top:10px">Documents are shared as links only — there is no file upload anywhere in the platform.</p>
+          </form>
         </div>
-        ${(items || []).length ? `<div id="li-list">${(items || []).map(i => `
-          <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}" data-broken="${i.broken_link ? '1' : '0'}" style="align-items:flex-start">
-            <div class="row-main">
-              <div class="t">${esc(i.title)} ${i.broken_link ? '<span class="tag alert">Broken link</span>' : ''}</div>
-              <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div>
-              <div class="s">${grantText(i.id)}</div>
-              <div class="tiny muted">Added by ${esc(nameOf(i.profiles))} · ${i.open_count || 0} opens${i.last_broken_report_at ? ' · broken reported ' + fmtDT(i.last_broken_report_at) : ''}</div>
-            </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">Open</a>
-              <button class="btn sm" data-grant="${i.id}">Access</button>
-              <button class="btn sm ghost" data-delitem="${i.id}">Delete</button>
-            </div>
-          </div>`).join('')}</div>`
-        : emptyState('The library is empty', 'Add a link above and grant access to the people who need it.')}
-      </div>
 
-      <div class="card">
-        <div class="card-head"><h3>Broken link reports</h3><span class="tag ${(broken || []).length ? 'alert' : 'muted-tag'}">${(broken || []).length} open</span></div>
-        ${(broken || []).length ? (broken || []).map(b => `<div class="row">
-          <div class="row-main"><div class="t">${esc(b.title)}</div><div class="s">${esc(b.body || '')} · ${fmtDT(b.created_at)}</div></div>
-        </div>`).join('') : emptyState('No broken links reported', 'Members can report a dead link from their library view.')}
-      </div>`;
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Library entries</h3>
+              <p class="small muted" style="margin-top:2px">${itemList.length} shared document${itemList.length === 1 ? '' : 's'}</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input class="input" id="li-q" placeholder="Search…" style="min-height:36px;width:170px" aria-label="Search library entries">
+              <select class="input" id="li-cat-filter" style="min-height:36px;width:auto" aria-label="Filter by category">
+                <option value="">All categories</option>${[...new Set(itemList.map(i => i.category).filter(Boolean))].map(c => `<option>${esc(c)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          ${pg.items.length ? `
+            <div id="li-list">
+              ${pg.items.map(i => {
+                const actions = [
+                  { label: 'Access permissions', icon: '👥', attrs: `data-grant="${i.id}"` },
+                  { divider: true },
+                  { label: 'Delete entry', icon: '🗑️', isAlert: true, attrs: `data-delitem="${i.id}"` },
+                ];
+                return `
+                  <div class="row" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}" data-broken="${i.broken_link ? '1' : '0'}" style="align-items:flex-start">
+                    <div class="row-main">
+                      <div class="t">${esc(i.title)} ${i.broken_link ? '<span class="tag alert">Broken link</span>' : ''}</div>
+                      <div class="s">${esc(i.description || '')} ${i.category ? `· <span class="tag muted-tag">${esc(i.category)}</span>` : ''}</div>
+                      <div class="s">${grantText(i.id)}</div>
+                      <div class="tiny muted">Added by ${esc(nameOf(i.profiles))} · ${i.open_count || 0} opens${i.last_broken_report_at ? ' · broken reported ' + fmtDT(i.last_broken_report_at) : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <a class="btn sm" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                      ${window.DS.renderActionMenu(actions)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            ${pg.renderBar('lib')}
+          ` : emptyState('The library is empty', 'Add a link above and grant access to the people who need it.')}
+        </div>
 
-    const apply = () => {
-      const q = $('#li-q').value.toLowerCase(), c = $('#li-cat-filter').value;
-      $$('#li-list .row').forEach(r => {
-        r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
+        <div class="card">
+          <div class="card-head"><h3>Broken link reports</h3><span class="tag ${(broken || []).length ? 'alert' : 'muted-tag'}">${(broken || []).length} open</span></div>
+          ${(broken || []).length ? (broken || []).map(b => `<div class="row">
+            <div class="row-main"><div class="t">${esc(b.title)}</div><div class="s">${esc(b.body || '')} · ${fmtDT(b.created_at)}</div></div>
+          </div>`).join('') : emptyState('No broken links reported', 'Members can report a dead link from their library view.')}
+        </div>
+      `;
+
+      bindLib();
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        libPage = p;
+        renderLib();
       });
-    };
-    $('#li-q').addEventListener('input', apply);
-    $('#li-cat-filter').addEventListener('change', apply);
+    }
 
-    $('#li-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#li-error');
-      err.classList.remove('show');
-      const title = $('#li-name').value.trim();
-      const url = $('#li-url').value.trim();
-      if (!title || !url) { err.textContent = 'Name and URL are required.'; err.classList.add('show'); return; }
-      const { data: created, error } = await sb.from('library_items').insert({
-        title, url, description: $('#li-desc').value.trim() || null,
-        category: $('#li-cat').value || null, added_by: S.user.id,
-      }).select().single();
-      if (error) { err.textContent = error.message; err.classList.add('show'); return; }
-      await sb.from('library_grants').insert({ item_id: created.id, scope: $('#li-scope').value });
-      await audit('library_item_created', 'library_items:' + created.id, null, title);
-      toast('Library entry added.');
-      window.DS.navigate('library');
-    });
+    function bindLib() {
+      const apply = () => {
+        const q = $('#li-q').value.toLowerCase(), c = $('#li-cat-filter').value;
+        $$('#li-list .row').forEach(r => {
+          r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
+        });
+      };
+      $('#li-q')?.addEventListener('input', apply);
+      $('#li-cat-filter')?.addEventListener('change', apply);
 
-    $$('[data-grant]', v).forEach(b => b.addEventListener('click', () => grantModal(b.dataset.grant, people, units, grants)));
-    $$('[data-delitem]', v).forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Delete this library entry?')) return;
-      await sb.from('library_grants').delete().eq('item_id', b.dataset.delitem);
-      await sb.from('library_items').delete().eq('id', b.dataset.delitem);
-      await audit('library_item_deleted', 'library_items:' + b.dataset.delitem);
-      toast('Entry deleted.', true);
-      window.DS.navigate('library');
-    }));
+      $('#li-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = $('#li-error');
+        err.classList.remove('show');
+        const title = $('#li-name').value.trim();
+        const url = $('#li-url').value.trim();
+        if (!title || !url) { err.textContent = 'Name and URL are required.'; err.classList.add('show'); return; }
+        const { data: created, error } = await sb.from('library_items').insert({
+          title, url, description: $('#li-desc').value.trim() || null,
+          category: $('#li-cat').value || null, added_by: S.user.id,
+        }).select().single();
+        if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+        await sb.from('library_grants').insert({ item_id: created.id, scope: $('#li-scope').value });
+        await audit('library_item_created', 'library_items:' + created.id, null, title);
+        toast('✓ Library entry added.');
+        window.DS.navigate('library');
+      });
+
+      $$('[data-grant]', v).forEach(b => b.addEventListener('click', () => grantModal(b.dataset.grant, people, units, grants)));
+      $$('[data-delitem]', v).forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Delete this library entry?')) return;
+        await sb.from('library_grants').delete().eq('item_id', b.dataset.delitem);
+        await sb.from('library_items').delete().eq('id', b.dataset.delitem);
+        await audit('library_item_deleted', 'library_items:' + b.dataset.delitem);
+        toast('✓ Entry deleted.', true);
+        window.DS.navigate('library');
+      }));
+    }
+
+    renderLib();
   };
 
   function grantModal(itemId, people, units, grants) {
@@ -1483,75 +1605,9 @@
      CHANNELS (admin) — announcements + channel creation
      ============================================================ */
   window.renderChannelsAdmin = async function (v) {
-    const { data: channels } = await sb.from('channels').select('*').order('created_at');
-    const list = channels || [];
-    v.innerHTML = `
-      <div class="card">
-        <div class="card-head"><h3>Create a channel</h3></div>
-        <form id="ch-form" novalidate>
-          <div class="field"><label class="label" for="ch-name">Name</label><input class="input" id="ch-name" required placeholder="ops-daily"></div>
-          <div class="field"><label class="label" for="ch-desc">Description</label><input class="input" id="ch-desc" placeholder="What this channel is for"></div>
-          <div class="field"><label class="label" for="ch-kind">Kind</label><select class="input" id="ch-kind"><option value="general">General</option><option value="unit">Unit private</option><option value="announcements">Announcements (admin-only posting)</option></select></div>
-          <div class="error-box hidden" id="ch-error" style="margin-bottom:14px"></div>
-          <button class="btn primary" type="submit">Create channel</button>
-        </form>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Channels</h3></div>
-        ${list.length ? list.map(c => `<div class="row">
-          <div class="row-main"><div class="t"># ${esc(c.display_name || c.name)}</div>
-            <div class="s">${esc(c.description || '')} · ${c.kind === 'announcements' ? 'Admin-only posting' : c.kind === 'unit' ? 'Unit private' : 'Open to everyone'}</div></div>
-          <button class="btn sm" data-open-ch="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || 'general')}">Open</button>
-        </div>`).join('') : emptyState('No channels', 'Create a general channel for the whole team.')}
-      </div>
-      <div id="ch-feed"></div>`;
-    $('#ch-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#ch-error');
-      err.classList.remove('show');
-      const name = $('#ch-name').value.trim();
-      if (!name) { err.textContent = 'Channel name is required.'; err.classList.add('show'); return; }
-      const kind = $('#ch-kind').value;
-      const { error } = await sb.from('channels').insert({
-        name, display_name: name.replace(/-/g, ' ').replace(/\b\w/g, m => m.toUpperCase()),
-        description: $('#ch-desc').value.trim() || null,
-        kind, is_private: kind !== 'general', created_by: S.user.id,
-      });
-      if (error) { err.textContent = error.message; err.classList.add('show'); return; }
-      await audit('channel_created', 'channels:' + name);
-      toast('Channel created.');
-      window.DS.navigate('channels');
-    });
-    $$('[data-open-ch]', v).forEach(b => b.addEventListener('click', () => window.loadChannelFeedAdmin(b.dataset.openCh, b.dataset.name, b.dataset.kind)));
-  };
-
-  window.loadChannelFeedAdmin = async function (id, name, kind) {
-    const feed = $('#ch-feed');
-    if (!feed) return;
-    feed.innerHTML = `<div class="card"><div class="card-head"><h3># ${esc(name)}</h3></div><div class="loading">Loading…</div></div>`;
-    const { data } = await sb.from('channel_updates').select('*, profiles:author_id(full_name)').eq('channel_id', id).order('created_at', { ascending: false }).limit(30);
-    feed.innerHTML = `<div class="card"><div class="card-head"><h3># ${esc(name)}</h3>${kind === 'announcements' ? '<span class="tag muted-tag">Admin-only posting</span>' : ''}</div>
-      <form id="chp-form" style="margin-bottom:16px"><div class="field"><label class="label" for="chp-msg">New post</label>
-        <textarea class="input" id="chp-msg" required placeholder="Write a message or paste a URL…"></textarea></div>
-        <button class="btn primary sm" type="submit">Post</button></form>
-      ${(data && data.length) ? data.map(p => `<div class="row" style="align-items:flex-start"><div class="row-main">
-        <div class="t">${esc(p.title || 'Post')}</div>
-        <div class="s">${esc(p.body || '')}</div>
-        ${p.drive_link ? `<div class="s"><a href="${esc(p.drive_link)}" target="_blank" rel="noopener">${esc(p.drive_link)}</a></div>` : ''}
-        <div class="tiny muted">${esc(p.profiles?.full_name || 'Member')} · ${fmtDT(p.created_at)}</div>
-      </div></div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">No posts yet.</div></div>`}
-    </div>`;
-    $('#chp-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const body = $('#chp-msg').value.trim();
-      const { error } = await sb.from('channel_updates').insert({
-        channel_id: id, author_id: S.user.id, title: body.slice(0, 60) || 'Post',
-        body, status: 'Published', update_type: kind === 'announcements' ? 'announcement' : 'general',
-      });
-      if (error) return toast(error.message, true);
-      if (kind === 'announcements') await notifyAdmins(null, 'New announcement', body.slice(0, 90), 'channels');
-      window.loadChannelFeedAdmin(id, name, kind);
-    });
+    if (window.DS && window.DS.renderChannelsWorkspace) {
+      await window.DS.renderChannelsWorkspace(v, { isAdmin: true });
+    }
   };
 
   /* ============================================================

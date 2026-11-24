@@ -38,13 +38,18 @@
 
   window.renderMemberDashboard = async function (v) {
     const date = todayLagos();
-    const [{ data: report }, { data: tasks }, units, { data: fb }, { data: scores }, { data: ann }] = await Promise.all([
+    const draftKey = `nodaar_draft_report_${S.user.id}_${date}`;
+    const rawDraft = localStorage.getItem(draftKey);
+    const draft = rawDraft ? JSON.parse(rawDraft) : null;
+
+    const [{ data: report }, { data: tasks }, units, { data: fb }, { data: scores }, { data: ann }, { data: pastReports }] = await Promise.all([
       sb.from('daily_reports').select('*').eq('user_id', S.user.id).eq('report_date', date).maybeSingle(),
       sb.from('tasks').select('*, task_assignees!inner(user_id)').eq('task_assignees.user_id', S.user.id).order('due_date'),
       myUnits(),
       sb.from('weekly_feedback').select('*, periods:period_id(label)').eq('user_id', S.user.id).order('created_at', { ascending: false }).limit(4),
       sb.from('weekly_scores').select('*, periods:period_id(label)').eq('user_id', S.user.id).order('scored_at', { ascending: false }).limit(4),
       sb.from('channels').select('id').eq('kind', 'announcements').maybeSingle(),
+      sb.from('daily_reports').select('*').eq('user_id', S.user.id).order('report_date', { ascending: false }).limit(4),
     ]);
     const openTasks = (tasks || []).filter(t => t.status !== 'Done');
     const overdue = openTasks.filter(t => t.due_date && t.due_date < date);
@@ -57,26 +62,87 @@
       ? (scores[0].manual_override ?? scores[0].weighted_total)
       : (latestScoredReport?.score != null ? latestScoredReport.score : null);
 
+    // Format today's report status tag
+    let reportTag = '<span class="tag muted-tag">Not submitted</span>';
+    if (report) {
+      if (report.status === 'Approved') {
+        reportTag = `<span class="status-pill approved">✓ Approved${report.score != null ? ' · ' + report.score + '/100' : ''}</span>`;
+      } else if (report.status === 'Rejected') {
+        reportTag = `<span class="status-pill rejected">✕ Resubmission needed</span>`;
+      } else if (report.status === 'Submitted') {
+        reportTag = `<span class="status-pill submitted">⏳ Submitted (Under review)</span>`;
+      } else {
+        reportTag = `<span class="tag ok">${esc(report.status)}</span>`;
+      }
+    } else if (draft) {
+      reportTag = `<span class="status-pill draft">📝 Draft saved (${esc(draft.savedAt || 'in progress')})</span>`;
+    }
+
     v.innerHTML = `
       <div class="stat-grid">
-        <div class="stat"><div class="num">${report ? (report.is_late ? 'Late' : 'On time') : '—'}</div><div class="cap">Today's report</div></div>
+        <div class="stat"><div class="num">${report ? (report.status === 'Approved' ? 'Approved' : report.is_late ? 'Late' : 'Submitted') : (draft ? 'Draft' : '—')}</div><div class="cap">Today's report</div></div>
         <div class="stat"><div class="num">${openTasks.length}</div><div class="cap">Open tasks</div></div>
         <div class="stat"><div class="num ${overdue.length ? 'alert-text' : ''}">${overdue.length}</div><div class="cap">Overdue</div></div>
         <div class="stat"><div class="num">${headlineScore != null ? headlineScore + '%' : '—'}</div><div class="cap">Latest score</div></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Today's daily report — ${fmtD(date)}</h3>
-          ${report ? `<span class="tag ${report.status === 'Rejected' ? 'alert' : report.is_late ? 'alert' : 'ok'}">${report.status}${report.is_late ? ' · Late ' + report.late_minutes + ' min' : ''}</span>` : '<span class="tag muted-tag">Not submitted</span>'}
+        <div class="card-head">
+          <div>
+            <h3>Today's daily report — ${fmtD(date)}</h3>
+            <p class="small muted" style="margin-top:2px">Daily scrum reflection & admin approval status</p>
+          </div>
+          <div>${reportTag}</div>
         </div>
-        ${report ? `<dl class="kv">
-          <dt>Submitted</dt><dd>${fmtDT(report.submitted_at)}</dd>
-          <dt>Yesterday</dt><dd>${esc(report.did_yesterday || '—')}</dd>
-          <dt>Today</dt><dd>${esc(report.doing_today || '—')}</dd>
-          ${report.blockers ? `<dt>Blockers</dt><dd>${esc(report.blockers)}</dd>` : ''}
-          ${report.review_note ? `<dt>Admin note</dt><dd>${esc(report.review_note)}</dd>` : ''}
-        </dl>` : ''}
-        <div style="margin-top:16px"><button class="btn ${report ? '' : 'primary'}" data-goto="report">${report ? 'Edit / resubmit' : "Write today's report"}</button></div>
+        ${report ? `
+          <div style="background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:14px;margin-bottom:14px">
+            <dl class="kv" style="margin:0">
+              <dt>Status</dt><dd><b>${esc(report.status)}</b>${report.score != null ? ` · Score: <b style="color:var(--ok)">${report.score}/100</b>` : ''}${report.is_late ? ` · <span class="alert-text">Late by ${report.late_minutes}m</span>` : ' · <span style="color:var(--ok)">On time</span>'}</dd>
+              <dt>Submitted</dt><dd>${fmtDT(report.submitted_at)}</dd>
+              <dt>Yesterday</dt><dd>${esc(report.did_yesterday || '—')}</dd>
+              <dt>Today</dt><dd>${esc(report.doing_today || '—')}</dd>
+              ${report.blockers ? `<dt>Blockers</dt><dd><span class="alert-text">${esc(report.blockers)}</span></dd>` : ''}
+              ${report.evidence_url ? `<dt>Evidence</dt><dd><a href="${esc(report.evidence_url)}" target="_blank" rel="noopener">Open link</a></dd>` : ''}
+              ${report.review_note ? `<dt>Admin Note</dt><dd><b style="color:${report.status === 'Approved' ? 'var(--ok)' : 'var(--alert)'}">${esc(report.review_note)}</b></dd>` : ''}
+            </dl>
+          </div>
+        ` : (draft ? `
+          <div class="draft-card">
+            <div>
+              <div style="font-weight:700;font-size:13.5px">📝 You have an unsaved draft saved at ${esc(draft.savedAt || '')}</div>
+              <div class="small muted" style="margin-top:3px">${esc(draft.doing_today || draft.did_yesterday || 'Draft contents ready to review and submit.')}</div>
+            </div>
+            <button class="btn primary sm" data-goto="report">Resume draft</button>
+          </div>
+        ` : `<p class="muted small" style="margin-bottom:12px">You have not submitted today's daily scrum report yet. The deadline is 18:00 WAT.</p>`)}
+        <div><button class="btn ${report ? '' : 'primary'}" data-goto="report">${report ? 'Edit / resubmit report' : "Write today's report"}</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Recent submission records</h3>
+          <button class="btn sm ghost" data-goto="report">View all records</button>
+        </div>
+        ${(pastReports && pastReports.length) ? `
+          <div class="table-wrap"><table class="ds">
+            <thead><tr><th>Date</th><th>Status</th><th>Score</th><th>Summary</th><th>Admin Feedback</th></tr></thead>
+            <tbody>
+              ${pastReports.map(r => `
+                <tr>
+                  <td style="font-weight:700;white-space:nowrap">${fmtD(r.report_date)}${r.is_late ? ' <span class="tag alert">Late</span>' : ''}</td>
+                  <td>
+                    ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                      r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                      `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                  </td>
+                  <td>${r.score != null ? `<b style="color:var(--ok)">${r.score}/100</b>` : '<span class="muted">—</span>'}</td>
+                  <td class="small" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.doing_today || r.did_yesterday || '—')}</td>
+                  <td class="small">${r.review_note ? `<span style="font-weight:600">${esc(r.review_note)}</span>` : '<span class="muted">—</span>'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+        ` : `<div class="empty" style="padding:20px"><div class="hint">No submission records yet. Submit your daily scrum to see records here.</div></div>`}
       </div>
 
       <div class="card">
@@ -112,54 +178,250 @@
     get action() { return `<span class="tag muted-tag">Deadline <span id="dl-tag">18:00</span> WAT</span>`; },
     render: async (v) => {
       const date = todayLagos();
-      const [{ data: existing }, { data: settings }] = await Promise.all([
+      const draftKey = `nodaar_draft_report_${S.user.id}_${date}`;
+      const rawDraft = localStorage.getItem(draftKey);
+      const draft = rawDraft ? JSON.parse(rawDraft) : null;
+
+      const [{ data: existing }, { data: settings }, { data: records }] = await Promise.all([
         sb.from('daily_reports').select('*').eq('user_id', S.user.id).eq('report_date', date).maybeSingle(),
         sb.from('org_settings').select('daily_report_deadline').limit(1).maybeSingle(),
+        sb.from('daily_reports').select('*').eq('user_id', S.user.id).order('report_date', { ascending: false }),
       ]);
       const dl = (settings?.daily_report_deadline || '18:00:00').slice(0, 5);
-      // Editable when nothing is submitted yet, or when the admin rejected it
-      // and asked for a resubmission. A submitted report under review is read-only.
       const editable = !existing || existing.status === 'Submitted' || existing.status === 'Rejected';
-      v.innerHTML = `
-        <div class="card">
-          <div class="card-head"><h3>Daily scrum — ${fmtD(date)}</h3>
-            ${existing ? `<span class="tag ${existing.status === 'Rejected' ? 'alert' : existing.is_late ? 'alert' : 'ok'}">${existing.status}${existing.is_late ? ' · Late by ' + existing.late_minutes + ' min' : ''}</span>` : '<span class="tag muted-tag">Not submitted</span>'}
+      let recordsPage = 1;
+      const myRecords = records || [];
+
+      function renderReportView() {
+        const pg = window.DS.paginate(myRecords, recordsPage, 25);
+        v.innerHTML = `
+          ${(!existing && draft) ? `
+            <div class="draft-card" id="dr-draft-notice">
+              <div>
+                <div style="font-weight:700">📝 You have an unsaved draft from ${esc(draft.savedAt || 'earlier')}</div>
+                <div class="small muted">You can resume editing your draft or discard it.</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn sm" type="button" id="dr-restore-btn">Load draft</button>
+                <button class="btn sm ghost alert" type="button" id="dr-discard-btn">Discard draft</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Daily scrum — ${fmtD(date)}</h3>
+                <p class="small muted" style="margin-top:2px">Submit what you accomplished yesterday and your priorities for today.</p>
+              </div>
+              ${existing ? `
+                <span class="status-pill ${existing.status === 'Approved' ? 'approved' : existing.status === 'Rejected' ? 'rejected' : 'submitted'}">
+                  ${existing.status === 'Approved' ? '✓ Approved' : existing.status === 'Rejected' ? '✕ Resubmit' : '⏳ ' + existing.status}${existing.score != null ? ' · ' + existing.score + '/100' : ''}${existing.is_late ? ' · Late ' + existing.late_minutes + ' min' : ''}
+                </span>` : (draft ? '<span class="status-pill draft">📝 Draft in progress</span>' : '<span class="tag muted-tag">Not submitted</span>')}
+            </div>
+            ${existing ? `
+              <div style="background:var(--bg);padding:10px 14px;border-radius:var(--r-sm);border:1px solid var(--line-soft);margin-bottom:16px">
+                <span class="small muted">Submitted ${fmtDT(existing.submitted_at)}</span>
+                ${existing.review_note ? `<div style="margin-top:4px;font-size:13px;font-weight:600;color:${existing.status === 'Approved' ? 'var(--ok)' : 'var(--alert)'}">Admin feedback: ${esc(existing.review_note)}</div>` : ''}
+                ${existing.score != null ? `<div style="margin-top:2px;font-size:13px;font-weight:700">Score awarded: <span style="color:var(--ok)">${existing.score}/100</span></div>` : ''}
+              </div>
+            ` : ''}
+            <div class="error-box hidden" id="dr-error" style="margin-bottom:14px"></div>
+            <form id="dr-form" novalidate>
+              <div class="field">
+                <label class="label" for="dr-done">What I did yesterday <span class="muted" style="text-transform:none;font-weight:normal">(bullet points or summary)</span></label>
+                <textarea class="input" id="dr-done" required ${editable ? '' : 'disabled'} placeholder="• Completed feature X&#10;• Met with client Y">${esc(initDone)}</textarea>
+              </div>
+              <div class="field">
+                <label class="label" for="dr-plan">What I will do today <span class="muted" style="text-transform:none;font-weight:normal">(main commitments)</span></label>
+                <textarea class="input" id="dr-plan" required ${editable ? '' : 'disabled'} placeholder="• Deliver proposal draft&#10;• Fix UI bugs">${esc(initPlan)}</textarea>
+              </div>
+              <div class="field">
+                <label class="label" for="dr-block">Blockers (optional)</label>
+                <input class="input" id="dr-block" ${editable ? '' : 'disabled'} value="${esc(initBlock)}" placeholder="Anything preventing you from completing your work?">
+              </div>
+              <div class="field">
+                <label class="label" for="dr-ev">Evidence link (URL)</label>
+                <input class="input" id="dr-ev" type="url" ${editable ? '' : 'disabled'} value="${esc(initEv)}" placeholder="https://docs.google.com/…">
+              </div>
+              ${editable ? `
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+                  <button class="btn primary" type="submit" style="flex:2;min-width:180px">${existing && (existing.status === 'Rejected') ? 'Resubmit report' : existing ? 'Update report' : 'Submit report'}</button>
+                  <button class="btn" type="button" id="dr-save-draft-btn" style="flex:1;min-width:140px">Save draft</button>
+                </div>
+              ` : `<p class="small muted" style="padding:10px 0">${existing ? 'Under review by admin — not editable until response.' : 'Already submitted.'}</p>`}
+            </form>
           </div>
-          ${existing ? `<p class="small muted" style="margin-bottom:16px">Submitted ${fmtDT(existing.submitted_at)}${existing.review_note ? ' · Note: ' + esc(existing.review_note) : ''}${existing.score != null ? ' · Score: ' + existing.score : ''}</p>` : ''}
-          <div class="error-box hidden" id="dr-error" style="margin-bottom:14px"></div>
-          <form id="dr-form" novalidate>
-            <div class="field"><label class="label" for="dr-done">What I did yesterday</label><textarea class="input" id="dr-done" required ${editable ? '' : 'disabled'}>${esc(existing?.did_yesterday || '')}</textarea></div>
-            <div class="field"><label class="label" for="dr-plan">What I will do today</label><textarea class="input" id="dr-plan" required ${editable ? '' : 'disabled'}>${esc(existing?.doing_today || '')}</textarea></div>
-            <div class="field"><label class="label" for="dr-block">Blockers (optional)</label><input class="input" id="dr-block" ${editable ? '' : 'disabled'} value="${esc(existing?.blockers || '')}"></div>
-            <div class="field"><label class="label" for="dr-ev">Evidence link (URL)</label><input class="input" id="dr-ev" type="url" ${editable ? '' : 'disabled'} value="${esc(existing?.evidence_url || '')}" placeholder="https://drive.google.com/…"></div>
-            ${editable ? `<button class="btn primary" type="submit" style="width:100%">${existing && (existing.status === 'Rejected') ? 'Resubmit report' : existing ? 'Update report' : 'Submit report'}</button>`
-              : `<p class="small muted">${existing ? 'Under review — not editable until the admin responds.' : 'Already submitted.'}</p>`}
-          </form>
-        </div>`;
-      $('#dl-tag') && ($('#dl-tag').textContent = dl);
-      const form = $('#dr-form');
-      form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const err = $('#dr-error');
-        err.classList.remove('show');
-        const now = new Date();
-        const lagos = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
-        const [h, m] = dl.split(':').map(Number);
-        const deadline = new Date(lagos); deadline.setHours(h, m, 0, 0);
-        const isLate = lagos > deadline;
-        const lateMinutes = isLate ? Math.round((lagos - deadline) / 60000) : 0;
-        const { error } = await sb.from('daily_reports').upsert({
-          user_id: S.user.id, report_date: date,
-          did_yesterday: $('#dr-done').value.trim(),
-          doing_today: $('#dr-plan').value.trim(),
-          blockers: $('#dr-block').value.trim() || null,
-          evidence_url: $('#dr-ev').value.trim() || null,
-          submitted_at: now.toISOString(), is_late: isLate, late_minutes: lateMinutes, status: 'Submitted',
-        }, { onConflict: 'user_id,report_date' });
-        if (error) { err.textContent = error.message; err.classList.add('show'); return; }
-        toast(isLate ? `Submitted — late by ${lateMinutes} min` : 'Report submitted', isLate);
-        window.DS.navigate('report');
-      });
+
+          <div class="card" style="margin-top:24px">
+            <div class="card-head">
+              <div>
+                <h3>My submission records</h3>
+                <p class="small muted" style="margin-top:2px">All historical daily scrum submissions, scores and admin feedback</p>
+              </div>
+              <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
+            </div>
+            ${pg.items.length ? `
+              <div class="table-wrap"><table class="ds">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Score</th>
+                    <th>Yesterday's Work</th>
+                    <th>Today's Plan</th>
+                    <th>Evidence</th>
+                    <th>Admin Feedback</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${pg.items.map(r => {
+                    const actions = [
+                      (r.status === 'Submitted' || r.status === 'Rejected')
+                        ? { label: 'Edit in form', icon: '✏️', attrs: `data-fill-rep="${r.id}"` }
+                        : null,
+                      r.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(r.evidence_url)}', '_blank')"` } : null,
+                      isAdmin() ? { divider: true } : null,
+                      isAdmin() ? { label: 'Delete record', icon: '🗑️', isAlert: true, attrs: `data-del-rep="${r.id}"` } : null,
+                    ];
+                    return `
+                      <tr>
+                        <td style="font-weight:700;white-space:nowrap">
+                          ${fmtD(r.report_date)}
+                          ${r.is_late ? `<br><span class="tag alert" style="font-size:10px;padding:1px 6px">Late by ${r.late_minutes}m</span>` : ''}
+                        </td>
+                        <td>
+                          ${r.status === 'Approved' ? `<span class="status-pill approved">✓ Approved</span>` :
+                            r.status === 'Rejected' ? `<span class="status-pill rejected">✕ Resubmit</span>` :
+                            `<span class="status-pill submitted">⏳ ${esc(r.status)}</span>`}
+                        </td>
+                        <td style="font-weight:800">${r.score != null ? `<span style="color:var(--ok)">${r.score}/100</span>` : '<span class="muted">—</span>'}</td>
+                        <td class="small" style="max-width:220px;line-height:1.4">${esc(r.did_yesterday || '—')}</td>
+                        <td class="small" style="max-width:220px;line-height:1.4">${esc(r.doing_today || '—')}</td>
+                        <td>${r.evidence_url ? `<a href="${esc(r.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                        <td class="small" style="max-width:240px;font-weight:600;color:${r.status === 'Approved' ? 'var(--ok)' : r.status === 'Rejected' ? 'var(--alert)' : 'var(--ink)'}">${r.review_note ? esc(r.review_note) : '<span class="muted">—</span>'}</td>
+                        <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table></div>
+              ${pg.renderBar('records')}
+            ` : `<div class="empty"><div class="big">No submission records yet</div><div class="hint">Your daily scrum records will appear here as you submit them.</div></div>`}
+          </div>
+        `;
+
+        $('#dl-tag') && ($('#dl-tag').textContent = dl);
+        bindReportHandlers();
+        window.DS.initActionMenus(v);
+        window.DS.bindPagination(v, (p) => {
+          recordsPage = p;
+          renderReportView();
+        });
+      }
+
+      function bindReportHandlers() {
+        const saveDraftBtn = $('#dr-save-draft-btn');
+        saveDraftBtn?.addEventListener('click', () => {
+          const done = $('#dr-done').value.trim();
+          const plan = $('#dr-plan').value.trim();
+          const block = $('#dr-block').value.trim();
+          const ev = $('#dr-ev').value.trim();
+          if (!done && !plan) {
+            toast('Please type something before saving as draft.', true);
+            return;
+          }
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          localStorage.setItem(draftKey, JSON.stringify({
+            did_yesterday: done,
+            doing_today: plan,
+            blockers: block,
+            evidence_url: ev,
+            savedAt: timeStr,
+          }));
+          toast('✓ Draft saved');
+          window.DS.navigate('report');
+        });
+
+        const restoreBtn = $('#dr-restore-btn');
+        restoreBtn?.addEventListener('click', () => {
+          if (!draft) return;
+          $('#dr-done').value = draft.did_yesterday || '';
+          $('#dr-plan').value = draft.doing_today || '';
+          $('#dr-block').value = draft.blockers || '';
+          $('#dr-ev').value = draft.evidence_url || '';
+          toast('✓ Draft restored');
+        });
+
+        const discardBtn = $('#dr-discard-btn');
+        discardBtn?.addEventListener('click', () => {
+          if (!confirm('Discard this saved draft?')) return;
+          localStorage.removeItem(draftKey);
+          toast('Draft discarded');
+          window.DS.navigate('report');
+        });
+
+        // Edit past report handler
+        $$('[data-fill-rep]', v).forEach(b => b.addEventListener('click', () => {
+          const r = myRecords.find(item => item.id === b.dataset.fillRep);
+          if (r) {
+            $('#dr-done').value = r.did_yesterday || '';
+            $('#dr-plan').value = r.doing_today || '';
+            $('#dr-block').value = r.blockers || '';
+            $('#dr-ev').value = r.evidence_url || '';
+            $('#dr-done').focus();
+            toast('Loaded report into form.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }));
+
+        // Admin delete report submission action
+        $$('[data-del-rep]', v).forEach(b => b.addEventListener('click', async () => {
+          if (!confirm('Are you sure you want to delete this daily report submission?')) return;
+          b.disabled = true;
+          const { error } = await sb.from('daily_reports').delete().eq('id', b.dataset.delRep);
+          if (error) { toast(error.message, true); b.disabled = false; return; }
+          toast('✓ Report deleted');
+          window.DS.navigate('report');
+        }));
+
+        // Submit Form
+        const form = $('#dr-form');
+        form?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const err = $('#dr-error');
+          err.classList.remove('show');
+          const doneVal = $('#dr-done').value.trim();
+          const planVal = $('#dr-plan').value.trim();
+          if (!doneVal || !planVal) {
+            err.textContent = 'Both "What I did yesterday" and "What I will do today" are required.';
+            err.classList.add('show');
+            return;
+          }
+          const now = new Date();
+          const lagos = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+          const [h, m] = dl.split(':').map(Number);
+          const deadline = new Date(lagos); deadline.setHours(h, m, 0, 0);
+          const isLate = lagos > deadline;
+          const lateMinutes = isLate ? Math.round((lagos - deadline) / 60000) : 0;
+          const { error } = await sb.from('daily_reports').upsert({
+            user_id: S.user.id, report_date: date,
+            did_yesterday: doneVal,
+            doing_today: planVal,
+            blockers: $('#dr-block').value.trim() || null,
+            evidence_url: $('#dr-ev').value.trim() || null,
+            submitted_at: now.toISOString(), is_late: isLate, late_minutes: lateMinutes, status: 'Submitted',
+          }, { onConflict: 'user_id,report_date' });
+          if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+          localStorage.removeItem(draftKey);
+          toast(isLate ? `✓ Submitted — late by ${lateMinutes} min` : '✓ Report submitted', isLate);
+          window.DS.navigate('report');
+        });
+      }
+
+      renderReportView();
     },
   });
 
@@ -171,34 +433,69 @@
   });
 
   window.renderMyTasks = async function (v) {
-      const { data } = await sb.from('tasks').select('*, task_assignees!inner(user_id)').eq('task_assignees.user_id', S.user.id).order('due_date');
-      const date = todayLagos();
-      const list = data || [];
+    const { data } = await sb.from('tasks').select('*, task_assignees!inner(user_id)').eq('task_assignees.user_id', S.user.id).order('due_date');
+    const date = todayLagos();
+    const list = data || [];
+    let taskPage = 1;
+
+    function renderTasksView() {
+      const pg = window.DS.paginate(list, taskPage, 25);
       v.innerHTML = `
         <div class="card">
-          ${list.length ? `<div class="table-wrap"><table class="ds">
-            <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th></th></tr></thead>
-            <tbody>${list.map(t => `
-              <tr><td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
-                <td><span class="tag ${t.status === 'Done' ? 'ok' : t.status === 'In review' || t.status === 'In Review' ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span></td>
-                <td>${esc(t.priority || '—')}</td>
-                <td>${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
-                <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open</a>` : '<span class="muted">—</span>'}</td>
-                <td style="text-align:right"><button class="btn sm ghost" data-ext="${t.id}">Request extension</button></td>
-              </tr>`).join('')}</tbody></table></div>`
-          : `<div class="empty"><div class="big">No tasks assigned</div><div class="hint">Tasks assigned to you will appear here.</div></div>`}
+          <div class="card-head">
+            <div>
+              <h3>My tasks</h3>
+              <p class="small muted" style="margin-top:2px">Assigned deliverables, deadlines, and progress</p>
+            </div>
+            <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
+          </div>
+          ${pg.items.length ? `
+            <div class="table-wrap"><table class="ds">
+              <thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Evidence</th><th style="text-align:right">Actions</th></tr></thead>
+              <tbody>${pg.items.map(t => {
+                const actions = [
+                  { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
+                  t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
+                ];
+                return `
+                  <tr>
+                    <td style="font-weight:700;min-width:180px">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension asked</span>' : ''}</td>
+                    <td><span class="tag ${t.status === 'Done' ? 'ok' : t.status === 'In review' || t.status === 'In Review' ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span></td>
+                    <td>${esc(t.priority || '—')}</td>
+                    <td>${t.due_date ? (t.due_date < date && t.status !== 'Done' ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : fmtD(t.due_date)) : '—'}</td>
+                    <td>${t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Link ↗</a>` : '<span class="muted">—</span>'}</td>
+                    <td style="text-align:right">${window.DS.renderActionMenu(actions)}</td>
+                  </tr>
+                `;
+              }).join('')}</tbody>
+            </table></div>
+            ${pg.renderBar('tasks')}
+          ` : `<div class="empty"><div class="big">No tasks assigned</div><div class="hint">Tasks assigned to you will appear here.</div></div>`}
         </div>`;
+
       $$('[data-ext]', v).forEach(b => b.addEventListener('click', async () => {
         const reason = prompt('Reason for the extension request:');
         if (reason === null) return;
-        await sb.from('task_updates').insert({
-          task_id: b.dataset.ext, user_id: S.user.id,
-          description: 'Extension requested: ' + reason,
-          update_type: 'extension_request',
-        }).catch((e) => toast('Could not send the request.', true));
+        try {
+          const { error: extErr } = await sb.from('task_updates').insert({
+            task_id: b.dataset.ext, user_id: S.user.id,
+            description: 'Extension requested: ' + reason,
+            update_type: 'extension_request',
+          });
+          if (extErr) throw extErr;
+        } catch (e) { toast('Could not send the request.', true); return; }
         await sb.from('tasks').update({ extension_requested: true, extension_note: reason }).eq('id', b.dataset.ext);
-        toast('Extension request sent to admin.');
+        toast('✓ Extension request sent to admin.');
       }));
+
+      window.DS.initActionMenus(v);
+      window.DS.bindPagination(v, (p) => {
+        taskPage = p;
+        renderTasksView();
+      });
+    }
+
+    renderTasksView();
   };
 
   // ── MY UNITS & OKRs ──
@@ -560,50 +857,469 @@
     });
   };
 
-  // ── CHANNELS (shared feed) ──
+  // ── CHANNELS & RICH CHATTING WORKSPACE ──
+  function formatChatMessage(text, people) {
+    if (!text) return '';
+    let s = esc(text);
+    // URLs to links
+    s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="text-decoration:underline;color:inherit;font-weight:600">$1</a>');
+    // Mention tags
+    s = s.replace(/@([A-Za-z0-9_\s]{2,25})(?=[.,!?\s]|$)/g, '<span class="mention-pill">@$1</span>');
+    // Priority and custom hashtags
+    s = s.replace(/#(urgent|URGENT)\b/g, '<span class="urgent-pill">🚨 #URGENT</span>');
+    s = s.replace(/#(important|IMPORTANT)\b/g, '<span class="important-pill">⚡ #IMPORTANT</span>');
+    s = s.replace(/#(announcement|ANNOUNCEMENT)\b/g, '<span class="announcement-pill">📢 #ANNOUNCEMENT</span>');
+    s = s.replace(/#([a-zA-Z0-9_\-]+)/g, '<span class="tag muted-tag" style="font-size:11px">#$1</span>');
+    // Word-style formatting
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+    s = s.replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>');
+    s = s.replace(/__(.+?)__/g, '<u>$1</u>');
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    s = s.replace(/`([^`]+?)`/g, '<code>$1</code>');
+    // Blockquotes (> text)
+    s = s.replace(/(^|\n)&gt;\s?(.*)/g, '$1<blockquote>$2</blockquote>');
+    // Bullet points (• text or - text)
+    s = s.replace(/(^|\n)[•\-]\s+(.*)/g, '$1<div style="display:flex;gap:6px;margin:3px 0"><span style="color:var(--ink-60)">•</span><span>$2</span></div>');
+    // Newlines to breaks
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
+  function getMessagePriority(text, updateType) {
+    const t = (text || '').toLowerCase();
+    if (t.includes('#urgent') || updateType === 'priority') return 'urgent';
+    if (t.includes('#important')) return 'important';
+    if (t.includes('#announcement') || updateType === 'announcement') return 'announcement';
+    return 'general';
+  }
+
+  function getInitials(name) {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  function insertFormatting(textarea, before, after = '') {
+    textarea.focus();
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const selected = textarea.value.substring(start, end);
+    const replacement = before + selected + after;
+    textarea.setRangeText(replacement, start, end, 'end');
+    if (start === end && after) {
+      textarea.selectionStart = start + before.length;
+      textarea.selectionEnd = start + before.length;
+    }
+  }
+
+  window.DS.renderChannelsWorkspace = async function (v, options = {}) {
+    const adminMode = options.isAdmin ?? isAdmin();
+    const [{ data: channels }, { data: people }] = await Promise.all([
+      sb.from('channels').select('*').order('created_at'),
+      sb.from('profiles').select('id, full_name, email, access_level').eq('active', true).order('full_name'),
+    ]);
+    const channelList = channels || [];
+    const memberList = people || [];
+
+    // Categorize channels into Announcements, General Workspaces, and Units
+    const annChannels = channelList.filter(c => c.kind === 'announcements');
+    const generalChannels = channelList.filter(c => c.kind === 'general' || (!c.kind && !c.unit_id));
+    const unitChannels = channelList.filter(c => c.kind === 'unit' || c.unit_id);
+
+    // Initial selected channel
+    let currentChannel = channelList.find(c => c.name === 'general') || channelList[0];
+
+    v.innerHTML = `
+      <div class="chat-container">
+        <!-- LEFT SUB-NAVIGATION PANE -->
+        <div class="chat-channels-pane">
+          <div class="chat-pane-head">
+            <div style="font-weight:900;font-size:14px;letter-spacing:-0.02em">CHANNELS &amp; TEAMS</div>
+            ${adminMode ? `<button class="btn sm ghost" id="ch-new-btn" style="padding:2px 8px;font-size:12px;font-weight:800" title="Create channel">+ Channel</button>` : ''}
+          </div>
+          <input class="chat-search-input" id="ch-search-box" placeholder="Filter channels…" aria-label="Filter channels">
+
+          <div id="channels-tree" style="display:flex;flex-direction:column;gap:12px">
+            <!-- Announcements -->
+            <div>
+              <div class="nav-group-label" style="margin-left:4px">Official Broadcasts</div>
+              ${annChannels.map(c => `
+                <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+                  <span style="font-size:14px">📢</span>
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
+                  <span class="channel-badge ok">Info</span>
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- General -->
+            <div>
+              <div class="nav-group-label" style="margin-left:4px">Workspace Channels</div>
+              ${generalChannels.map(c => `
+                <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+                  <span style="font-weight:800;color:var(--ink-60)">#</span>
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
+                  ${c.is_private ? '<span class="small muted" title="Private">🔒</span>' : ''}
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- Units -->
+            ${unitChannels.length ? `
+              <div>
+                <div class="nav-group-label" style="margin-left:4px">Unit Channels</div>
+                ${unitChannels.map(c => `
+                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+                    <span>🏢</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
+                    <span class="channel-badge muted-tag">Unit</span>
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- RIGHT CHAT ROOM PANE -->
+        <div class="chat-room-pane" id="chat-room-pane">
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:400px">
+            <div class="loading">Loading channel…</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Channel search filter
+    const searchBox = $('#ch-search-box');
+    searchBox?.addEventListener('input', () => {
+      const q = searchBox.value.toLowerCase().trim();
+      $$('.channel-btn', v).forEach(btn => {
+        const text = btn.textContent.toLowerCase();
+        btn.style.display = text.includes(q) ? 'flex' : 'none';
+      });
+    });
+
+    // Admin create channel modal
+    if (adminMode) {
+      $('#ch-new-btn')?.addEventListener('click', () => {
+        window.DS.modal.open(`
+          <h2 style="margin-bottom:6px">Create a new channel</h2>
+          <p class="muted small" style="margin-bottom:16px">Organize team conversations, unit initiatives, or company announcements.</p>
+          <form id="new-ch-form" novalidate>
+            <div class="field">
+              <label class="label" for="nch-name">Channel identifier</label>
+              <input class="input" id="nch-name" required placeholder="e.g. mobile-app, client-pitch">
+              <span class="small muted">Lowercase letters, numbers, and dashes.</span>
+            </div>
+            <div class="field">
+              <label class="label" for="nch-disp">Display name</label>
+              <input class="input" id="nch-disp" placeholder="e.g. Mobile App Team">
+            </div>
+            <div class="field">
+              <label class="label" for="nch-desc">Topic / Description</label>
+              <input class="input" id="nch-desc" placeholder="What is this channel for?">
+            </div>
+            <div class="field">
+              <label class="label" for="nch-kind">Type</label>
+              <select class="input" id="nch-kind">
+                <option value="general">Workspace Channel (open to everyone)</option>
+                <option value="unit">Unit Private Channel</option>
+                <option value="announcements">Official Announcements (admins only post)</option>
+              </select>
+            </div>
+            <div class="error-box hidden" id="nch-error" style="margin-bottom:14px"></div>
+            <div style="display:flex;gap:10px">
+              <button class="btn primary" type="submit" style="flex:1">Create channel</button>
+              <button class="btn" type="button" id="nch-cancel">Cancel</button>
+            </div>
+          </form>
+        `);
+        $('#nch-cancel')?.addEventListener('click', window.DS.modal.close);
+        $('#new-ch-form')?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const err = $('#nch-error');
+          err.classList.remove('show');
+          const rawName = $('#nch-name').value.trim();
+          if (!rawName) { err.textContent = 'Channel identifier is required.'; err.classList.add('show'); return; }
+          const name = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+          const disp = $('#nch-disp').value.trim() || name.replace(/-/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+          const desc = $('#nch-desc').value.trim() || null;
+          const kind = $('#nch-kind').value;
+          const { data: newCh, error } = await sb.from('channels').insert({
+            name, display_name: disp, description: desc, kind,
+            is_private: kind !== 'general', created_by: S.user.id,
+          }).select().single();
+          if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+          toast('✓ Channel created');
+          window.DS.modal.close();
+          window.DS.navigate('channels');
+        });
+      });
+    }
+
+    // Switch channels
+    async function selectChannel(ch) {
+      currentChannel = ch;
+      const container = $('.chat-container', v);
+      container?.classList.add('view-room');
+      $$('.channel-btn', v).forEach(b => {
+        b.classList.toggle('active', b.dataset.chid === ch.id);
+      });
+      await renderChannelRoom(ch);
+    }
+
+    $$('.channel-btn', v).forEach(b => {
+      b.addEventListener('click', () => {
+        const target = channelList.find(c => c.id === b.dataset.chid);
+        if (target) selectChannel(target);
+      });
+    });
+
+    // Render the chat room
+    async function renderChannelRoom(ch) {
+      const room = $('#chat-room-pane');
+      if (!room) return;
+      const canPost = ch.kind !== 'announcements' || adminMode;
+
+      // Load channel messages
+      const { data: messages } = await sb.from('channel_updates')
+        .select('*, profiles:author_id(full_name, email, access_level)')
+        .eq('channel_id', ch.id)
+        .order('created_at', { ascending: true })
+        .limit(60);
+
+      const msgList = messages || [];
+
+      room.innerHTML = `
+        <!-- CHANNEL HEADER -->
+        <div class="chat-room-head">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn sm ghost" id="chat-mobile-back" style="display:none;padding:4px 8px;font-size:12.5px" title="Back to channels">← Channels</button>
+            <div>
+              <div class="chat-room-title">
+                <span>${ch.kind === 'announcements' ? '📢' : ch.kind === 'unit' ? '🏢' : '#'}</span>
+                <span>${esc(ch.display_name || ch.name)}</span>
+                ${ch.kind === 'announcements' ? '<span class="announcement-pill">Broadcast</span>' : ''}
+                ${ch.is_private ? '<span class="status-pill draft">🔒 Private</span>' : ''}
+              </div>
+              <div class="chat-room-sub">${esc(ch.description || 'General team collaboration and updates.')}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn sm ghost" id="chat-refresh-btn" title="Refresh messages">↻ Refresh</button>
+          </div>
+        </div>
+
+        <!-- MESSAGES STREAM -->
+        <div class="chat-messages" id="chat-stream">
+          ${msgList.length ? msgList.map(m => {
+            const author = m.profiles?.full_name || m.profiles?.email || 'Team member';
+            const authorAccess = m.profiles?.access_level || 'Member';
+            const priority = getMessagePriority(m.body, m.update_type);
+            const canDelete = adminMode || m.author_id === S.user.id;
+            const msgActions = [
+              canDelete ? { label: 'Delete message', icon: '🗑️', isAlert: true, attrs: `data-del-chat="${m.id}"` } : null,
+            ];
+            return `
+              <div class="chat-msg-row" data-msg-id="${m.id}">
+                <div class="chat-avatar ${authorAccess === 'Admin' ? 'admin' : ''}" title="${esc(author)} (${esc(authorAccess)})">
+                  ${esc(getInitials(author))}
+                </div>
+                <div class="chat-msg-body ${priority}">
+                  <div class="chat-meta">
+                    <span class="chat-author">${esc(author)}</span>
+                    <span class="tag muted-tag" style="font-size:10px;padding:0 6px">${esc(authorAccess)}</span>
+                    <span class="chat-time">${fmtDT(m.created_at)}</span>
+                    ${priority === 'urgent' ? '<span class="urgent-pill">🚨 URGENT</span>' : ''}
+                    ${priority === 'important' ? '<span class="important-pill">⚡ IMPORTANT</span>' : ''}
+                    ${priority === 'announcement' ? '<span class="announcement-pill">📢 ANNOUNCEMENT</span>' : ''}
+                    ${canDelete ? `<div style="margin-left:auto">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
+                  </div>
+                  <div class="chat-text">${formatChatMessage(m.body, memberList)}</div>
+                  ${m.drive_link ? `<div style="margin-top:6px"><a href="${esc(m.drive_link)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">🔗 Attached resource</a></div>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('') : `
+            <div class="empty" style="padding:40px 20px">
+              <div class="big">No messages in #${esc(ch.display_name || ch.name)} yet</div>
+              <div class="hint">Be the first to post! Format with toolbar, use @mentions, or mark #urgent / #important.</div>
+            </div>
+          `}
+        </div>
+
+        <!-- COMPOSER -->
+        <div class="chat-composer-box">
+          ${canPost ? `
+            <!-- Word-Style Formatting Toolbar -->
+            <div class="chat-toolbar">
+              <button type="button" class="toolbar-btn" data-fmt="bold" title="Bold (**text**)"><b>B</b></button>
+              <button type="button" class="toolbar-btn" data-fmt="italic" title="Italic (*text*)"><i>I</i></button>
+              <button type="button" class="toolbar-btn" data-fmt="underline" title="Underline (<u>text</u>)"><u>U</u></button>
+              <button type="button" class="toolbar-btn" data-fmt="strike" title="Strikethrough (~~text~~)"><s>S</s></button>
+              <button type="button" class="toolbar-btn" data-fmt="code" title="Code block (\`code\`)">&lt;/&gt;</button>
+              <button type="button" class="toolbar-btn" data-fmt="bullet" title="Bullet item">• List</button>
+              <button type="button" class="toolbar-btn" data-fmt="quote" title="Quote block">&gt; Quote</button>
+              <span style="border-left:1px solid var(--line-soft);height:18px;margin:0 4px"></span>
+              <button type="button" class="toolbar-btn toolbar-tag-btn urgent" data-tag="#urgent" title="Mark urgent">🚨 #urgent</button>
+              <button type="button" class="toolbar-btn toolbar-tag-btn important" data-tag="#important" title="Mark important">⚡ #important</button>
+              <button type="button" class="toolbar-btn toolbar-tag-btn announce" data-tag="#announcement" title="Mark announcement">📢 #announcement</button>
+              <span style="border-left:1px solid var(--line-soft);height:18px;margin:0 4px"></span>
+              <div style="position:relative;display:inline-block">
+                <button type="button" class="toolbar-btn" id="mention-toggle-btn" title="Mention team member">@ Mention</button>
+                <div class="hidden" id="mention-dropdown" style="position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:0 8px 24px rgba(20,19,15,.12);min-width:200px;max-height:200px;overflow-y:auto;z-index:30;padding:4px">
+                  ${memberList.map(p => `
+                    <div class="mention-item" data-mention-name="${esc(p.full_name || p.email)}">
+                      <span>@${esc(p.full_name || p.email)}</span>
+                      <span class="muted tiny">(${p.access_level})</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <!-- Input Textarea -->
+            <textarea class="chat-input-area" id="chat-body-input" placeholder="Message #${esc(ch.display_name || ch.name)}… (Press Enter to send, Shift+Enter for new line)" rows="3"></textarea>
+
+            <!-- Actions Bar -->
+            <div class="chat-actions-bar">
+              <span class="tiny muted">Press <b>Enter</b> to send · <b>Shift+Enter</b> for new line · Style with <b>#urgent</b> or <b>@mentions</b></span>
+              <button class="btn primary sm" id="chat-send-btn" type="button" style="padding:6px 18px;display:flex;align-items:center;gap:6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                <span>Send</span>
+              </button>
+            </div>
+          ` : `
+            <div style="padding:16px;text-align:center;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--line-soft)">
+              <span class="small muted">📢 This is an official announcements channel. Broadcast posting is restricted to administrators.</span>
+            </div>
+          `}
+        </div>
+      `;
+
+      // Auto-scroll messages to bottom
+      const stream = $('#chat-stream');
+      if (stream) stream.scrollTop = stream.scrollHeight;
+
+      // Mobile back to channels button
+      $('#chat-mobile-back')?.addEventListener('click', () => {
+        $('.chat-container', v)?.classList.remove('view-room');
+      });
+
+      // Refresh button
+      $('#chat-refresh-btn')?.addEventListener('click', () => renderChannelRoom(ch));
+
+      // Initialize action dropdowns inside room
+      window.DS.initActionMenus(room);
+
+      // Delete message handler
+      $$('[data-del-chat]', room).forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this message?')) return;
+        b.disabled = true;
+        const { error } = await sb.from('channel_updates').delete().eq('id', b.dataset.delChat);
+        if (error) { toast(error.message, true); b.disabled = false; return; }
+        toast('✓ Message deleted');
+        renderChannelRoom(ch);
+      }));
+
+      if (!canPost) return;
+
+      const textarea = $('#chat-body-input');
+      const sendBtn = $('#chat-send-btn');
+      const mentionBtn = $('#mention-toggle-btn');
+      const mentionMenu = $('#mention-dropdown');
+
+      // Toolbar formatting handlers
+      $$('[data-fmt]', room).forEach(btn => btn.addEventListener('click', () => {
+        const fmt = btn.dataset.fmt;
+        if (fmt === 'bold') insertFormatting(textarea, '**', '**');
+        else if (fmt === 'italic') insertFormatting(textarea, '*', '*');
+        else if (fmt === 'underline') insertFormatting(textarea, '<u>', '</u>');
+        else if (fmt === 'strike') insertFormatting(textarea, '~~', '~~');
+        else if (fmt === 'code') insertFormatting(textarea, '`', '`');
+        else if (fmt === 'bullet') insertFormatting(textarea, '• ');
+        else if (fmt === 'quote') insertFormatting(textarea, '> ');
+      }));
+
+      // Toolbar priority tag handlers
+      $$('[data-tag]', room).forEach(btn => btn.addEventListener('click', () => {
+        insertFormatting(textarea, btn.dataset.tag + ' ');
+      }));
+
+      // Mention toggle and insert
+      mentionBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mentionMenu?.classList.toggle('hidden');
+      });
+      document.addEventListener('click', () => mentionMenu?.classList.add('hidden'), { once: true });
+      $$('.mention-item', room).forEach(item => item.addEventListener('click', () => {
+        const name = item.dataset.mentionName;
+        insertFormatting(textarea, `@${name} `);
+        mentionMenu?.classList.add('hidden');
+      }));
+
+      // Send message function
+      async function sendMessage() {
+        const text = textarea.value.trim();
+        if (!text) return;
+        sendBtn.disabled = true;
+
+        const isUrgent = text.toLowerCase().includes('#urgent');
+        const isAnnounce = text.toLowerCase().includes('#announcement') || ch.kind === 'announcements';
+        const updateType = isUrgent ? 'priority' : isAnnounce ? 'announcement' : 'general';
+
+        const { error } = await sb.from('channel_updates').insert({
+          channel_id: ch.id,
+          author_id: S.user.id,
+          title: text.slice(0, 60),
+          body: text,
+          update_type: updateType,
+          status: 'published',
+        });
+
+        if (error) {
+          toast(error.message, true);
+          sendBtn.disabled = false;
+          return;
+        }
+
+        toast('✓ Message sent');
+        textarea.value = '';
+        sendBtn.disabled = false;
+        await renderChannelRoom(ch);
+      }
+
+      sendBtn?.addEventListener('click', sendMessage);
+
+      // Keyboard handler: Enter to send, Shift+Enter for newline
+      textarea?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    }
+
+    // Initialize with current channel
+    if (currentChannel) {
+      await renderChannelRoom(currentChannel);
+    }
+  };
+
+  // Shared routes
   window.DS.registerRoute('channels', {
-    get title() { return 'Channels'; },
-    get sub() { return isAdmin() ? 'Announcements and team channels' : 'General channel, your unit channels, announcements'; },
-    render: async (v) => { isAdmin() ? await window.renderChannelsAdmin(v) : await window.renderChannelsView(v); },
+    get title() { return 'Channels & Workspace Chat'; },
+    get sub() { return isAdmin() ? 'Team channels, official announcements and live discussions' : 'General workspace, unit channels and announcements'; },
+    render: async (v) => {
+      await window.DS.renderChannelsWorkspace(v, { isAdmin: isAdmin() });
+    },
   });
 
   window.renderChannelsView = async function (v) {
-    const { data: channels } = await sb.from('channels').select('*').order('created_at');
-    const list = channels || [];
-    v.innerHTML = `<div class="card"><div class="card-head"><h3>Channels</h3></div>
-      ${list.length ? list.map(c => `<div class="row"><div class="row-main"><div class="t"># ${esc(c.display_name || c.name)}</div>
-        <div class="s">${esc(c.description || '')} · ${c.is_private ? 'Private' : 'Public'}${c.kind === 'announcements' ? ' · admin-only' : ''}</div></div>
-        <button class="btn sm" data-open-ch="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || 'general')}">Open</button></div>`).join('')
-      : `<div class="empty"><div class="big">No channels</div><div class="hint">Channels appear here once created.</div></div>`}</div>
-      <div id="ch-feed"></div>`;
-    $$('[data-open-ch]', v).forEach(b => b.addEventListener('click', () => loadChannelFeed(b.dataset.openCh, b.dataset.name, b.dataset.kind)));
+    await window.DS.renderChannelsWorkspace(v, { isAdmin: false });
   };
-
-  async function loadChannelFeed(id, name, kind) {
-    const feed = $('#ch-feed');
-    if (!feed) return;
-    feed.innerHTML = `<div class="card"><div class="card-head"><h3># ${esc(name)}</h3></div><div class="loading">Loading…</div></div>`;
-    const { data } = await sb.from('channel_updates').select('*, profiles:author_id(full_name)').eq('channel_id', id).order('created_at', { ascending: false }).limit(30);
-    const canPost = kind !== 'announcements' || isAdmin();
-    feed.innerHTML = `<div class="card"><div class="card-head"><h3># ${esc(name)}</h3>${kind === 'announcements' ? '<span class="tag muted-tag">Admin-only posting</span>' : ''}</div>
-      ${canPost ? `<form id="ch-form" style="margin-bottom:16px"><div class="field"><label class="label" for="ch-msg">New post</label>
-        <textarea class="input" id="ch-msg" required placeholder="Write a message or paste a URL…"></textarea></div>
-        <button class="btn primary sm" type="submit">Post</button></form>` : ''}
-      ${(data && data.length) ? data.map(p => `<div class="row" style="align-items:flex-start"><div class="row-main">
-        <div class="t">${esc(p.title || 'Post')}</div>
-        <div class="s">${esc(p.body || '')}</div>
-        ${p.drive_link ? `<div class="s"><a href="${esc(p.drive_link)}" target="_blank" rel="noopener">${esc(p.drive_link)}</a></div>` : ''}
-        <div class="tiny muted">${esc(p.profiles?.full_name || 'Member')} · ${fmtDT(p.created_at)}</div>
-      </div></div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">No posts yet.</div></div>`}
-    </div>`;
-    const form = $('#ch-form');
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const { error } = await sb.from('channel_updates').insert({ channel_id: id, author_id: S.user.id, title: 'Post', body: $('#ch-msg').value.trim(), status: 'Published' });
-      if (error) return toast(error.message, true);
-      loadChannelFeed(id, name, kind);
-    });
-  }
 
   // ── NOTIFICATIONS ──
   window.renderNotifications = async function (v) {

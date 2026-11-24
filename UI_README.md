@@ -59,6 +59,9 @@ pip install playwright && playwright install chromium
 python3 tests/e2e-flow.py       # admin creates a user -> first login forces a
                                  # password change -> member reports -> admin
                                  # reviews and scores -> member sees the score
+python3 tests/review-meeting.py # meeting report appears in the review queue,
+                                 # opens with an empty score, saves, and the
+                                 # member is notified
 python3 tests/verify-routes.py  # every admin and member route renders clean
 python3 tests/check-network.py  # no failed Supabase requests
 ```

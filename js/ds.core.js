@@ -4,15 +4,35 @@
   const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
   const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  const SUPABASE_URL = 'https://xzrczuoxlujzmztkupbz.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const SUPABASE_URL = (typeof window !== 'undefined' && (window.__ENV?.VITE_SUPABASE_URL || window.CONFIG?.SUPABASE_URL))
+    || (typeof localStorage !== 'undefined' && localStorage.getItem('VITE_SUPABASE_URL'))
+    || 'https://xzrczuoxlujzmztkupbz.supabase.co';
+  const SUPABASE_ANON_KEY = (typeof window !== 'undefined' && (window.__ENV?.VITE_SUPABASE_ANON_KEY || window.CONFIG?.SUPABASE_ANON_KEY))
+    || (typeof localStorage !== 'undefined' && localStorage.getItem('VITE_SUPABASE_ANON_KEY'))
+    || 'sb_publishable_rmA0mlX3rpylvgJ47uBktA_yv2085CN';
+
+  function createSb() {
+    if (typeof window !== 'undefined' && window.supabase && window.supabase.createClient) {
+      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+    return null;
+  }
+  let rawSb = createSb();
+  const sb = new Proxy({}, {
+    get(_t, prop) {
+      if (!rawSb) rawSb = createSb();
+      if (!rawSb) throw new Error('Supabase client not initialized yet');
+      const val = rawSb[prop];
+      return typeof val === 'function' ? val.bind(rawSb) : val;
+    }
+  });
 
   const S = {
-    sb, user: null, profile: null, role: 'Member',
+    get sb() { if (!rawSb) rawSb = createSb(); return rawSb || sb; },
+    user: null, profile: null, role: 'Member',
     route: 'dashboard', loading: false,
   };
-  window.DS = { $, $$, esc, S, sb };
+  window.DS = { $, $$, esc, S, get sb() { return S.sb; } };
 
   const todayLagos = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
   const fmtDT = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -42,19 +62,64 @@
 
   // ── toast ──
   let toastEl;
-  function toast(msg, isErr) {
+  function toast(msg, typeOrIsErr) {
     if (!toastEl) {
       toastEl = document.createElement('div');
       toastEl.setAttribute('role', 'status');
-      toastEl.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#14130F;color:#F6F4EF;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:600;z-index:200;max-width:90vw';
+      toastEl.setAttribute('aria-live', 'polite');
       document.body.appendChild(toastEl);
     }
-    toastEl.textContent = msg;
-    toastEl.style.background = isErr ? '#B83A17' : '#14130F';
-    toastEl.style.display = 'block';
+    const isErr = typeOrIsErr === true || typeOrIsErr === 'error';
+    const isSuccess = typeOrIsErr === 'success' || (!isErr && (
+      /success|saved|submitted|updated|created|done/i.test(String(msg || ''))
+    ));
+
+    let bg = '#14130F';
+    let icon = '';
+    if (isErr) {
+      bg = '#B83A17';
+      icon = '✕ ';
+    } else if (isSuccess) {
+      bg = '#1E6B3C';
+      icon = '✓ ';
+    }
+
+    toastEl.style.cssText = `
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: ${bg};
+      color: #F6F4EF;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      z-index: 9999;
+      max-width: 90vw;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255,255,255,0.2);
+      pointer-events: none;
+    `;
+    const cleanMsg = String(msg || '');
+    toastEl.textContent = cleanMsg.startsWith('✓') || cleanMsg.startsWith('✕') ? cleanMsg : icon + cleanMsg;
+    toastEl.style.display = 'flex';
+    toastEl.style.opacity = '1';
+    toastEl.style.visibility = 'visible';
+
     clearTimeout(toastEl._t);
-    toastEl._t = setTimeout(() => toastEl.style.display = 'none', 3200);
+    toastEl._t = setTimeout(() => {
+      toastEl.style.opacity = '0';
+      toastEl.style.visibility = 'hidden';
+      toastEl.style.display = 'none';
+    }, 3200);
   }
+  toast.success = (m) => toast(m, 'success');
+  toast.error = (m) => toast(m, 'error');
   window.DS.toast = toast;
 
   // ── modal ──
@@ -85,6 +150,124 @@
     chart: I('<path d="M18 20V10M12 20V4M6 20v-6"/>'),
     folder: I('<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>'),
     calendar: I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
+    dots: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/></svg>`,
+  };
+
+  // ── Action Dropdown Menus (Three dots) ──
+  window.DS.renderActionMenu = function (actions = []) {
+    const list = (actions || []).filter(Boolean);
+    if (!list.length) return '';
+    return `
+      <div class="action-menu-wrap">
+        <button class="action-dots-btn" type="button" aria-label="Actions" title="More actions">
+          ${window.DS.icons.dots}
+        </button>
+        <div class="action-dropdown hidden">
+          ${list.map(a => {
+            if (a.divider) return `<div class="action-divider"></div>`;
+            return `
+              <button type="button" class="action-item ${a.isAlert ? 'alert' : ''}" ${a.attrs || ''} ${a.disabled ? 'disabled' : ''} title="${esc(a.title || a.label || '')}">
+                ${a.icon ? `<span class="action-item-icon">${a.icon}</span>` : ''}
+                <span>${esc(a.label || '')}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  window.DS.initActionMenus = function (container = document) {
+    const btns = container.querySelectorAll('.action-dots-btn');
+    btns.forEach(btn => {
+      if (btn._hasActionMenu) return;
+      btn._hasActionMenu = true;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wrap = btn.closest('.action-menu-wrap');
+        if (!wrap) return;
+        const dropdown = wrap.querySelector('.action-dropdown');
+        if (!dropdown) return;
+
+        const isHidden = dropdown.classList.contains('hidden');
+        document.querySelectorAll('.action-dropdown:not(.hidden)').forEach(d => {
+          d.classList.add('hidden');
+          d.closest('.action-menu-wrap')?.querySelector('.action-dots-btn')?.classList.remove('active');
+        });
+
+        if (isHidden) {
+          dropdown.classList.remove('hidden');
+          btn.classList.add('active');
+          const rect = dropdown.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight - 20) {
+            dropdown.classList.add('drop-up');
+          } else {
+            dropdown.classList.remove('drop-up');
+          }
+        }
+      });
+    });
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.action-dropdown') && !e.target.closest('.action-dots-btn')) {
+      document.querySelectorAll('.action-dropdown:not(.hidden)').forEach(d => {
+        d.classList.add('hidden');
+        d.closest('.action-menu-wrap')?.querySelector('.action-dots-btn')?.classList.remove('active');
+      });
+    }
+  });
+
+  // ── Table Pagination (25 items per page) ──
+  window.DS.paginate = function (items, page = 1, pageSize = 25) {
+    const list = items || [];
+    const total = list.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const curPage = Math.min(Math.max(1, parseInt(page, 10) || 1), totalPages);
+    const start = (curPage - 1) * pageSize;
+    const end = Math.min(start + pageSize, total);
+    const pagedItems = list.slice(start, end);
+
+    function renderBar(pgKey = 'pg') {
+      if (total <= pageSize) return '';
+      return `
+        <div class="table-pagination" data-pg-key="${pgKey}">
+          <div class="table-pagination-info">Showing <b>${start + 1}–${end}</b> of <b>${total}</b> items</div>
+          <div class="table-pagination-btns">
+            <button class="btn sm ghost" data-pg-target="${curPage - 1}" ${curPage <= 1 ? 'disabled' : ''}>
+              ← Previous
+            </button>
+            <span class="small" style="font-weight:700;padding:0 8px">Page ${curPage} of ${totalPages}</span>
+            <button class="btn sm ghost" data-pg-target="${curPage + 1}" ${curPage >= totalPages ? 'disabled' : ''}>
+              Next →
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    return {
+      items: pagedItems,
+      totalPages,
+      curPage,
+      total,
+      start,
+      end,
+      renderBar,
+    };
+  };
+
+  window.DS.bindPagination = function (container, onPageChange) {
+    if (!container) return;
+    container.querySelectorAll('[data-pg-target]').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const p = parseInt(b.dataset.pgTarget, 10);
+        if (p > 0 && typeof onPageChange === 'function') {
+          onPageChange(p);
+        }
+      });
+    });
   };
 
   // ── nav definitions ──
@@ -125,12 +308,55 @@
 
   function renderNav() {
     const nav = $('#ds-nav');
+    const drawerNav = $('#ds-drawer-nav');
     const items = isAdmin() ? NAV.admin : NAV.member;
-    nav.innerHTML = items.map(it => it.group
+    const navHtml = items.map(it => it.group
       ? `<div class="nav-group-label">${it.group}</div>`
       : `<button class="nav-btn ${S.route === it.id ? 'active' : ''}" data-route="${it.id}" type="button" aria-current="${S.route === it.id ? 'page' : 'false'}">${window.DS.icons[it.icon]}<span>${it.label}</span>${it.badge ? `<span class="nav-badge hidden" id="nav-${it.badge}"></span>` : ''}</button>`
     ).join('');
-    $$('.nav-btn', nav).forEach(b => b.addEventListener('click', () => navigate(b.dataset.route)));
+
+    if (nav) {
+      nav.innerHTML = navHtml;
+      $$('.nav-btn', nav).forEach(b => b.addEventListener('click', () => navigate(b.dataset.route)));
+    }
+
+    if (drawerNav) {
+      drawerNav.innerHTML = navHtml;
+      $$('.nav-btn', drawerNav).forEach(b => b.addEventListener('click', () => {
+        closeDrawer();
+        navigate(b.dataset.route);
+      }));
+    }
+
+    // Mobile drawer open/close
+    const drawer = $('#ds-mobile-drawer');
+    const backdrop = $('#ds-drawer-backdrop');
+    const openBtn = $('#mobile-menu-btn');
+    const closeBtn = $('#drawer-close-btn');
+
+    function openDrawer() {
+      drawer?.classList.remove('hidden');
+      backdrop?.classList.remove('hidden');
+    }
+    function closeDrawer() {
+      drawer?.classList.add('hidden');
+      backdrop?.classList.add('hidden');
+    }
+
+    if (openBtn && !openBtn._boundDrawer) {
+      openBtn._boundDrawer = true;
+      openBtn.addEventListener('click', openDrawer);
+      closeBtn?.addEventListener('click', closeDrawer);
+      backdrop?.addEventListener('click', closeDrawer);
+    }
+
+    // Mobile header role tag & notifications
+    const mobileRoleTag = $('#mobile-role-tag');
+    if (mobileRoleTag) mobileRoleTag.textContent = S.role;
+    $('#mobile-notif-btn')?.addEventListener('click', () => navigate('notifications'));
+    $('#drawer-profile')?.addEventListener('click', () => { closeDrawer(); navigate('profile'); });
+    $('#drawer-logout')?.addEventListener('click', () => { closeDrawer(); window.DS.auth.signOut(); });
+
     // mobile tabbar (member core actions)
     const tb = $('#ds-tabbar');
     const tabs = isAdmin()
@@ -139,9 +365,29 @@
     tb.innerHTML = tabs.map(([id, ic, lb]) =>
       `<button class="tb ${S.route === id ? 'active' : ''}" data-route="${id}" type="button" aria-label="${lb}">${window.DS.icons[ic]}<span>${lb}</span></button>`).join('');
     $$('.tb', tb).forEach(b => b.addEventListener('click', () => navigate(b.dataset.route)));
-    // role switch
+
+    // role switches (sidebar & mobile drawer)
+    const setRole = (role) => {
+      S.role = role;
+      renderNav();
+      navigate(S.route);
+    };
     $$('#role-switch button').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.role === S.role));
+      if (!b._boundRole) {
+        b._boundRole = true;
+        b.addEventListener('click', () => setRole(b.dataset.role));
+      }
+    });
+    $$('#drawer-role-switch button').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.role === S.role));
+      if (!b._boundRole) {
+        b._boundRole = true;
+        b.addEventListener('click', () => {
+          setRole(b.dataset.role);
+          closeDrawer();
+        });
+      }
     });
   }
 
@@ -159,7 +405,10 @@
     renderNav();
     const view = $('#ds-view');
     view.innerHTML = `<div class="loading">Loading…</div>`;
-    try { await def.render(view); } catch (e) {
+    try {
+      await def.render(view);
+      window.DS.initActionMenus(view);
+    } catch (e) {
       console.error(e);
       view.innerHTML = `<div class="empty"><div class="big">Something went wrong</div><div class="hint">${esc(e.message || e)}</div><button class="btn sm" style="margin-top:12px" onclick="DS.navigate('${id}')">Retry</button></div>`;
     }
@@ -169,26 +418,97 @@
   window.DS.navigate = navigate;
 
   // ── auth ──
-  function renderLogin() {
-    $('#auth-view').innerHTML = `
-      <h2 style="margin-bottom:4px">Sign in</h2>
-      <p class="muted small" style="margin-bottom:22px">Email and the password your admin gave you.</p>
-      <div class="error-box hidden" id="login-error" style="margin-bottom:14px"></div>
-      <form id="login-form" novalidate>
-        <div class="field"><label class="label" for="li-email">Email</label><input class="input" id="li-email" type="email" required autocomplete="email" placeholder="you@company.com"></div>
-        <div class="field"><label class="label" for="li-pass">Password</label><input class="input" id="li-pass" type="password" required autocomplete="current-password"></div>
-        <button class="btn primary" style="width:100%" type="submit">Sign in</button>
-      </form>`;
-    $('#login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#login-error');
-      err.classList.remove('show');
-      const { error } = await sb.auth.signInWithPassword({
-        email: $('#li-email').value.trim(), password: $('#li-pass').value,
-      });
-      if (error) { err.textContent = error.message; err.classList.add('show'); return; }
-      await boot();
+  let authBound = false;
+  function initAuth() {
+    if (authBound) return;
+    authBound = true;
+
+    const emailInput = $('#li-email');
+    const pwInput = $('#li-pass');
+    const savedEmail = (typeof localStorage !== 'undefined' && localStorage.getItem('nodaar_auth_email')) || '';
+    if (emailInput && !emailInput.value && savedEmail) {
+      emailInput.value = savedEmail;
+    }
+
+    const toggleBtn = $('#toggle-pw-btn');
+    toggleBtn?.addEventListener('click', () => {
+      if (!pwInput) return;
+      const isPw = pwInput.type === 'password';
+      pwInput.type = isPw ? 'text' : 'password';
+      toggleBtn.textContent = isPw ? 'Hide' : 'Show';
     });
+
+    $('#login-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput ? emailInput.value.trim() : '';
+      const password = pwInput ? pwInput.value : '';
+      if (!email || !password) {
+        const err = $('#login-error');
+        if (err) {
+          err.textContent = 'Please enter both your work email and password.';
+          err.classList.remove('hidden');
+          err.classList.add('show');
+        }
+        return;
+      }
+      await executeSignIn(email, password);
+    });
+  }
+
+  // Execute Sign In
+  async function executeSignIn(email, password) {
+    const err = $('#login-error');
+    const submitBtn = $('#login-submit-btn');
+    if (err) {
+      err.classList.remove('show');
+      err.classList.add('hidden');
+      err.textContent = '';
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in…';
+    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('nodaar_auth_email', email);
+      }
+      const client = S.sb;
+      if (!client) throw new Error('Supabase client is not ready. Please refresh.');
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (err) {
+          err.textContent = error.message;
+          err.classList.remove('hidden');
+          err.classList.add('show');
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign in';
+        }
+        toast(error.message, true);
+        return;
+      }
+      toast('Successfully logged in');
+      if (submitBtn) {
+        submitBtn.textContent = '✓ Successfully logged in';
+        submitBtn.style.background = '#1E6B3C';
+        submitBtn.style.borderColor = '#1E6B3C';
+      }
+      setTimeout(async () => {
+        await boot();
+      }, 400);
+    } catch (e) {
+      if (err) {
+        err.textContent = e.message || 'Error signing in. Please check your network connection.';
+        err.classList.remove('hidden');
+        err.classList.add('show');
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+      }
+      toast(e.message || 'Error signing in', true);
+    }
   }
 
   async function fetchProfile() {
@@ -196,52 +516,98 @@
     S.profile = data || { id: S.user.id, email: S.user.email, access_level: 'Member', full_name: S.user.email };
   }
 
-  async function boot() {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) { renderLogin(); return; }
-    S.user = session.user;
-    S.session = session;
-    await fetchProfile();
-    if (S.profile.active === false) {
-      await sb.auth.signOut();
-      $('#auth-view').innerHTML = `<div class="error-box">This account has been deactivated. Contact an admin.</div>`;
-      return;
-    }
-    $('#ds-auth').classList.add('hidden');
-    $('#ds-app').classList.remove('hidden');
-    if (S.profile.must_change_password) { $('#pw-modal').classList.add('open'); }
-    // role: default Member unless admin toggles
-    if (!isAdminProfile()) { $('#role-admin-btn').style.display = 'none'; S.role = 'Member'; }
-    $('#pw-form').addEventListener('submit', async (e) => {
+  let appEventsBound = false;
+  function bindAppEvents() {
+    if (appEventsBound) return;
+    appEventsBound = true;
+
+    $('#pw-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = $('#pw-error');
-      err.classList.remove('show');
-      if ($('#pw1').value.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.classList.add('show'); return; }
-      if ($('#pw1').value !== $('#pw2').value) { err.textContent = 'Passwords do not match.'; err.classList.add('show'); return; }
-      const { error } = await sb.auth.updateUser({ password: $('#pw1').value });
-      if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+      if (err) err.classList.remove('show');
+      const p1 = $('#pw1')?.value;
+      const p2 = $('#pw2')?.value;
+      if (!p1 || p1.length < 6) {
+        if (err) { err.textContent = 'Password must be at least 6 characters.'; err.classList.add('show'); }
+        return;
+      }
+      if (p1 !== p2) {
+        if (err) { err.textContent = 'Passwords do not match.'; err.classList.add('show'); }
+        return;
+      }
+      const { error } = await sb.auth.updateUser({ password: p1 });
+      if (error) {
+        if (err) { err.textContent = error.message; err.classList.add('show'); }
+        return;
+      }
       await sb.from('profiles').update({ must_change_password: false }).eq('id', S.user.id);
       S.profile.must_change_password = false;
-      $('#pw-modal').classList.remove('open');
+      $('#pw-modal')?.classList.remove('open');
       toast('Password updated.');
     });
+
     $$('#role-switch button').forEach(b => b.addEventListener('click', () => {
       if (b.dataset.role === 'Admin' && !isAdminProfile()) return;
       S.role = b.dataset.role;
       navigate('dashboard');
     }));
-    $('#role-switch').addEventListener('click', () => setTimeout(loadReviewBadge, 0));
-    $('#nav-logout').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
-    $('#nav-profile').addEventListener('click', () => navigate('profile'));
-    $('#nav-notif').addEventListener('click', () => navigate('notifications'));
-    navigate('dashboard');
-    loadNotifBadge();
+    $('#role-switch')?.addEventListener('click', () => setTimeout(loadReviewBadge, 0));
+    $('#nav-logout')?.addEventListener('click', async () => {
+      await sb.auth.signOut();
+      location.reload();
+    });
+    $('#nav-profile')?.addEventListener('click', () => navigate('profile'));
+    $('#nav-notif')?.addEventListener('click', () => navigate('notifications'));
+  }
+
+  async function boot() {
+    initAuth();
+    const client = S.sb;
+    if (!client) {
+      console.warn('[Nodaar] Supabase client not ready yet');
+      return;
+    }
+    try {
+      const { data: { session }, error: sessErr } = await client.auth.getSession();
+      if (sessErr || !session) {
+        $('#ds-auth')?.classList.remove('hidden');
+        $('#ds-app')?.classList.add('hidden');
+        return;
+      }
+      S.user = session.user;
+      S.session = session;
+      await fetchProfile();
+      if (S.profile.active === false) {
+        await client.auth.signOut();
+        const err = $('#login-error');
+        if (err) {
+          err.textContent = 'This account has been deactivated. Contact an admin.';
+          err.classList.remove('hidden');
+          err.classList.add('show');
+        }
+        return;
+      }
+      $('#ds-auth')?.classList.add('hidden');
+      $('#ds-app')?.classList.remove('hidden');
+      if (S.profile.must_change_password) { $('#pw-modal')?.classList.add('open'); }
+      if (!isAdminProfile()) {
+        const btn = $('#role-admin-btn');
+        if (btn) btn.style.display = 'none';
+        S.role = 'Member';
+      }
+      bindAppEvents();
+      navigate('dashboard');
+      loadNotifBadge();
+    } catch (e) {
+      console.error('[Nodaar] Boot error:', e);
+    }
   }
 
   async function loadNotifBadge() {
     if (!S.user) return;
     const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', S.user.id).eq('read', false);
     const b = $('#notif-badge');
+    if (!b) return;
     b.textContent = count || 0;
     b.classList.toggle('hidden', !count);
   }
@@ -268,6 +634,18 @@
   window.DS.registerRoute('notifications', { title: 'Notifications', sub: 'Score, report, leave, meeting and announcement updates', render: window.renderNotifications || (async (v) => { v.innerHTML = '<div class="loading">Loading…</div>'; if (window.renderNotifications) await window.renderNotifications(v); }) });
   window.DS.registerRoute('profile', { title: 'Profile', sub: 'Your account details', render: window.renderProfilePage || (async (v) => { v.innerHTML = '<div class="loading">Loading…</div>'; if (window.renderProfilePage) await window.renderProfilePage(v); }) });
 
-  sb.auth.onAuthStateChange((_e, session) => { if (!session) return; });
-  document.addEventListener('DOMContentLoaded', boot);
+  window.DS.boot = boot;
+  window.DS.initAuth = initAuth;
+
+  sb.auth?.onAuthStateChange?.((_e, session) => { if (!session) return; });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initAuth();
+      boot();
+    });
+  } else {
+    initAuth();
+    boot();
+  }
 })();

@@ -198,3 +198,45 @@ begin
   end if;
   return new;
 end; $$;
+
+-- ============================================================
+-- PHASE 8b — MEETING REPORT REVIEW + ADMIN NOTIFICATIONS
+-- The admin review queue scores meeting reports in place, so
+-- meeting_attendance needs the same review columns the daily
+-- report table already carries.
+-- ============================================================
+
+alter table public.meeting_attendance add column if not exists score int
+  check (score is null or (score between 0 and 100));
+alter table public.meeting_attendance add column if not exists scored boolean default false;
+alter table public.meeting_attendance add column if not exists review_note text;
+alter table public.meeting_attendance add column if not exists reviewed_by uuid
+  references public.profiles(id);
+alter table public.meeting_attendance add column if not exists reviewed_at timestamptz;
+
+-- ── is_admin_uid must be SECURITY DEFINER ──────────────────
+-- The helper reads public.profiles. As a plain (INVOKER) function
+-- it is evaluated under the caller's RLS context, so an admin
+-- could not see their own access_level and every admin-only
+-- policy silently evaluated false.
+create or replace function public.is_admin_uid(uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles p
+     where p.id = uid and p.access_level = 'Admin');
+$$;
+
+-- ── admins must be able to READ notifications they created ──
+-- PostgREST's INSERT ... RETURNING re-reads the inserted row under
+-- the table's SELECT policies. Without a SELECT policy that admits
+-- admins, an admin inserting a notification for somebody else
+-- failed with "new row violates row-level security policy".
+drop policy if exists "notif admin read all" on public.notifications;
+create policy "notif admin read all" on public.notifications for select
+  using (public.is_admin_uid(auth.uid()));
+
