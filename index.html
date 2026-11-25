@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nodaar — Team Management Platform</title>
 <meta name="description" content="Nodaar — Enterprise workspace for tasks, standups, OKRs, meetings and team operations.">
-<meta name="theme-color" content="#F6F4EF">
+<meta name="theme-color" content="#07192F">
 <link rel="icon" type="image/png" href="./assets/favicon.png">
 <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,16 +20,23 @@
 </script>
 </head>
 <body>
+<a href="#ds-main" class="skip-link">Skip to content</a>
 
 <!-- AUTH -->
 <div id="ds-auth">
   <div class="auth-card" id="auth-card">
-    <div class="brand" style="margin-bottom:24px"><img class="brand-mark" src="./assets/favicon.png" alt=""> Nodaar Hub</div>
+    <div class="auth-brand-banner">
+      <div class="brand-lockup">
+        <img class="brand-wordmark" src="./assets/logo-wordmark-light.png" alt="Nodaar">
+        <span class="brand-pill">Team Hub</span>
+      </div>
+      <p class="auth-tagline">Daily standups, tasks, OKRs, scores &amp; team channels</p>
+    </div>
 
-    <div id="auth-signin-view">
+    <div class="auth-body" id="auth-signin-view">
       <h2 style="margin-bottom:6px">Sign in</h2>
       <p class="muted small" style="margin-bottom:22px">Enter your work email and password to access your team workspace.</p>
-      <div class="error-box hidden" id="login-error" style="margin-bottom:16px"></div>
+      <div class="error-box hidden" id="login-error" style="margin-bottom:16px" role="alert" aria-live="polite"></div>
       <form id="login-form" novalidate>
         <div class="field">
           <label class="label" for="li-email">Work email</label>
@@ -42,7 +49,7 @@
           </div>
           <input class="input" id="li-pass" type="password" required autocomplete="current-password" placeholder="••••••••">
         </div>
-        <button class="btn primary" id="login-submit-btn" style="width:100%" type="submit">Sign in</button>
+        <button class="btn accent" id="login-submit-btn" style="width:100%" type="submit">Sign in</button>
       </form>
     </div>
   </div>
@@ -53,7 +60,7 @@
   <div class="modal">
     <h2 id="pw-title" style="margin-bottom:6px">Set a new password</h2>
     <p class="muted small" style="margin-bottom:20px">For security, change your temporary password before continuing.</p>
-    <div class="error-box hidden" id="pw-error" style="margin-bottom:14px"></div>
+    <div class="error-box hidden" id="pw-error" style="margin-bottom:14px" role="alert" aria-live="polite"></div>
     <form id="pw-form" novalidate>
       <div class="field"><label class="label" for="pw1">New password</label><input class="input" id="pw1" type="password" minlength="6" required autocomplete="new-password"></div>
       <div class="field"><label class="label" for="pw2">Confirm new password</label><input class="input" id="pw2" type="password" minlength="6" required autocomplete="new-password"></div>
@@ -68,14 +75,18 @@
   <!-- Mobile Header Bar -->
   <header id="ds-mobile-bar">
     <div style="display:flex;align-items:center;gap:10px">
-      <button type="button" class="btn sm ghost" id="mobile-menu-btn" aria-label="Open navigation menu" style="padding:4px 8px;font-size:20px;line-height:1">☰</button>
-      <div class="brand" style="font-size:16px"><img class="brand-mark" src="./assets/favicon.png" alt="" style="width:26px;height:26px"> Nodaar</div>
+      <button type="button" class="mobile-icon-btn" id="mobile-menu-btn" aria-label="Open navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:20px;height:20px"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="brand-lockup">
+        <img class="brand-wordmark" src="./assets/logo-wordmark-light.png" alt="Nodaar" style="height:24px">
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <span class="tag muted-tag" id="mobile-role-tag" style="font-size:10.5px">Member</span>
-      <button class="nav-btn" id="mobile-notif-btn" type="button" aria-label="Notifications" style="width:auto;min-height:34px;padding:4px 8px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:18px;height:18px"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
-        <span class="nav-badge hidden" id="mobile-notif-badge">0</span>
+      <span class="brand-pill" id="mobile-role-tag">Member</span>
+      <button class="mobile-icon-btn" id="mobile-notif-btn" type="button" aria-label="Notifications" style="position:relative">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:19px;height:19px"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <span class="nav-badge mobile-notif-dot hidden" id="mobile-notif-badge">0</span>
       </button>
     </div>
   </header>
@@ -83,60 +94,73 @@
   <!-- Mobile Drawer Backdrop & Drawer -->
   <div id="ds-drawer-backdrop" class="drawer-backdrop hidden"></div>
   <aside id="ds-mobile-drawer" class="mobile-drawer hidden" aria-label="Mobile full navigation">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)">
-      <div class="brand"><img class="brand-mark" src="./assets/favicon.png" alt=""> Nodaar</div>
-      <button type="button" class="btn sm ghost" id="drawer-close-btn" aria-label="Close menu" style="padding:4px 8px;font-size:16px">✕</button>
+    <div class="drawer-head">
+      <div class="brand-lockup">
+        <img class="brand-wordmark" src="./assets/logo-wordmark-light.png" alt="Nodaar" style="height:26px">
+        <span class="brand-pill">Hub</span>
+      </div>
+      <button type="button" class="mobile-icon-btn" id="drawer-close-btn" aria-label="Close menu" style="width:34px;height:34px">✕</button>
     </div>
+    <div class="sidebar-user hidden" id="drawer-user"></div>
     <div style="margin-bottom:14px">
-      <span class="label">Viewing as</span>
+      <span class="nav-group-label" style="margin:0 0 6px 2px;display:block">Viewing as</span>
       <div class="role-switch" id="drawer-role-switch" role="group" aria-label="Role switcher">
         <button type="button" data-role="Member" aria-pressed="true">Member</button>
         <button type="button" data-role="Admin" aria-pressed="false" id="drawer-role-admin-btn">Admin</button>
       </div>
     </div>
-    <nav id="ds-drawer-nav" style="display:flex;flex-direction:column;gap:4px"></nav>
-    <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:6px">
+    <nav id="ds-drawer-nav" style="display:flex;flex-direction:column;gap:3px"></nav>
+    <div class="sidebar-footer">
       <button class="nav-btn" id="drawer-profile" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
-        Profile &amp; Settings
+        <span>Profile &amp; Settings</span>
       </button>
-      <button class="nav-btn" id="drawer-logout" type="button" style="color:var(--alert)">
+      <button class="nav-btn nav-danger" id="drawer-logout" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-        Sign out
+        <span>Sign out</span>
       </button>
     </div>
   </aside>
 
   <aside id="ds-sidebar" aria-label="Main navigation">
-    <div class="brand"><img class="brand-mark" src="./assets/favicon.png" alt=""> Nodaar</div>
+    <div class="sidebar-brand">
+      <div class="brand-lockup">
+        <img class="brand-wordmark" src="./assets/logo-wordmark-light.png" alt="Nodaar" style="height:28px">
+        <span class="brand-pill">Hub</span>
+      </div>
+    </div>
+    <div class="sidebar-user hidden" id="sidebar-user"></div>
     <div>
-      <span class="label">Viewing as</span>
+      <span class="nav-group-label" style="margin:0 0 6px 2px;display:block">Viewing as</span>
       <div class="role-switch" id="role-switch" role="group" aria-label="Role switcher">
         <button type="button" data-role="Member" aria-pressed="true">Member</button>
         <button type="button" data-role="Admin" aria-pressed="false" id="role-admin-btn">Admin</button>
       </div>
     </div>
     <nav id="ds-nav" aria-label="Sections"></nav>
-    <div style="margin-top:auto">
+    <div class="sidebar-footer">
       <button class="nav-btn" id="nav-notif" type="button" aria-label="Notifications">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
-        Notifications <span class="nav-badge hidden" id="notif-badge">0</span>
+        <span>Notifications</span> <span class="nav-badge hidden" id="notif-badge">0</span>
       </button>
       <button class="nav-btn" id="nav-profile" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
-        Profile
+        <span>Profile</span>
       </button>
-      <button class="nav-btn" id="nav-logout" type="button">
+      <button class="nav-btn nav-danger" id="nav-logout" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-        Sign out
+        <span>Sign out</span>
       </button>
     </div>
   </aside>
 
   <main id="ds-main">
     <div id="ds-main-narrow">
-      <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px;flex-wrap:wrap">
-        <div><h1 id="page-title">Dashboard</h1><p class="muted" id="page-sub" style="margin-top:4px"></p></div>
+      <header class="page-header">
+        <div>
+          <h1 id="page-title">Dashboard</h1>
+          <p class="muted" id="page-sub" style="margin-top:4px"></p>
+        </div>
         <div id="page-action"></div>
       </header>
       <div id="ds-view" class="stack"></div>

@@ -67,6 +67,16 @@
   }
   window.DS.meeting = normaliseMeeting;
 
+  window.DS.nameOf = (p) => (p && (p.full_name || p.email)) || 'Unknown';
+  window.DS.lateBy = function (minutes) {
+    if (!minutes || minutes <= 0) return '';
+    const h = Math.floor(minutes / 60), m = minutes % 60;
+    const parts = [];
+    if (h) parts.push(h + 'h');
+    if (m || !h) parts.push(m + 'm');
+    return parts.join(' ');
+  };
+
   // ── toast ──
   let toastEl;
   function toast(msg, typeOrIsErr) {
@@ -81,13 +91,16 @@
       /success|saved|submitted|updated|created|done/i.test(String(msg || ''))
     ));
 
-    let bg = '#14130F';
+    let bg = '#07192F';
+    let borderLeft = '4px solid #FE8A03';
     let icon = '';
     if (isErr) {
-      bg = '#B83A17';
+      bg = '#C4321C';
+      borderLeft = '4px solid #FCA5A5';
       icon = '✕ ';
     } else if (isSuccess) {
-      bg = '#1E6B3C';
+      bg = '#166534';
+      borderLeft = '4px solid #86EFAC';
       icon = '✓ ';
     }
 
@@ -97,19 +110,20 @@
       left: 50%;
       transform: translateX(-50%);
       background: ${bg};
-      color: #F6F4EF;
-      padding: 12px 24px;
+      color: #FFFFFF;
+      padding: 12px 22px;
       border-radius: 12px;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 700;
       z-index: 9999;
       max-width: 90vw;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      box-shadow: 0 14px 34px rgba(7,25,47,0.32);
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      border: 1px solid rgba(255,255,255,0.2);
+      transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-left: ${borderLeft};
       pointer-events: none;
     `;
     const cleanMsg = String(msg || '');
@@ -134,9 +148,121 @@
     $('#modal-box').innerHTML = html;
     $('#modal-root').classList.add('open');
   }
-  function closeModal() { $('#modal-root').classList.remove('open'); }
+  function closeModal() {
+    $('#modal-root')?.classList.remove('open');
+  }
   $('#modal-root')?.addEventListener('click', (e) => { if (e.target.id === 'modal-root') closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if ($('#modal-root')?.classList.contains('open')) closeModal();
+      else closeDrawer();
+    }
+  });
   window.DS.modal = { open: openModal, close: closeModal };
+
+  window.DS.promptModal = function ({
+    title = 'Input required',
+    subtitle = '',
+    label = 'Details',
+    placeholder = '',
+    type = 'text',
+    multiline = false,
+    defaultValue = '',
+    required = true,
+    minLength = 0,
+    confirmLabel = 'Save',
+    cancelLabel = 'Cancel',
+  } = {}) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (val) => {
+        if (settled) return;
+        settled = true;
+        closeModal();
+        resolve(val);
+      };
+      const fieldHtml = multiline
+        ? `<textarea class="input" id="ds-prompt-input" placeholder="${esc(placeholder)}" ${required ? 'required' : ''}>${esc(defaultValue)}</textarea>`
+        : `<input class="input" id="ds-prompt-input" type="${esc(type)}" value="${esc(defaultValue)}" placeholder="${esc(placeholder)}" ${minLength ? `minlength="${minLength}"` : ''} ${required ? 'required' : ''}>`;
+
+      openModal(`
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px">
+          <div>
+            <h2 style="margin:0;font-size:18px">${esc(title)}</h2>
+            ${subtitle ? `<p class="muted small" style="margin:4px 0 0">${esc(subtitle)}</p>` : ''}
+          </div>
+          <button type="button" class="btn sm ghost" id="ds-prompt-x" aria-label="Close" style="padding:4px 8px">✕</button>
+        </div>
+        <form id="ds-prompt-form" novalidate>
+          <div class="field">
+            <label class="label" for="ds-prompt-input">${esc(label)}</label>
+            ${fieldHtml}
+            <div class="form-error" id="ds-prompt-err" role="alert" aria-live="polite"></div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button type="button" class="btn" id="ds-prompt-cancel">${esc(cancelLabel)}</button>
+            <button type="submit" class="btn primary">${esc(confirmLabel)}</button>
+          </div>
+        </form>
+      `);
+
+      const input = $('#ds-prompt-input');
+      const err = $('#ds-prompt-err');
+      setTimeout(() => { input?.focus(); input?.select?.(); }, 10);
+
+      $('#ds-prompt-x')?.addEventListener('click', () => finish(null));
+      $('#ds-prompt-cancel')?.addEventListener('click', () => finish(null));
+      $('#ds-prompt-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        err?.classList.remove('show');
+        const val = (input?.value || '').trim();
+        if (required && !val) {
+          if (err) { err.textContent = `${label} is required.`; err.classList.add('show'); }
+          input?.focus();
+          return;
+        }
+        if (minLength && val.length < minLength) {
+          if (err) { err.textContent = `Must be at least ${minLength} characters.`; err.classList.add('show'); }
+          input?.focus();
+          return;
+        }
+        finish(val);
+      });
+    });
+  };
+
+  window.DS.confirmModal = function ({
+    title = 'Confirm action',
+    message = 'Are you sure you want to continue?',
+    confirmLabel = 'Confirm',
+    cancelLabel = 'Cancel',
+    isAlert = false,
+  } = {}) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (val) => {
+        if (settled) return;
+        settled = true;
+        closeModal();
+        resolve(val);
+      };
+      openModal(`
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+          <h2 style="margin:0;font-size:18px">${esc(title)}</h2>
+          <button type="button" class="btn sm ghost" id="ds-conf-x" aria-label="Close" style="padding:4px 8px">✕</button>
+        </div>
+        <p class="small muted" style="margin-bottom:20px;line-height:1.55">${esc(message)}</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button type="button" class="btn" id="ds-conf-no">${esc(cancelLabel)}</button>
+          <button type="button" class="btn ${isAlert ? 'alert' : 'primary'}" id="ds-conf-yes">${esc(confirmLabel)}</button>
+        </div>
+      `);
+      $('#ds-conf-x')?.addEventListener('click', () => finish(false));
+      $('#ds-conf-no')?.addEventListener('click', () => finish(false));
+      $('#ds-conf-yes')?.addEventListener('click', () => finish(true));
+      setTimeout(() => $('#ds-conf-yes')?.focus(), 10);
+    });
+  };
 
   window.DS.getInitials = function (name) {
     const parts = String(name || '').trim().split(/\s+/);
@@ -146,6 +272,15 @@
   };
 
   window.DS.showDetailsModal = function ({ title, subtitle, badgeHtml, rows, actions = [] }) {
+    const cleanActions = (actions || []).filter(Boolean);
+    const actionHtml = cleanActions.map((a, idx) => {
+      if (typeof a === 'string') return a;
+      if (a.href) {
+        return `<a class="btn sm ${esc(a.className || '')}" href="${esc(a.href)}" target="_blank" rel="noopener">${esc(a.label)}</a>`;
+      }
+      return `<button type="button" class="btn sm ${esc(a.className || '')}" data-modal-act="${idx}">${esc(a.label)}</button>`;
+    }).join('');
+
     const html = `
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)">
         <div style="min-width:0;flex:1">
@@ -164,11 +299,20 @@
         `).join('')}
       </dl>
       <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:14px;border-top:1px solid var(--line-soft);flex-wrap:wrap">
-        ${actions.filter(Boolean).map(a => a).join('')}
+        ${actionHtml}
         <button type="button" class="btn sm" onclick="window.DS.modal.close()">Close</button>
       </div>
     `;
     window.DS.modal.open(html);
+    const box = $('#modal-box');
+    cleanActions.forEach((a, idx) => {
+      if (a && typeof a === 'object' && typeof a.onClick === 'function') {
+        box?.querySelector(`[data-modal-act="${idx}"]`)?.addEventListener('click', async () => {
+          closeModal();
+          await a.onClick();
+        });
+      }
+    });
   };
 
   // ── icons (inline SVG, no emoji) ──
@@ -388,7 +532,27 @@
   }
   window.DS.closeDrawer = closeDrawer;
 
+  function renderUserBadge() {
+    const name = S.profile?.full_name || S.user?.email || 'Team member';
+    const sub = S.profile?.access_level ? `${S.profile.access_level} · ${S.profile?.email || ''}` : (S.user?.email || '');
+    const initials = window.DS.getInitials(name);
+    const html = `
+      <div class="sidebar-avatar">${esc(initials)}</div>
+      <div class="sidebar-user-meta">
+        <div class="sidebar-user-name">${esc(name)}</div>
+        <div class="sidebar-user-sub">${esc(sub)}</div>
+      </div>
+    `;
+    ['#sidebar-user', '#drawer-user'].forEach((sel) => {
+      const el = $(sel);
+      if (!el) return;
+      el.innerHTML = html;
+      el.classList.toggle('hidden', !S.user);
+    });
+  }
+
   function renderNav() {
+    renderUserBadge();
     const nav = $('#ds-nav');
     const drawerNav = $('#ds-drawer-nav');
     const items = isAdmin() ? NAV.admin : NAV.member;
@@ -409,6 +573,10 @@
         navigate(b.dataset.route);
       }));
     }
+
+    $('#nav-notif')?.classList.toggle('active', S.route === 'notifications');
+    $('#nav-profile')?.classList.toggle('active', S.route === 'profile');
+    $('#drawer-profile')?.classList.toggle('active', S.route === 'profile');
 
     // Mobile drawer open/close
     const drawer = $('#ds-mobile-drawer');
@@ -458,9 +626,11 @@
 
     // role switches (sidebar & mobile drawer)
     const setRole = (role) => {
+      if (role === 'Admin' && !isAdminProfile()) return;
       S.role = role;
-      renderNav();
-      navigate(S.route);
+      const adminOnly = ['review', 'users', 'calendar'];
+      const target = (role === 'Member' && adminOnly.includes(S.route)) ? 'dashboard' : S.route;
+      navigate(target);
     };
     $$('#role-switch button').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.role === S.role));
@@ -584,6 +754,7 @@
         submitBtn.textContent = 'Sign in';
         submitBtn.style.background = '';
         submitBtn.style.borderColor = '';
+        submitBtn.style.color = '';
       }
       const pwInput = $('#li-pass');
       if (pwInput) pwInput.value = '';
@@ -614,6 +785,7 @@
       submitBtn.textContent = 'Signing in…';
       submitBtn.style.background = '';
       submitBtn.style.borderColor = '';
+      submitBtn.style.color = '';
     }
     try {
       if (typeof localStorage !== 'undefined') {
@@ -633,6 +805,7 @@
           submitBtn.textContent = 'Sign in';
           submitBtn.style.background = '';
           submitBtn.style.borderColor = '';
+          submitBtn.style.color = '';
         }
         toast(error.message, true);
         return;
@@ -640,8 +813,9 @@
       toast('Successfully logged in');
       if (submitBtn) {
         submitBtn.textContent = '✓ Successfully logged in';
-        submitBtn.style.background = '#1E6B3C';
-        submitBtn.style.borderColor = '#1E6B3C';
+        submitBtn.style.background = '#166534';
+        submitBtn.style.borderColor = '#166534';
+        submitBtn.style.color = '#FFFFFF';
       }
       await boot(data?.session);
     } catch (e) {
@@ -708,12 +882,6 @@
       signOut();
     });
 
-    $$('#role-switch button').forEach(b => b.addEventListener('click', () => {
-      if (b.dataset.role === 'Admin' && !isAdminProfile()) return;
-      S.role = b.dataset.role;
-      navigate('dashboard');
-    }));
-    $('#role-switch')?.addEventListener('click', () => setTimeout(loadReviewBadge, 0));
     $('#nav-logout')?.addEventListener('click', () => signOut());
     $('#nav-profile')?.addEventListener('click', () => navigate('profile'));
     $('#nav-notif')?.addEventListener('click', () => navigate('notifications'));
@@ -792,6 +960,7 @@
         submitBtn.textContent = 'Sign in';
         submitBtn.style.background = '';
         submitBtn.style.borderColor = '';
+        submitBtn.style.color = '';
       }
       const err = $('#login-error');
       if (err) {
@@ -809,10 +978,12 @@
   async function loadNotifBadge() {
     if (!S.user) return;
     const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', S.user.id).eq('read', false);
-    const b = $('#notif-badge');
-    if (!b) return;
-    b.textContent = count || 0;
-    b.classList.toggle('hidden', !count);
+    ['#notif-badge', '#mobile-notif-badge'].forEach((sel) => {
+      const b = $(sel);
+      if (!b) return;
+      b.textContent = count || 0;
+      b.classList.toggle('hidden', !count);
+    });
   }
   window.DS.loadNotifBadge = loadNotifBadge;
 
@@ -854,6 +1025,7 @@
         submitBtn.textContent = 'Sign in';
         submitBtn.style.background = '';
         submitBtn.style.borderColor = '';
+        submitBtn.style.color = '';
       }
     } else if (event === 'SIGNED_IN' && session) {
       if (!$('#ds-app') || $('#ds-app').classList.contains('hidden')) {

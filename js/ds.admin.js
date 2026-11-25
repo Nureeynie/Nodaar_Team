@@ -2,7 +2,7 @@
    Review queue, review+score, users, units, tasks & OKRs, meetings,
    ideas, scores & periods, calendar & leave, library admin, channels. */
 (function () {
-  const { $, $$, esc, S, sb } = window.DS;
+  const { $, $$, esc, S, sb, nameOf, lateBy } = window.DS;
   const { todayLagos, fmtDT, fmtD } = window.DS.fmt;
   const toast = window.DS.toast;
 
@@ -11,7 +11,13 @@
   const FB_STATUS = ['Submitted','Approved','In progress','Implemented','Rejected'];
 
   // ── helpers ──
-  const nameOf = (p) => (p && (p.full_name || p.email)) || 'Unknown';
+  const normTaskStatus = (s) => {
+    const k = String(s || 'To do').trim().toLowerCase();
+    if (k === 'in progress') return 'In progress';
+    if (k === 'in review') return 'In review';
+    if (k === 'done') return 'Done';
+    return 'To do';
+  };
   const tagFor = (s) => {
     const t = String(s || '');
     if (['Rejected','Dismissed','Declined'].includes(t)) return 'alert';
@@ -20,16 +26,6 @@
     return 'muted-tag';
   };
   const statusTag = (s, extra) => `<span class="tag ${tagFor(s)}">${esc(s || '—')}${extra ? ' ' + esc(extra) : ''}</span>`;
-
-  // "Late by Xh Ym"
-  function lateBy(minutes) {
-    if (!minutes || minutes <= 0) return '';
-    const h = Math.floor(minutes / 60), m = minutes % 60;
-    const parts = [];
-    if (h) parts.push(h + 'h');
-    if (m || !h) parts.push(m + 'm');
-    return parts.join(' ');
-  }
 
   function emptyState(big, hint, cta) {
     return `<div class="empty"><div class="big">${esc(big)}</div><div class="hint">${esc(hint)}</div>${cta || ''}</div>`;
@@ -105,14 +101,14 @@
 
     v.innerHTML = `
       <div class="stat-grid">
-        <div class="stat"><div class="num">${pending.count || 0}</div><div class="cap">Waiting for review</div></div>
-        <div class="stat"><div class="num">${submittedToday}<span class="muted" style="font-size:16px">/${active.length}</span></div><div class="cap">Reports today</div></div>
-        <div class="stat"><div class="num ${missedToday ? 'alert-text' : ''}">${missedToday}</div><div class="cap">Missed today (0)</div></div>
-        <div class="stat"><div class="num ${overdue.length ? 'alert-text' : ''}">${overdue.length}</div><div class="cap">Overdue tasks</div></div>
+        <div class="stat ${(pending.count || 0) ? 'accent' : ''}"><div class="num">${pending.count || 0}</div><div class="cap">Waiting for review</div></div>
+        <div class="stat ok"><div class="num">${submittedToday}<span class="muted" style="font-size:16px">/${active.length}</span></div><div class="cap">Reports today</div></div>
+        <div class="stat ${missedToday ? 'alert' : ''}"><div class="num ${missedToday ? 'alert-text' : ''}">${missedToday}</div><div class="cap">Missed today (0)</div></div>
+        <div class="stat ${overdue.length ? 'alert' : ''}"><div class="num ${overdue.length ? 'alert-text' : ''}">${overdue.length}</div><div class="cap">Overdue tasks</div></div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>Needs your attention</h3><button class="btn primary sm" data-go="review">Open review queue</button></div>
+        <div class="card-head"><h3>Needs your attention</h3><button class="btn accent sm" data-go="review">Open review queue</button></div>
         <div class="row"><div class="row-main"><div class="t">${pending.count || 0} daily reports waiting</div><div class="s">Approve with a score, or reject and ask for a resubmission.</div></div><button class="btn sm" data-go="review">Review</button></div>
         <div class="row"><div class="row-main"><div class="t">${openBlockers.length} open blockers today</div><div class="s">Members flagged something they cannot move past.</div></div></div>
         <div class="row"><div class="row-main"><div class="t">${(fb.data || []).length} ideas and problems awaiting a decision</div><div class="s">Approve, mark in progress, or reject with a reason.</div></div><button class="btn sm" data-go="ideas">Decide</button></div>
@@ -194,62 +190,132 @@
 
     const items = [];
     for (const r of (reports || [])) {
-      items.push({ kind: 'daily', id: r.id, ts: r.submitted_at, who: pmap[r.user_id], late: r.is_late, lateMin: r.late_minutes, missed: r.missed_report, title: 'Daily report · ' + fmtD(r.report_date), sub: (r.did_yesterday || r.doing_today || '').slice(0, 90) });
+      items.push({ kind: 'daily', kindLabel: 'Daily report', id: r.id, ts: r.submitted_at, who: pmap[r.user_id], late: r.is_late, lateMin: r.late_minutes, missed: r.missed_report, title: 'Daily report · ' + fmtD(r.report_date), sub: (r.did_yesterday || r.doing_today || '').slice(0, 120) });
     }
     for (const f of (feedback || [])) {
-      items.push({ kind: 'feedback', id: f.id, ts: f.created_at, who: pmap[f.user_id], late: false, title: (f.type === 'idea' ? 'Idea' : 'Problem') + (f.title ? ' · ' + f.title : ''), sub: (f.content || '').slice(0, 90), feedback: f });
+      items.push({ kind: 'feedback', kindLabel: f.type === 'idea' ? 'Idea' : 'Problem', id: f.id, ts: f.created_at, who: pmap[f.user_id], late: false, title: (f.type === 'idea' ? 'Idea' : 'Problem') + (f.title ? ' · ' + f.title : ''), sub: (f.content || '').slice(0, 120), feedback: f });
     }
     for (const a of (att || [])) {
       if (reviewedAtt.has(a.meeting_id + ':' + a.user_id)) continue;
       if (!a.note || !a.note.trim()) continue;
-      items.push({ kind: 'meeting', id: a.id, ts: a.created_at || new Date().toISOString(), who: pmap[a.user_id], late: false, title: 'Meeting report · ' + (mmap[a.meeting_id]?.title || 'Meeting'), sub: a.note.slice(0, 90), att: a });
+      items.push({ kind: 'meeting', kindLabel: 'Meeting', id: a.id, ts: a.created_at || new Date().toISOString(), who: pmap[a.user_id], late: false, title: 'Meeting report · ' + (mmap[a.meeting_id]?.title || 'Meeting'), sub: a.note.slice(0, 120), att: a });
     }
     items.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
 
+    const counts = {
+      all: items.length,
+      daily: items.filter(i => i.kind === 'daily').length,
+      meeting: items.filter(i => i.kind === 'meeting').length,
+      feedback: items.filter(i => i.kind === 'feedback').length,
+    };
+    const urgentCount = items.filter(i => i.late || i.missed).length;
+
+    let filterKind = '';
+    let filterWho = '';
     let reviewPage = 1;
 
     function renderReviewView() {
-      const pg = window.DS.paginate(items, reviewPage, 25);
+      const filtered = items.filter(it =>
+        (!filterKind || it.kind === filterKind) &&
+        (!filterWho || it.who?.id === filterWho)
+      );
+      const pg = window.DS.paginate(filtered, reviewPage, 25);
+      const hasFilter = !!(filterKind || filterWho);
+
       v.innerHTML = `
         <div class="card">
           <div class="card-head">
             <div>
-              <h3>${items.length} item${items.length === 1 ? '' : 's'} waiting</h3>
+              <h3>${filtered.length} item${filtered.length === 1 ? '' : 's'} ${hasFilter ? 'matching filter' : 'waiting'}</h3>
               <p class="small muted" style="margin-top:2px">Daily scrums, meeting reports, and weekly ideas needing decisions</p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <select class="input" id="rq-kind" style="min-height:36px;width:auto" aria-label="Filter by type">
-                <option value="">All types</option><option value="daily">Daily reports</option>
-                <option value="meeting">Meeting reports</option><option value="feedback">Ideas &amp; problems</option>
-              </select>
-              <select class="input" id="rq-who" style="min-height:36px;width:auto" aria-label="Filter by member">
-                <option value="">Everyone</option>${people.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              ${urgentCount ? `<span class="tag alert">${urgentCount} late / missed</span>` : ''}
+              ${pg.totalPages > 1 ? `<span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>` : ''}
+            </div>
+          </div>
+
+          <div class="rq-toolbar">
+            <div class="filter-chips" role="tablist" aria-label="Filter queue by type">
+              <button type="button" class="filter-chip ${filterKind === '' ? 'active' : ''}" data-rq-chip="">
+                <span>All</span><span class="chip-count">${counts.all}</span>
+              </button>
+              <button type="button" class="filter-chip ${filterKind === 'daily' ? 'active' : ''}" data-rq-chip="daily">
+                <span>Daily</span><span class="chip-count">${counts.daily}</span>
+              </button>
+              <button type="button" class="filter-chip ${filterKind === 'meeting' ? 'active' : ''}" data-rq-chip="meeting">
+                <span>Meetings</span><span class="chip-count">${counts.meeting}</span>
+              </button>
+              <button type="button" class="filter-chip ${filterKind === 'feedback' ? 'active' : ''}" data-rq-chip="feedback">
+                <span>Ideas &amp; problems</span><span class="chip-count">${counts.feedback}</span>
+              </button>
+            </div>
+            <div class="rq-who-wrap">
+              <select class="input" id="rq-who" style="min-height:38px" aria-label="Filter by member">
+                <option value="">All members</option>
+                ${people.map(p => `<option value="${p.id}" ${filterWho === p.id ? 'selected' : ''}>${esc(nameOf(p))}</option>`).join('')}
               </select>
             </div>
           </div>
+
           <div id="rq-list">
-          ${pg.items.length ? pg.items.map(it => `
-            <div class="row" data-kind="${it.kind}" data-who="${it.who?.id || ''}">
-              <div class="row-main">
-                <div class="t">${esc(it.title)}${it.late ? ` <span class="tag alert">Late by ${lateBy(it.lateMin)}</span>` : ''}${it.missed ? ' <span class="tag alert">Missed</span>' : ''}</div>
-                <div class="s">${esc(nameOf(it.who))} · submitted ${fmtDT(it.ts)}</div>
-                ${it.sub ? `<div class="s">${esc(it.sub)}</div>` : ''}
-              </div>
-              <button class="btn primary sm" data-open="${it.kind}:${it.id}">Open &amp; score</button>
-            </div>`).join('')
-          : emptyState('Nothing to review', 'Every submission has been handled. New reports land here automatically.')}
+          ${pg.items.length ? `
+            <div class="ds-list">
+              ${pg.items.map(it => {
+                const whoName = nameOf(it.who);
+                const initials = window.DS.getInitials(whoName);
+                const isUrgent = !!(it.late || it.missed);
+                return `
+                  <div class="ds-list-card rq-card ${isUrgent ? 'is-urgent' : ''}" data-kind="${it.kind}" data-who="${it.who?.id || ''}">
+                    <div class="ds-list-main">
+                      <div class="ds-list-avatar" title="${esc(whoName)}">${esc(initials)}</div>
+                      <div class="ds-list-content">
+                        <div class="ds-list-title-row">
+                          <span class="ds-list-title">${esc(it.title)}</span>
+                          <span class="tag ${it.kind === 'daily' ? 'brand' : 'muted-tag'}">${esc(it.kindLabel)}</span>
+                          ${it.late ? `<span class="tag alert">Late by ${lateBy(it.lateMin)}</span>` : ''}
+                          ${it.missed ? '<span class="tag alert">Missed</span>' : ''}
+                        </div>
+                        <div class="ds-list-sub">
+                          <span><b>${esc(whoName)}</b></span>
+                          <span>·</span>
+                          <span>Submitted ${fmtDT(it.ts)}</span>
+                        </div>
+                        ${it.sub ? `<div class="ds-list-snippet">${esc(it.sub)}</div>` : ''}
+                      </div>
+                    </div>
+                    <div class="ds-list-actions">
+                      <button type="button" class="btn accent sm" data-open="${it.kind}:${it.id}">Open &amp; score</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : emptyState(
+            hasFilter ? 'No matching items' : 'Nothing to review',
+            hasFilter ? 'Try switching the type filter or choosing another team member.' : 'Every submission has been handled. New reports land here automatically.',
+            hasFilter ? '<button type="button" class="btn sm" id="rq-clear-filters">Clear filters</button>' : ''
+          )}
           </div>
           ${pg.renderBar('review')}
         </div>`;
 
-      const apply = () => {
-        const k = $('#rq-kind').value, w = $('#rq-who').value;
-        $$('#rq-list .row').forEach(r => {
-          r.style.display = (!k || r.dataset.kind === k) && (!w || r.dataset.who === w) ? '' : 'none';
-        });
-      };
-      $('#rq-kind')?.addEventListener('change', apply);
-      $('#rq-who')?.addEventListener('change', apply);
+      $$('[data-rq-chip]', v).forEach(chip => chip.addEventListener('click', () => {
+        filterKind = chip.dataset.rqChip || '';
+        reviewPage = 1;
+        renderReviewView();
+      }));
+      $('#rq-who')?.addEventListener('change', (e) => {
+        filterWho = e.target.value;
+        reviewPage = 1;
+        renderReviewView();
+      });
+      $('#rq-clear-filters')?.addEventListener('click', () => {
+        filterKind = '';
+        filterWho = '';
+        reviewPage = 1;
+        renderReviewView();
+      });
       $$('[data-open]', v).forEach(b => b.addEventListener('click', () => {
         const [kind, id] = b.dataset.open.split(':');
         openReview(kind, id);
@@ -424,14 +490,19 @@
   function reviewShell(o) {
     const { esc: E } = window.DS;
     const html = `
-      <h2 style="margin-bottom:6px">${E(o.title)}</h2>
-      <p class="muted small" style="margin-bottom:10px">${o.meta || ''}</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="modal-head">
+        <div style="min-width:0;flex:1">
+          <h2 style="margin:0 0 4px;font-size:18px;line-height:1.25">${E(o.title)}</h2>
+          <p class="muted small" style="margin:0">${o.meta || ''}</p>
+        </div>
+        <button type="button" class="btn sm ghost" id="rv-close" aria-label="Close review modal" style="padding:4px 8px;font-size:16px;line-height:1;flex-shrink:0">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
         ${o.lateFlag ? `<span class="tag alert">Late by ${E(o.lateFlag)}</span>` : ''}
         ${o.missed ? '<span class="tag alert">Missed report — recorded 0</span>' : ''}
         ${o.score != null ? `<span class="tag ok">Scored ${o.score}/100</span>` : '<span class="tag muted-tag">Not scored yet</span>'}
       </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">${o.body}</div>
+      <div class="card" style="padding:14px;margin-bottom:16px;background:var(--bg)">${o.body}</div>
       ${o.disabled ? `<div class="error-box" style="margin-bottom:14px">${E(o.disabledNote || 'This item cannot be scored.')}</div>` : `
       <div class="field">
         <label class="label" for="rv-score">Score (0–100)</label>
@@ -443,15 +514,16 @@
         <label class="label" for="rv-note">Note ${o.extra === 'feedback' ? '(reason if rejected)' : '(optional)'}</label>
         <textarea class="input" id="rv-note" placeholder="What stood out, or what needs another pass.">${E(o.note || '')}</textarea>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn primary" style="flex:1;min-width:180px" id="rv-save" type="button">${E(o.saveLabel || 'Approve and save score')}</button>
-        <button class="btn alert" style="flex:1;min-width:160px" id="rv-reject" type="button">Reject and ask to resubmit</button>
+      <div class="review-actions">
+        <button class="btn accent" id="rv-save" type="button">${E(o.saveLabel || 'Approve and save score')}</button>
+        <button class="btn alert" id="rv-reject" type="button">Reject and ask to resubmit</button>
       </div>
       ${o.onDelete ? `<button class="btn ghost alert sm" style="width:100%;margin-top:12px" id="rv-del" type="button">Delete submission permanently</button>` : ''}
       <p class="tiny muted" style="margin-top:12px">The system never suggests a score — you decide. Late submissions are shown with their exact time and are not penalised automatically.</p>`}`;
 
     // wiring, called by the caller once the markup is in the DOM
     const bind = () => {
+      $('#rv-close')?.addEventListener('click', window.DS.modal.close);
       const save = $('#rv-save'), rej = $('#rv-reject'), sc = $('#rv-score'), nt = $('#rv-note'), del = $('#rv-del');
       if (!save) return;
       save.addEventListener('click', async () => {
@@ -472,7 +544,13 @@
         try { await o.onReject(note); } catch (e) { toast(e.message || 'Could not reject.', true); rej.disabled = false; }
       });
       del?.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to permanently delete this submission?')) return;
+        const ok = await window.DS.confirmModal({
+          title: 'Delete submission',
+          message: 'Are you sure you want to permanently delete this submission? This cannot be undone.',
+          confirmLabel: 'Delete permanently',
+          isAlert: true,
+        });
+        if (!ok) return;
         del.disabled = true;
         try { await o.onDelete(); }
         catch (e) { toast(e.message || 'Could not delete.', true); del.disabled = false; }
@@ -584,16 +662,65 @@
     }
 
     function bindEvents() {
+      const resetUserPassword = async (userId) => {
+        const person = people.find(x => x.id === userId);
+        const pw = await window.DS.promptModal({
+          title: 'Reset temporary password',
+          subtitle: person ? `User: ${nameOf(person)}` : '',
+          label: 'New temporary password',
+          placeholder: 'At least 6 characters',
+          type: 'password',
+          minLength: 6,
+          confirmLabel: 'Reset password',
+        });
+        if (!pw) return;
+        const { error } = await sb.auth.admin.setUserPassword
+          ? await sb.auth.admin.setUserPassword(userId, pw)
+          : await sb.auth.admin.updateUserById(userId, { password: pw });
+        if (error) return toast(error.message, true);
+        await sb.from('profiles').update({ must_change_password: true }).eq('id', userId);
+        await audit('user_password_reset', 'profiles:' + userId);
+        toast(`✓ Password reset: ${pw}`);
+      };
+
+      const promoteUser = async (userId) => {
+        const { error } = await sb.from('profiles').update({ access_level: 'Admin' }).eq('id', userId);
+        if (error) return toast(error.message, true);
+        await audit('user_promoted', 'profiles:' + userId, 'Member', 'Admin');
+        toast('✓ Promoted to admin.');
+        window.DS.navigate('users');
+      };
+
+      const demoteUser = async (userId) => {
+        const { error } = await sb.from('profiles').update({ access_level: 'Member' }).eq('id', userId);
+        if (error) return toast(error.message, true);
+        await audit('user_demoted', 'profiles:' + userId, 'Admin', 'Member');
+        toast('Changed to member.', true);
+        window.DS.navigate('users');
+      };
+
+      const toggleUserActive = async (userId, isActive) => {
+        const { error } = await sb.from('profiles').update({ active: !isActive }).eq('id', userId);
+        if (error) return toast(error.message, true);
+        await audit(isActive ? 'user_deactivated' : 'user_reactivated', 'profiles:' + userId);
+        toast(isActive ? '✓ Account deactivated.' : '✓ Account reactivated.');
+        window.DS.navigate('users');
+      };
+
       const openUserModal = (userId) => {
         const p = people.find(x => x.id === userId);
         if (!p) return;
         const myUnits = (um || []).filter(u => u.user_id === p.id).map(u => unitMap[u.unit_id]).filter(Boolean);
         const actions = [
-          `<button class="btn sm" data-pw="${p.id}" onclick="window.DS.modal.close()">Reset password</button>`,
+          { label: 'Reset password', onClick: () => resetUserPassword(p.id) },
           p.access_level === 'Admin'
-            ? (p.id === S.user.id ? '' : `<button class="btn sm" data-demote="${p.id}" onclick="window.DS.modal.close()">Make member</button>`)
-            : `<button class="btn sm" data-promote="${p.id}" onclick="window.DS.modal.close()">Make admin</button>`,
-          p.id === S.user.id ? '' : `<button class="btn sm ${p.active === false ? '' : 'alert'}" data-tog="${p.id}" data-active="${p.active === false ? '0' : '1'}" onclick="window.DS.modal.close()">${p.active === false ? 'Reactivate' : 'Deactivate'}</button>`
+            ? (p.id === S.user.id ? null : { label: 'Make member', onClick: () => demoteUser(p.id) })
+            : { label: 'Make admin', onClick: () => promoteUser(p.id) },
+          p.id === S.user.id ? null : {
+            label: p.active === false ? 'Reactivate' : 'Deactivate',
+            className: p.active === false ? '' : 'alert',
+            onClick: () => toggleUserActive(p.id, p.active !== false),
+          }
         ];
         window.DS.showDetailsModal({
           title: nameOf(p),
@@ -653,43 +780,10 @@
         window.DS.navigate('users');
       });
 
-      $$('[data-pw]', v).forEach(b => b.addEventListener('click', async () => {
-        const pw = prompt('New temporary password (at least 6 characters):');
-        if (!pw) return;
-        if (pw.length < 6) return toast('Password must be at least 6 characters.', true);
-        const { error } = await sb.auth.admin.setUserPassword
-          ? await sb.auth.admin.setUserPassword(b.dataset.pw, pw)
-          : await sb.auth.admin.updateUserById(b.dataset.pw, { password: pw });
-        if (error) return toast(error.message, true);
-        await sb.from('profiles').update({ must_change_password: true }).eq('id', b.dataset.pw);
-        await audit('user_password_reset', 'profiles:' + b.dataset.pw);
-        toast(`✓ Password reset: ${pw}`);
-      }));
-
-      $$('[data-promote]', v).forEach(b => b.addEventListener('click', async () => {
-        const { error } = await sb.from('profiles').update({ access_level: 'Admin' }).eq('id', b.dataset.promote);
-        if (error) return toast(error.message, true);
-        await audit('user_promoted', 'profiles:' + b.dataset.promote, 'Member', 'Admin');
-        toast('✓ Promoted to admin.');
-        window.DS.navigate('users');
-      }));
-
-      $$('[data-demote]', v).forEach(b => b.addEventListener('click', async () => {
-        const { error } = await sb.from('profiles').update({ access_level: 'Member' }).eq('id', b.dataset.demote);
-        if (error) return toast(error.message, true);
-        await audit('user_demoted', 'profiles:' + b.dataset.demote, 'Admin', 'Member');
-        toast('Changed to member.', true);
-        window.DS.navigate('users');
-      }));
-
-      $$('[data-tog]', v).forEach(b => b.addEventListener('click', async () => {
-        const active = b.dataset.active === '1';
-        const { error } = await sb.from('profiles').update({ active: !active }).eq('id', b.dataset.tog);
-        if (error) return toast(error.message, true);
-        await audit(active ? 'user_deactivated' : 'user_reactivated', 'profiles:' + b.dataset.tog);
-        toast(active ? '✓ Account deactivated.' : '✓ Account reactivated.');
-        window.DS.navigate('users');
-      }));
+      $$('[data-pw]', v).forEach(b => b.addEventListener('click', () => resetUserPassword(b.dataset.pw)));
+      $$('[data-promote]', v).forEach(b => b.addEventListener('click', () => promoteUser(b.dataset.promote)));
+      $$('[data-demote]', v).forEach(b => b.addEventListener('click', () => demoteUser(b.dataset.demote)));
+      $$('[data-tog]', v).forEach(b => b.addEventListener('click', () => toggleUserActive(b.dataset.tog, b.dataset.active === '1')));
     }
 
     renderView();
@@ -760,7 +854,13 @@
       window.DS.navigate('units');
     }));
     $$('[data-delunit]', v).forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Delete this unit? Its members and OKRs are removed too.')) return;
+      const ok = await window.DS.confirmModal({
+        title: 'Delete unit',
+        message: 'Delete this unit? Its member assignments and linked OKRs will be removed as well.',
+        confirmLabel: 'Delete unit',
+        isAlert: true,
+      });
+      if (!ok) return;
       await sb.from('units').delete().eq('id', b.dataset.delunit);
       await audit('unit_deleted', 'units:' + b.dataset.delunit);
       toast('Unit deleted.', true);
@@ -847,53 +947,7 @@
             <option value="">All statuses</option>${TASK_STATUS.map(s => `<option>${s}</option>`).join('')}
           </select>
         </div>
-        ${(tasks || []).length ? `
-          <div class="ds-list">
-            ${(tasks || []).slice(0, 25).map(t => {
-              const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
-              const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
-              const actions = [
-                { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
-                { divider: true },
-                t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
-                { divider: true },
-                { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
-              ];
-              return `
-                <div class="ds-list-card">
-                  <div class="ds-list-main">
-                    <div class="ds-list-icon">🎯</div>
-                    <div class="ds-list-content">
-                      <div class="ds-list-title-row">
-                        <span class="ds-list-title">${esc(t.title)}</span>
-                        <span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
-                        ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
-                        ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
-                        ${t.extension_requested ? '<span class="tag muted-tag">Extension</span>' : ''}
-                      </div>
-                      <div class="ds-list-sub">
-                        <span>👤 <b>${as.length ? esc(as.join(', ')) : 'Unassigned'}</b></span>
-                        <span>·</span>
-                        <span>Due: ${t.due_date ? fmtD(t.due_date) : 'No due date'}</span>
-                        ${t.evidence_url ? `<span>·</span><a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Evidence link ↗</a>` : ''}
-                      </div>
-                      ${t.description ? `<div class="ds-list-snippet">${esc(t.description)}</div>` : ''}
-                    </div>
-                  </div>
-                  <div class="ds-list-actions">
-                    <select class="input" style="min-height:32px;padding:2px 8px;font-size:12px;width:auto" data-setst="${t.id}" aria-label="Change task status">
-                      ${TASK_STATUS.map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                    </select>
-                    <button type="button" class="btn sm" data-view-task="${t.id}">View</button>
-                    ${window.DS.renderActionMenu(actions)}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-
-          ${window.DS.paginate(tasks || [], 1, 25).renderBar('tasks')}
-        ` : emptyState('No tasks yet', 'Create one above and assign it to a member or a unit.')}
+        <div id="tasks-admin-body"></div>
       </div>
 
       <div class="card">
@@ -974,22 +1028,128 @@
       window.DS.navigate('tasks');
     });
 
-    $('#tf-status').addEventListener('change', () => {
-      const f = $('#tf-status').value;
-      $$('tbody tr', v).forEach(tr => {
-        const sel = tr.querySelector('[data-setst]');
-        tr.style.display = !f || (sel && sel.value === f) ? '' : 'none';
-      });
-    });
+    let taskPage = 1;
+    let taskFilter = '';
 
-    $$('[data-setst]', v).forEach(sel => sel.addEventListener('change', async () => {
-      const raw = sel.value;
-      const map = { 'To do': 'To Do', 'In progress': 'In Progress', 'In review': 'In Review', 'Done': 'Done' };
-      const { error } = await sb.from('tasks').update({ status: map[raw] || raw }).eq('id', sel.dataset.setst);
-      if (error) return toast(error.message, true);
-      await audit('task_status_changed', 'tasks:' + sel.dataset.setst, null, raw);
-      toast('Task status updated.');
-    }));
+    const deleteTaskById = async (taskId, btnEl) => {
+      const ok = await window.DS.confirmModal({
+        title: 'Delete task',
+        message: 'Are you sure you want to permanently delete this task?',
+        confirmLabel: 'Delete task',
+        isAlert: true,
+      });
+      if (!ok) return;
+      if (btnEl) btnEl.disabled = true;
+      const { error } = await sb.from('tasks').delete().eq('id', taskId);
+      if (error) { toast(error.message, true); if (btnEl) btnEl.disabled = false; return; }
+      toast('✓ Task deleted.');
+      window.DS.navigate('tasks');
+    };
+
+    const openTaskModal = (taskId) => {
+      const t = (tasks || []).find(x => x.id === taskId);
+      if (!t) return;
+      const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
+      const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+      window.DS.showDetailsModal({
+        title: t.title,
+        subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No deadline'}`,
+        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+        rows: [
+          { label: 'Task title', value: t.title },
+          { label: 'Description', value: t.description || 'No additional description provided' },
+          { label: 'Assignee(s)', value: as.length ? as.join(', ') : 'Unassigned' },
+          { label: 'Current status', value: t.status || 'To do' },
+          { label: 'Priority', value: t.priority || 'Normal' },
+          { label: 'Due date', isHtml: true, value: overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—') },
+          { label: 'Extension requested', isHtml: true, value: t.extension_requested ? `<span class="tag alert">Yes (${esc(t.extension_note || 'Requested by assignee')})</span>` : 'No' },
+          { label: 'Evidence URL', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open evidence link ↗</a>` : '<span class="muted">No evidence submitted</span>' },
+          { label: 'Task ID', value: t.id }
+        ],
+        actions: [
+          t.evidence_url ? { label: 'Open evidence ↗', href: t.evidence_url } : null,
+          { label: 'Delete task', className: 'alert', onClick: () => deleteTaskById(t.id) }
+        ]
+      });
+    };
+
+    function renderTasksBody() {
+      const container = $('#tasks-admin-body', v);
+      if (!container) return;
+      const filtered = (tasks || []).filter(t => !taskFilter || normTaskStatus(t.status) === taskFilter);
+      const pg = window.DS.paginate(filtered, taskPage, 25);
+      container.innerHTML = filtered.length ? `
+        <div class="ds-list">
+          ${pg.items.map(t => {
+            const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
+            const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+            const normSt = normTaskStatus(t.status);
+            const actions = [
+              { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+              { divider: true },
+              t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
+              { divider: true },
+              { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
+            ];
+            return `
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">🎯</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(t.title)}</span>
+                      <span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                      ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
+                      ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
+                      ${t.extension_requested ? '<span class="tag brand">Extension</span>' : ''}
+                    </div>
+                    <div class="ds-list-sub">
+                      <span>👤 <b>${as.length ? esc(as.join(', ')) : 'Unassigned'}</b></span>
+                      <span>·</span>
+                      <span>Due: ${t.due_date ? fmtD(t.due_date) : 'No due date'}</span>
+                      ${t.evidence_url ? `<span>·</span><a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Evidence link ↗</a>` : ''}
+                    </div>
+                    ${t.description ? `<div class="ds-list-snippet">${esc(t.description)}</div>` : ''}
+                  </div>
+                </div>
+                <div class="ds-list-actions">
+                  <select class="input" style="min-height:32px;padding:2px 8px;font-size:12px;width:auto" data-setst="${t.id}" aria-label="Change task status">
+                    ${TASK_STATUS.map(s => `<option ${normSt === s ? 'selected' : ''}>${s}</option>`).join('')}
+                  </select>
+                  <button type="button" class="btn sm" data-view-task="${t.id}">View</button>
+                  ${window.DS.renderActionMenu(actions)}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${pg.renderBar('tasks')}
+      ` : emptyState(taskFilter ? 'No matching tasks' : 'No tasks yet', taskFilter ? 'Try clearing the status filter above.' : 'Create one above and assign it to a member or a unit.');
+
+      $$('[data-setst]', container).forEach(sel => sel.addEventListener('change', async () => {
+        const raw = sel.value;
+        const map = { 'To do': 'To Do', 'In progress': 'In Progress', 'In review': 'In Review', 'Done': 'Done' };
+        const newSt = map[raw] || raw;
+        const { error } = await sb.from('tasks').update({ status: newSt }).eq('id', sel.dataset.setst);
+        if (error) return toast(error.message, true);
+        const item = (tasks || []).find(x => x.id === sel.dataset.setst);
+        if (item) item.status = newSt;
+        await audit('task_status_changed', 'tasks:' + sel.dataset.setst, null, raw);
+        toast('Task status updated.');
+      }));
+      $$('[data-view-task]', container).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
+      $$('[data-del-task]', container).forEach(b => b.addEventListener('click', () => deleteTaskById(b.dataset.delTask, b)));
+      window.DS.initActionMenus(container);
+      window.DS.bindPagination(container, (p) => { taskPage = p; renderTasksBody(); });
+    }
+
+    renderTasksBody();
+
+    $('#tf-status').addEventListener('change', () => {
+      taskFilter = $('#tf-status').value;
+      taskPage = 1;
+      renderTasksBody();
+    });
 
     $$('[data-addkr]', v).forEach(b => b.addEventListener('click', () => {
       window.DS.modal.open(`
@@ -1010,44 +1170,6 @@
         toast('Key result added.');
         window.DS.navigate('tasks');
       });
-    }));
-
-    const openTaskModal = (taskId) => {
-      const t = (tasks || []).find(x => x.id === taskId);
-      if (!t) return;
-      const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
-      const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
-      window.DS.showDetailsModal({
-        title: t.title,
-        subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No deadline'}`,
-        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
-        rows: [
-          { label: 'Task title', value: t.title },
-          { label: 'Description', value: t.description || 'No additional description provided' },
-          { label: 'Assignee(s)', value: as.length ? as.join(', ') : 'Unassigned' },
-          { label: 'Current status', value: t.status || 'To do' },
-          { label: 'Priority', value: t.priority || 'Normal' },
-          { label: 'Due date', isHtml: true, value: overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—') },
-          { label: 'Extension requested', isHtml: true, value: t.extension_requested ? `<span class="tag alert">Yes (${esc(t.extension_note || 'Requested by assignee')})</span>` : 'No' },
-          { label: 'Evidence URL', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open evidence link ↗</a>` : '<span class="muted">No evidence submitted</span>' },
-          { label: 'Task ID', value: t.id }
-        ],
-        actions: [
-          t.evidence_url ? `<a class="btn sm" href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open evidence ↗</a>` : '',
-          `<button class="btn sm alert" data-del-task="${t.id}" onclick="window.DS.modal.close()">Delete task</button>`
-        ]
-      });
-    };
-
-    $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
-
-    $$('[data-del-task]', v).forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this task?')) return;
-      b.disabled = true;
-      const { error } = await sb.from('tasks').delete().eq('id', b.dataset.delTask);
-      if (error) { toast(error.message, true); b.disabled = false; return; }
-      toast('✓ Task deleted.');
-      window.DS.navigate('tasks');
     }));
   };
 
@@ -1198,8 +1320,17 @@
 
       $$('[data-att]', v).forEach(b => b.addEventListener('click', () => attendanceModal(b.dataset.att, people)));
       $$('[data-notes]', v).forEach(b => b.addEventListener('click', async () => {
-        const url = prompt('Notes link (URL):', 'https://');
-        if (url === null) return;
+        const raw = list.find(x => x.id === b.dataset.notes);
+        const url = await window.DS.promptModal({
+          title: 'Meeting notes link',
+          subtitle: raw ? raw.title : '',
+          label: 'Notes link (URL)',
+          type: 'url',
+          defaultValue: raw?.minutes || raw?.drive_notes_link || 'https://',
+          placeholder: 'https://docs.google.com/…',
+          confirmLabel: 'Save link',
+        });
+        if (!url) return;
         await sb.from('meetings').update({ minutes: url, drive_notes_link: url }).eq('id', b.dataset.notes);
         await audit('meeting_notes_updated', 'meetings:' + b.dataset.notes);
         toast('Notes link saved.');
@@ -1227,8 +1358,8 @@
             { label: 'Drive notes link', isHtml: true, value: m.minutes ? `<a href="${esc(m.minutes)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.minutes)} ↗</a>` : '<span class="muted">None</span>' }
           ],
           actions: [
-            `<button class="btn sm" data-att="${m.id}" onclick="window.DS.modal.close()">Mark attendance</button>`,
-            m.link ? `<a class="btn sm primary" href="${esc(m.link)}" target="_blank" rel="noopener">Join meeting ↗</a>` : ''
+            { label: 'Mark attendance', onClick: () => attendanceModal(m.id, people) },
+            m.link ? { label: 'Join meeting ↗', className: 'primary', href: m.link } : null
           ]
         });
       }));
@@ -1367,32 +1498,9 @@
         });
       });
 
-      $$('[data-view-fb]', v).forEach(b => b.addEventListener('click', () => {
-        const f = list.find(x => x.id === b.dataset.viewFb);
-        if (!f) return;
-        window.DS.showDetailsModal({
-          title: `${f.type === 'idea' ? '💡 Idea' : '⚠️ Problem'}: ${f.title || 'Untitled'}`,
-          subtitle: `Submitted by ${nameOf(pmap[f.user_id])} · ${f.periods?.label || 'Current period'}`,
-          badgeHtml: statusTag(f.status),
-          rows: [
-            { label: 'Type', value: f.type === 'idea' ? 'Weekly Idea' : 'Weekly Problem' },
-            { label: 'Title', value: f.title || 'Untitled' },
-            { label: 'Submitted by', value: nameOf(pmap[f.user_id]) },
-            { label: 'Section / Department', value: f.section || 'General' },
-            { label: 'Severity', value: f.severity || 'Normal' },
-            { label: 'Full description', value: f.content || 'No details provided' },
-            { label: 'Current status', value: f.status },
-            { label: 'Admin review note', value: f.admin_note || 'No notes yet' },
-            { label: 'Submitted on', value: fmtDT(f.created_at) }
-          ],
-          actions: [
-            `<button class="btn sm primary" data-dec="${f.id}" onclick="window.DS.modal.close()">Make decision</button>`
-          ]
-        });
-      }));
-
-      $$('[data-dec]', v).forEach(b => b.addEventListener('click', async () => {
-        const { data: f } = await sb.from('weekly_feedback').select('*').eq('id', b.dataset.dec).single();
+      const openDecisionModal = async (fbId) => {
+        const { data: f } = await sb.from('weekly_feedback').select('*').eq('id', fbId).single();
+        if (!f) return toast('Submission not found.', true);
         window.DS.modal.open(`
           <h2 style="margin-bottom:6px">${f.type === 'idea' ? 'Idea' : 'Problem'} decision</h2>
           <p class="muted small" style="margin-bottom:16px">${esc(f.title || '')} · ${esc(f.section || 'No section')}</p>
@@ -1417,7 +1525,33 @@
           toast('Decision saved.');
           window.DS.navigate('ideas');
         });
+      };
+
+      $$('[data-view-fb]', v).forEach(b => b.addEventListener('click', () => {
+        const f = list.find(x => x.id === b.dataset.viewFb);
+        if (!f) return;
+        window.DS.showDetailsModal({
+          title: `${f.type === 'idea' ? '💡 Idea' : '⚠️ Problem'}: ${f.title || 'Untitled'}`,
+          subtitle: `Submitted by ${nameOf(pmap[f.user_id])} · ${f.periods?.label || 'Current period'}`,
+          badgeHtml: statusTag(f.status),
+          rows: [
+            { label: 'Type', value: f.type === 'idea' ? 'Weekly Idea' : 'Weekly Problem' },
+            { label: 'Title', value: f.title || 'Untitled' },
+            { label: 'Submitted by', value: nameOf(pmap[f.user_id]) },
+            { label: 'Section / Department', value: f.section || 'General' },
+            { label: 'Severity', value: f.severity || 'Normal' },
+            { label: 'Full description', value: f.content || 'No details provided' },
+            { label: 'Current status', value: f.status },
+            { label: 'Admin review note', value: f.admin_note || 'No notes yet' },
+            { label: 'Submitted on', value: fmtDT(f.created_at) }
+          ],
+          actions: [
+            { label: 'Make decision', className: 'primary', onClick: () => openDecisionModal(f.id) }
+          ]
+        });
       }));
+
+      $$('[data-dec]', v).forEach(b => b.addEventListener('click', () => openDecisionModal(b.dataset.dec)));
     }
 
     renderView();
@@ -1683,7 +1817,12 @@
     });
 
     $$('[data-lock]', v).forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`Lock ${b.dataset.label}? Scores in this period become read-only until an admin reopens it.`)) return;
+      const ok = await window.DS.confirmModal({
+        title: `Lock ${b.dataset.label}`,
+        message: 'Scores in this period become read-only until an admin reopens it. Lock this period now?',
+        confirmLabel: 'Lock period',
+      });
+      if (!ok) return;
       const { error } = await sb.from('periods').update({ locked: true, locked_by: S.user.id, locked_at: new Date().toISOString() }).eq('id', b.dataset.lock);
       if (error) return toast(error.message, true);
       await audit('period_locked', 'periods:' + b.dataset.lock, 'open', 'locked');
@@ -1904,6 +2043,17 @@
         </form>
       </div>`;
 
+    const decideLeave = async (leaveId, userId, ok) => {
+      const { error } = await sb.from('leave_requests').update({
+        status: ok ? 'Approved' : 'Declined', reviewed_by: S.user.id,
+      }).eq('id', leaveId);
+      if (error) return toast(error.message, true);
+      await audit('leave_' + (ok ? 'approved' : 'declined'), 'leave_requests:' + leaveId);
+      await notifyUser(userId, 'leave', `Leave ${ok ? 'approved' : 'declined'}`, null, 'leave');
+      toast(ok ? 'Leave approved.' : 'Leave declined.', !ok);
+      window.DS.navigate('leave');
+    };
+
     $$('[data-view-leave]', v).forEach(b => b.addEventListener('click', () => {
       const l = (leaves || []).find(x => x.id === b.dataset.viewLeave);
       if (!l) return;
@@ -1922,8 +2072,8 @@
           { label: 'Submitted on', value: fmtDT(l.created_at) },
         ],
         actions: l.status === 'Pending' ? [
-          `<button class="btn sm primary" data-lv="1" data-id="${l.id}" data-who="${l.user_id}" onclick="window.DS.modal.close()">Approve</button>`,
-          `<button class="btn sm alert" data-lv="0" data-id="${l.id}" data-who="${l.user_id}" onclick="window.DS.modal.close()">Decline</button>`
+          { label: 'Approve', className: 'primary', onClick: () => decideLeave(l.id, l.user_id, true) },
+          { label: 'Decline', className: 'alert', onClick: () => decideLeave(l.id, l.user_id, false) }
         ] : []
       });
     }));
@@ -1945,17 +2095,7 @@
       });
     }));
 
-    $$('[data-lv]', v).forEach(b => b.addEventListener('click', async () => {
-      const ok = b.dataset.lv === '1';
-      const { error } = await sb.from('leave_requests').update({
-        status: ok ? 'Approved' : 'Declined', reviewed_by: S.user.id,
-      }).eq('id', b.dataset.id);
-      if (error) return toast(error.message, true);
-      await audit('leave_' + (ok ? 'approved' : 'declined'), 'leave_requests:' + b.dataset.id);
-      await notifyUser(b.dataset.who, 'leave', `Leave ${ok ? 'approved' : 'declined'}`, null, 'leave');
-      toast(ok ? 'Leave approved.' : 'Leave declined.', !ok);
-      window.DS.navigate('leave');
-    }));
+    $$('[data-lv]', v).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.id, b.dataset.who, b.dataset.lv === '1')));
 
     $('#add-event').addEventListener('click', () => { $('#ev-form').style.display = 'block'; $('#ev-title').focus(); });
     $('#ev-cancel').addEventListener('click', () => { $('#ev-form').style.display = 'none'; });
@@ -2136,8 +2276,8 @@
             { label: 'Broken link reported', value: item.last_broken_report_at ? fmtDT(item.last_broken_report_at) : 'No broken reports' }
           ],
           actions: [
-            `<a class="btn sm primary" href="${esc(item.url)}" target="_blank" rel="noopener">Open document ↗</a>`,
-            `<button class="btn sm" data-grant="${item.id}" onclick="window.DS.modal.close()">Access permissions</button>`
+            { label: 'Open document ↗', className: 'primary', href: item.url },
+            { label: 'Access permissions', onClick: () => grantModal(item.id, people, units, grants) }
           ]
         });
       }));
@@ -2162,7 +2302,13 @@
 
       $$('[data-grant]', v).forEach(b => b.addEventListener('click', () => grantModal(b.dataset.grant, people, units, grants)));
       $$('[data-delitem]', v).forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Delete this library entry?')) return;
+        const ok = await window.DS.confirmModal({
+          title: 'Delete library entry',
+          message: 'Delete this library entry and revoke all access grants for it?',
+          confirmLabel: 'Delete entry',
+          isAlert: true,
+        });
+        if (!ok) return;
         await sb.from('library_grants').delete().eq('item_id', b.dataset.delitem);
         await sb.from('library_items').delete().eq('id', b.dataset.delitem);
         await audit('library_item_deleted', 'library_items:' + b.dataset.delitem);

@@ -1,6 +1,6 @@
 /* Nodaar DS — member screens + shared screens (notifications, profile) */
 (function () {
-  const { $, $$, esc, S, sb } = window.DS;
+  const { $, $$, esc, S, sb, nameOf, lateBy } = window.DS;
   const { todayLagos, fmtDT, fmtD } = window.DS.fmt;
   const { isAdmin } = window.DS.auth;
   const toast = window.DS.toast;
@@ -27,7 +27,7 @@
     get sub() { return isAdmin() ? 'Team overview and what needs attention' : 'Your day at a glance'; },
     get action() {
       if (isAdmin()) return '';
-      return `<button class="btn primary" data-goto="report">Write today's report</button>`;
+      return `<button class="btn accent" data-goto="report">Write today's report</button>`;
     },
     render: async (v) => { isAdmin() ? await window.renderAdminDashboard(v) : await window.renderMemberDashboard(v); bindGoto(v); },
   });
@@ -57,7 +57,7 @@
     if (ann?.id) { const { data } = await sb.from('channel_updates').select('title, body, created_at, author_id').eq('channel_id', ann.id).in('status', ['published', 'Published']).order('created_at', { ascending: false }).limit(3); annPosts = data || []; }
 
     // headline score: weekly score when available, else the latest scored report
-    const latestScoredReport = await sb.from('daily_reports').select('score').eq('user_id', S.user.id).not('score', 'is', null).order('report_date', { ascending: false }).limit(1).maybeSingle();
+    const { data: latestScoredReport } = await sb.from('daily_reports').select('score').eq('user_id', S.user.id).not('score', 'is', null).order('report_date', { ascending: false }).limit(1).maybeSingle();
     const headlineScore = scores?.[0]
       ? (scores[0].manual_override ?? scores[0].weighted_total)
       : (latestScoredReport?.score != null ? latestScoredReport.score : null);
@@ -80,17 +80,17 @@
 
     v.innerHTML = `
       <div class="stat-grid">
-        <div class="stat"><div class="num">${report ? (report.status === 'Approved' ? 'Approved' : report.is_late ? 'Late' : 'Submitted') : (draft ? 'Draft' : '—')}</div><div class="cap">Today's report</div></div>
+        <div class="stat ${report ? (report.status === 'Approved' ? 'ok' : report.is_late ? 'alert' : 'accent') : 'accent'}"><div class="num">${report ? (report.status === 'Approved' ? 'Approved' : report.is_late ? 'Late' : 'Submitted') : (draft ? 'Draft' : '—')}</div><div class="cap">Today's report</div></div>
         <div class="stat"><div class="num">${openTasks.length}</div><div class="cap">Open tasks</div></div>
-        <div class="stat"><div class="num ${overdue.length ? 'alert-text' : ''}">${overdue.length}</div><div class="cap">Overdue</div></div>
-        <div class="stat"><div class="num">${headlineScore != null ? headlineScore + '%' : '—'}</div><div class="cap">Latest score</div></div>
+        <div class="stat ${overdue.length ? 'alert' : ''}"><div class="num ${overdue.length ? 'alert-text' : ''}">${overdue.length}</div><div class="cap">Overdue</div></div>
+        <div class="stat ${headlineScore != null ? 'ok' : ''}"><div class="num">${headlineScore != null ? headlineScore + '%' : '—'}</div><div class="cap">Latest score</div></div>
       </div>
 
       <div class="card">
         <div class="card-head">
           <div>
             <h3>Today's daily report — ${fmtD(date)}</h3>
-            <p class="small muted" style="margin-top:2px">Daily scrum reflection & admin approval status</p>
+            <p class="small muted" style="margin-top:2px">Daily scrum reflection &amp; admin approval status</p>
           </div>
           <div>${reportTag}</div>
         </div>
@@ -112,10 +112,10 @@
               <div style="font-weight:700;font-size:13.5px">📝 You have an unsaved draft saved at ${esc(draft.savedAt || '')}</div>
               <div class="small muted" style="margin-top:3px">${esc(draft.doing_today || draft.did_yesterday || 'Draft contents ready to review and submit.')}</div>
             </div>
-            <button class="btn primary sm" data-goto="report">Resume draft</button>
+            <button class="btn accent sm" data-goto="report">Resume draft</button>
           </div>
         ` : `<p class="muted small" style="margin-bottom:12px">You have not submitted today's daily scrum report yet. The deadline is 18:00 WAT.</p>`)}
-        <div><button class="btn ${report ? '' : 'primary'}" data-goto="report">${report ? 'Edit / resubmit report' : "Write today's report"}</button></div>
+        <div><button class="btn ${report ? '' : 'accent'}" data-goto="report">${report ? 'Edit / resubmit report' : "Write today's report"}</button></div>
       </div>
 
       <div class="card">
@@ -444,12 +444,43 @@
         });
 
         const discardBtn = $('#dr-discard-btn');
-        discardBtn?.addEventListener('click', () => {
-          if (!confirm('Discard this saved draft?')) return;
+        discardBtn?.addEventListener('click', async () => {
+          const ok = await window.DS.confirmModal({
+            title: 'Discard draft',
+            message: 'Discard this saved daily report draft? Unsaved changes will be lost.',
+            confirmLabel: 'Discard draft',
+            isAlert: true,
+          });
+          if (!ok) return;
           localStorage.removeItem(draftKey);
           toast('Draft discarded');
           window.DS.navigate('report');
         });
+
+        const fillReportForm = (r) => {
+          $('#dr-done').value = r.did_yesterday || '';
+          $('#dr-plan').value = r.doing_today || '';
+          $('#dr-block').value = r.blockers || '';
+          $('#dr-ev').value = r.evidence_url || '';
+          $('#dr-done').focus();
+          toast('Loaded report into form.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        const deleteReportById = async (repId, btnEl) => {
+          const ok = await window.DS.confirmModal({
+            title: 'Delete daily report',
+            message: 'Are you sure you want to permanently delete this daily report submission?',
+            confirmLabel: 'Delete report',
+            isAlert: true,
+          });
+          if (!ok) return;
+          if (btnEl) btnEl.disabled = true;
+          const { error } = await sb.from('daily_reports').delete().eq('id', repId);
+          if (error) { toast(error.message, true); if (btnEl) btnEl.disabled = false; return; }
+          toast('✓ Report deleted');
+          window.DS.navigate('report');
+        };
 
         const openReportModal = (repId) => {
           const r = myRecords.find(item => item.id === repId);
@@ -473,24 +504,12 @@
             ],
             actions: [
               (r.status === 'Submitted' || r.status === 'Rejected')
-                ? `<button class="btn sm primary" data-fill-rep="${r.id}" onclick="window.DS.modal.close()">Edit in form</button>`
-                : '',
-              r.evidence_url ? `<a class="btn sm" href="${esc(r.evidence_url)}" target="_blank" rel="noopener">Open drive link ↗</a>` : '',
-              isAdmin() ? `<button class="btn sm alert" data-del-rep="${r.id}" onclick="window.DS.modal.close()">Delete report</button>` : ''
+                ? { label: 'Edit in form', className: 'primary', onClick: () => fillReportForm(r) }
+                : null,
+              r.evidence_url ? { label: 'Open drive link ↗', href: r.evidence_url } : null,
+              isAdmin() ? { label: 'Delete report', className: 'alert', onClick: () => deleteReportById(r.id) } : null
             ]
           });
-          const m = document.getElementById('modal-box');
-          if (m) {
-            m.querySelector(`[data-fill-rep="${r.id}"]`)?.addEventListener('click', () => {
-              $('#dr-done').value = r.did_yesterday || '';
-              $('#dr-plan').value = r.doing_today || '';
-              $('#dr-block').value = r.blockers || '';
-              $('#dr-ev').value = r.evidence_url || '';
-              $('#dr-done').focus();
-              toast('Loaded report into form.');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-          }
         };
 
         $$('[data-view-rep]', v).forEach(b => b.addEventListener('click', () => openReportModal(b.dataset.viewRep)));
@@ -498,26 +517,11 @@
         // Edit past report handler
         $$('[data-fill-rep]', v).forEach(b => b.addEventListener('click', () => {
           const r = myRecords.find(item => item.id === b.dataset.fillRep);
-          if (r) {
-            $('#dr-done').value = r.did_yesterday || '';
-            $('#dr-plan').value = r.doing_today || '';
-            $('#dr-block').value = r.blockers || '';
-            $('#dr-ev').value = r.evidence_url || '';
-            $('#dr-done').focus();
-            toast('Loaded report into form.');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
+          if (r) fillReportForm(r);
         }));
 
         // Admin delete report submission action
-        $$('[data-del-rep]', v).forEach(b => b.addEventListener('click', async () => {
-          if (!confirm('Are you sure you want to delete this daily report submission?')) return;
-          b.disabled = true;
-          const { error } = await sb.from('daily_reports').delete().eq('id', b.dataset.delRep);
-          if (error) { toast(error.message, true); b.disabled = false; return; }
-          toast('✓ Report deleted');
-          window.DS.navigate('report');
-        }));
+        $$('[data-del-rep]', v).forEach(b => b.addEventListener('click', () => deleteReportById(b.dataset.delRep, b)));
 
         // Submit Form
         const form = $('#dr-form');
@@ -620,6 +624,30 @@
           ` : `<div class="empty"><div class="big">No tasks assigned</div><div class="hint">Tasks assigned to you will appear here.</div></div>`}
         </div>`;
 
+      const requestExtension = async (taskId) => {
+        const t = list.find(x => x.id === taskId);
+        const reason = await window.DS.promptModal({
+          title: 'Request deadline extension',
+          subtitle: t ? `Task: ${t.title}` : '',
+          label: 'Reason for extension',
+          placeholder: 'Briefly explain why you need more time and the expected completion date…',
+          multiline: true,
+          confirmLabel: 'Send request',
+        });
+        if (!reason) return;
+        try {
+          const { error: extErr } = await sb.from('task_updates').insert({
+            task_id: taskId, user_id: S.user.id,
+            description: 'Extension requested: ' + reason,
+            update_type: 'extension_request',
+          });
+          if (extErr) throw extErr;
+        } catch (e) { toast('Could not send the request.', true); return; }
+        await sb.from('tasks').update({ extension_requested: true, extension_note: reason }).eq('id', taskId);
+        toast('✓ Extension request sent to admin.');
+        window.DS.navigate('tasks');
+      };
+
       const openTaskModal = (taskId) => {
         const t = list.find(x => x.id === taskId);
         if (!t) return;
@@ -627,7 +655,7 @@
         window.DS.showDetailsModal({
           title: t.title,
           subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}`,
-          badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : t.status.includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+          badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
           rows: [
             { label: 'Task title', value: t.title },
             { label: 'Description', value: t.description || 'No additional description provided' },
@@ -639,28 +667,15 @@
             { label: 'Task ID', value: t.id }
           ],
           actions: [
-            t.evidence_url ? `<a class="btn sm" href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Open evidence ↗</a>` : '',
-            `<button class="btn sm" data-ext="${t.id}" onclick="window.DS.modal.close()">Request extension</button>`
+            t.evidence_url ? { label: 'Open evidence ↗', href: t.evidence_url } : null,
+            { label: 'Request extension', className: 'primary', onClick: () => requestExtension(t.id) }
           ]
         });
       };
 
       $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
 
-      $$('[data-ext]', v).forEach(b => b.addEventListener('click', async () => {
-        const reason = prompt('Reason for the extension request:');
-        if (reason === null) return;
-        try {
-          const { error: extErr } = await sb.from('task_updates').insert({
-            task_id: b.dataset.ext, user_id: S.user.id,
-            description: 'Extension requested: ' + reason,
-            update_type: 'extension_request',
-          });
-          if (extErr) throw extErr;
-        } catch (e) { toast('Could not send the request.', true); return; }
-        await sb.from('tasks').update({ extension_requested: true, extension_note: reason }).eq('id', b.dataset.ext);
-        toast('✓ Extension request sent to admin.');
-      }));
+      $$('[data-ext]', v).forEach(b => b.addEventListener('click', () => requestExtension(b.dataset.ext)));
 
       window.DS.initActionMenus(v);
       window.DS.bindPagination(v, (p) => {
@@ -797,8 +812,8 @@
             { label: 'Drive notes link', isHtml: true, value: m.minutes ? `<a href="${esc(m.minutes)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.minutes)} ↗</a>` : '<span class="muted">No notes link posted yet</span>' },
           ],
           actions: [
-            m.link ? `<a class="btn sm" href="${esc(m.link)}" target="_blank" rel="noopener">Join meeting ↗</a>` : '',
-            `<button class="btn sm primary" data-mr="${m.id}" data-title="${esc(m.title)}" onclick="window.DS.modal.close()">File report</button>`
+            m.link ? { label: 'Join meeting ↗', href: m.link } : null,
+            { label: 'File report', className: 'primary', onClick: () => meetingReportModal(m.id, m.title) }
           ]
         });
       }));
@@ -916,13 +931,14 @@
 
     // weekly chart — most recent 8, oldest first
     const chart = list.slice(0, 8).reverse();
-    const maxH = 150;
-    const chartHtml = chart.length ? `<div class="chart">${chart.map(s => {
+    const maxH = 140;
+    const chartHtml = chart.length ? `<div class="chart">${chart.map((s, idx) => {
       const val = Number(s.manual_override ?? s.weighted_total ?? 0);
-      const h = Math.max(3, Math.round((val / 100) * maxH));
+      const h = Math.max(4, Math.round((val / 100) * maxH));
+      const isLatest = idx === chart.length - 1;
       return `<div class="chart-col" title="${esc(s.periods?.label || '')}: ${val}/100">
         <div class="chart-val">${Math.round(val)}</div>
-        <div class="chart-bar ${s.periods?.locked ? 'locked' : ''}" style="height:${h}px"></div>
+        <div class="chart-bar ${s.periods?.locked ? 'locked' : (isLatest ? 'latest' : '')}" style="height:${h}px"></div>
         <div class="chart-lbl">${esc((s.periods?.label || '').replace(/^\d{4}-/, ''))}</div>
       </div>`;
     }).join('')}</div>` : '';
@@ -934,7 +950,7 @@
       const contrib = Math.round(((Number(raw) || 0) / (c.max_points || 10)) * c.weight);
       return `<div class="brk">
         <div class="brk-top"><span class="brk-name">${esc(c.label)}</span><span class="brk-val">${raw ?? '—'}/${c.max_points} · ${contrib}/${c.weight} pts</span></div>
-        <div class="brk-track"><div class="brk-fill" style="width:${pct}%"></div></div>
+        <div class="brk-track"><div class="brk-fill ${pct >= 80 ? 'brand' : ''}" style="width:${pct}%"></div></div>
       </div>`;
     }).join('') : '';
 
@@ -985,10 +1001,10 @@
     const headline = latest ? Math.round(latest.manual_override ?? latest.weighted_total) : latestReportScore;
     const headlineLabel = latest ? 'Latest weekly' : (latestReportScore != null ? 'Latest report score' : 'Latest weekly');
 
-    v.innerHTML = `
+      v.innerHTML = `
       <div class="stat-grid">
-        <div class="stat"><div class="num">${latestMonthly ? Math.round(latestMonthly.final_score ?? latestMonthly.weekly_avg) + '%' : '—'}</div><div class="cap">Latest monthly</div></div>
-        <div class="stat"><div class="num">${headline != null ? headline + '%' : '—'}</div><div class="cap">${headlineLabel}</div></div>
+        <div class="stat ok"><div class="num">${latestMonthly ? Math.round(latestMonthly.final_score ?? latestMonthly.weekly_avg) + '%' : '—'}</div><div class="cap">Latest monthly</div></div>
+        <div class="stat accent"><div class="num">${headline != null ? headline + '%' : '—'}</div><div class="cap">${headlineLabel}</div></div>
         <div class="stat"><div class="num">${list.length}</div><div class="cap">Weeks scored</div></div>
       </div>
 
@@ -1175,6 +1191,18 @@
       $('#lib-q')?.addEventListener('input', apply);
       $('#lib-cat')?.addEventListener('change', apply);
 
+      const reportBrokenLink = async (itemId) => {
+        await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', itemId);
+        await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + itemId, link_tab: 'library' });
+        await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + itemId });
+        const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
+        for (const a of (admins || [])) {
+          await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + itemId, link_tab: 'library' });
+        }
+        toast('Reported. Admins were notified.');
+        window.DS.navigate('library');
+      };
+
       $$('[data-view-lib]', v).forEach(b => b.addEventListener('click', () => {
         const item = list.find(x => x.id === b.dataset.viewLib);
         if (!item) return;
@@ -1190,23 +1218,13 @@
             { label: 'Added by', value: nameOf(item.profiles) }
           ],
           actions: [
-            `<a class="btn sm primary" href="${esc(item.url)}" target="_blank" rel="noopener">Open document ↗</a>`,
-            `<button class="btn sm ghost" data-broken="${item.id}" onclick="window.DS.modal.close()">Report broken</button>`
+            { label: 'Open document ↗', className: 'primary', href: item.url },
+            { label: 'Report broken', className: 'ghost alert', onClick: () => reportBrokenLink(item.id) }
           ]
         });
       }));
 
-      $$('[data-broken]', v).forEach(b => b.addEventListener('click', async () => {
-        await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', b.dataset.broken);
-        await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
-        await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + b.dataset.broken });
-        const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
-        for (const a of (admins || [])) {
-          await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + b.dataset.broken, link_tab: 'library' });
-        }
-        toast('Reported. Admins were notified.');
-        window.DS.navigate('library');
-      }));
+      $$('[data-broken]', v).forEach(b => b.addEventListener('click', () => reportBrokenLink(b.dataset.broken)));
     }
 
     renderView();
@@ -1605,7 +1623,7 @@
               <span style="border-left:1px solid var(--line-soft);height:18px;margin:0 4px"></span>
               <div style="position:relative;display:inline-block">
                 <button type="button" class="toolbar-btn" id="mention-toggle-btn" title="Mention team member">@ Mention</button>
-                <div class="hidden" id="mention-dropdown" style="position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:0 8px 24px rgba(20,19,15,.12);min-width:200px;max-height:200px;overflow-y:auto;z-index:30;padding:4px">
+                <div class="hidden" id="mention-dropdown" style="position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-lg);min-width:210px;max-height:210px;overflow-y:auto;z-index:30;padding:4px">
                   ${memberList.map(p => `
                     <div class="mention-item" data-mention-name="${esc(p.full_name || p.email)}">
                       <span>@${esc(p.full_name || p.email)}</span>
@@ -1652,7 +1670,13 @@
 
       // Delete message handler
       $$('[data-del-chat]', room).forEach(b => b.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to delete this message?')) return;
+        const ok = await window.DS.confirmModal({
+          title: 'Delete message',
+          message: 'Are you sure you want to permanently delete this message from the channel?',
+          confirmLabel: 'Delete message',
+          isAlert: true,
+        });
+        if (!ok) return;
         b.disabled = true;
         const { error } = await sb.from('channel_updates').delete().eq('id', b.dataset.delChat);
         if (error) { toast(error.message, true); b.disabled = false; return; }
@@ -1689,7 +1713,14 @@
         e.stopPropagation();
         mentionMenu?.classList.toggle('hidden');
       });
-      document.addEventListener('click', () => mentionMenu?.classList.add('hidden'), { once: true });
+      if (!window._dsMentionDocBound) {
+        window._dsMentionDocBound = true;
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest('#mention-dropdown') && !e.target.closest('#mention-toggle-btn')) {
+            $('#mention-dropdown')?.classList.add('hidden');
+          }
+        });
+      }
       $$('.mention-item', room).forEach(item => item.addEventListener('click', () => {
         const name = item.dataset.mentionName;
         insertFormatting(textarea, `@${name} `);

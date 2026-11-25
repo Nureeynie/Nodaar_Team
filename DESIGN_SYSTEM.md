@@ -9,26 +9,26 @@ The visual language for the Nodaar Team Management Platform. One stylesheet,
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#F6F4EF` | Page background — warm off-white |
-| `--ink` | `#14130F` | Primary text, borders, primary buttons |
-| `--ink-60` | `rgba(20,19,15,.62)` | Secondary text, labels, table headers |
-| `--ink-40` | `rgba(20,19,15,.4)` | Group labels, placeholders |
+| `--navy-900` | `#07192F` | Primary brand navy — sidebar, mobile bar, primary buttons, auth banner |
+| `--navy-800` | `#0E2747` | Hover navy for primary actions |
+| `--brand` / `--accent` | `#FE8A03` | Signature brand orange — active indicators, accent CTAs, progress fills, focus rings |
+| `--brand-ink` | `#B55300` | High-contrast dark-orange text on light surfaces (≥ 4.5:1) |
+| `--brand-50` | `#FFF8EE` | Warm orange-tinted highlight surface for draft cards, list icons, mentions |
+| `--bg` | `#F6F5F1` | Page background — warm off-white canvas |
+| `--ink` | `#07192F` | Primary typography |
+| `--ink-60` | `rgba(7,25,47,.66)` | Secondary text, labels, table headers |
+| `--ink-40` | `rgba(7,25,47,.46)` | Group labels, placeholders |
 | `--card` | `#FFFFFF` | Card and input surfaces |
-| `--line` | `#14130F` | 1px card borders (always ink, never grey) |
-| `--line-soft` | `rgba(20,19,15,.16)` | Row dividers inside a card |
-| `--alert` | `#B83A17` | **The only alert colour.** Late, Rejected, Declined, overdue |
-| `--ok` | `#1E6B3C` | Approved / Done / Implemented tag text only |
+| `--line` | `rgba(7,25,47,.16)` | Hairline card borders |
+| `--line-soft` | `rgba(7,25,47,.09)` | Row dividers inside a card |
+| `--alert` | `#C4321C` | Late, Rejected, Declined, Overdue |
+| `--ok` | `#166534` | Approved / Done / Implemented badges and score states |
 
 **Rules**
 
-- One accent. `#B83A17` appears only on: a `Late by Xh Ym` flag, a `Rejected`
-  tag, an `Overdue` tag, and the destructive "Reject and ask to resubmit"
-  button. Nothing else is red.
-- Cards are white on off-white with a **1px ink border** — no shadows, no
-  gradients, no rounded blobs.
-- Text contrast is ≥ 4.5:1 everywhere. `--ink-60` on `--card` measures 7.0:1;
-  `--ink` on `--bg` measures 15.8:1; `--alert` on `--card` measures 5.6:1.
-- Dark surfaces are reserved for the primary button and the toast.
+- Deep brand navy (`#07192F`) anchors navigation chrome (`#ds-sidebar`, `#ds-mobile-bar`, `.auth-brand-banner`) and primary actions, paired with crisp warm surfaces (`#F6F5F1`, `#FFFFFF`).
+- Signature brand orange (`#FE8A03`) serves as the high-clarity focal accent: active navigation rail indicator, active role segment, primary accent CTAs (`.btn.accent`), progress fills, latest score chart bar, and `:focus-visible` outlines.
+- Text contrast is ≥ 4.5:1 everywhere (`#07192F` on `#FE8A03` = 7.45:1; `#FFFFFF` on `#07192F` = 17.68:1; `#B55300` on `#FFFFFF` = 4.9:1).
 
 ---
 

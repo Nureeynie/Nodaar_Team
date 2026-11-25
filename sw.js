@@ -1,11 +1,16 @@
 // Nodaar Team Hub — Service Worker (PWA)
-const CACHE_NAME = 'nodaar-hub-v3.4';
+const CACHE_NAME = 'nodaar-hub-v3.5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
+  '/app.html',
   '/manifest.json',
-  '/css/app.built.css',
-  '/css/app.css',
+  '/css/ds.css',
+  '/js/ds.core.js',
+  '/js/ds.member.js',
+  '/js/ds.admin.js',
+  '/js/ds.boot.js',
+  '/js/supabase-sdk.js',
   '/assets/favicon.png',
   '/assets/icon-192.png',
   '/assets/icon-512.png',
