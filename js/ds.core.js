@@ -61,7 +61,8 @@
       starts_at: startsAt,
       ends_at: endsAt,
       link: m.location || m.meet_link || null,
-      notes_link: m.drive_notes_link || null,
+      notes_link: m.drive_notes_link || m.minutes || null,
+      minutes: m.minutes || m.drive_notes_link || null,
       agenda: m.agenda || m.description || null,
     };
   }
@@ -313,6 +314,99 @@
         });
       }
     });
+  };
+
+  window.DS.generateTempPassword = function () {
+    const words = ['Nodaar', 'Team', 'Hub', 'Star', 'Peak', 'Core'];
+    const w = words[Math.floor(Math.random() * words.length)];
+    const num = String(Math.floor(1000 + Math.random() * 9000));
+    return `${w}@${num}`;
+  };
+
+  window.DS.renderMemberPicker = function ({ id, people = [], selectedIds = [], emptyHint = 'No team members available.' } = {}) {
+    const selSet = new Set(selectedIds || []);
+    const activeCount = (people || []).filter(p => selSet.has(p.id)).length;
+    if (!people.length) {
+      return `<div class="empty" style="padding:18px"><div class="hint" style="margin:0">${esc(emptyHint)}</div></div>`;
+    }
+    return `
+      <div class="picker-box" id="${esc(id)}-box">
+        <div class="picker-head">
+          <span class="tag brand" id="${esc(id)}-count">${activeCount} selected</span>
+          <div class="picker-actions">
+            <button type="button" class="btn sm ghost" data-pk-all="${esc(id)}" style="min-height:28px;padding:2px 8px;font-size:11.5px">Select all</button>
+            <button type="button" class="btn sm ghost" data-pk-clear="${esc(id)}" style="min-height:28px;padding:2px 8px;font-size:11.5px">Clear</button>
+          </div>
+        </div>
+        <div class="picker-search-wrap">
+          <input type="search" class="picker-search" id="${esc(id)}-search" placeholder="Search members by name or email…" aria-label="Search members">
+        </div>
+        <div class="picker-list" id="${esc(id)}-list">
+          ${people.map(p => {
+            const nm = window.DS.nameOf(p);
+            const checked = selSet.has(p.id) ? 'checked' : '';
+            const searchTxt = `${nm} ${p.email || ''} ${p.access_level || ''}`.toLowerCase();
+            return `
+              <label class="picker-row" data-pk-search="${esc(searchTxt)}">
+                <input type="checkbox" data-pk-item="${esc(id)}" value="${p.id}" ${checked}>
+                <span class="picker-mini-avatar">${esc(window.DS.getInitials(nm))}</span>
+                <span class="picker-row-info">
+                  <span class="picker-row-name">${esc(nm)}</span>
+                  <span class="picker-row-sub">${esc(p.email || '')}${p.access_level ? ' · ' + esc(p.access_level) : ''}</span>
+                </span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  window.DS.bindMemberPicker = function (container, id) {
+    const root = container || document;
+    const box = root.querySelector(`#${id}-box`);
+    if (!box) return { getSelected: () => [], setSelected: () => {} };
+
+    const updateCount = () => {
+      const n = box.querySelectorAll(`input[data-pk-item="${id}"]:checked`).length;
+      const badge = box.querySelector(`#${id}-count`);
+      if (badge) badge.textContent = `${n} selected`;
+    };
+
+    box.querySelector(`#${id}-search`)?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      box.querySelectorAll('.picker-row').forEach(r => {
+        r.style.display = !q || (r.dataset.pkSearch || '').includes(q) ? 'flex' : 'none';
+      });
+    });
+
+    box.querySelector(`[data-pk-all="${id}"]`)?.addEventListener('click', () => {
+      box.querySelectorAll('.picker-row').forEach(r => {
+        if (r.style.display !== 'none') {
+          const cb = r.querySelector(`input[data-pk-item="${id}"]`);
+          if (cb) cb.checked = true;
+        }
+      });
+      updateCount();
+    });
+
+    box.querySelector(`[data-pk-clear="${id}"]`)?.addEventListener('click', () => {
+      box.querySelectorAll(`input[data-pk-item="${id}"]`).forEach(cb => { cb.checked = false; });
+      updateCount();
+    });
+
+    box.addEventListener('change', (e) => {
+      if (e.target.matches(`input[data-pk-item="${id}"]`)) updateCount();
+    });
+
+    return {
+      getSelected: () => [...box.querySelectorAll(`input[data-pk-item="${id}"]:checked`)].map(cb => cb.value),
+      setSelected: (ids) => {
+        const set = new Set(ids || []);
+        box.querySelectorAll(`input[data-pk-item="${id}"]`).forEach(cb => { cb.checked = set.has(cb.value); });
+        updateCount();
+      },
+    };
   };
 
   // ── icons (inline SVG, no emoji) ──
@@ -650,6 +744,7 @@
       }
     });
   }
+  window.DS.renderNav = renderNav;
 
   // ── router ──
   const ROUTES = {}; // id -> {title, sub, render}
@@ -829,6 +924,7 @@
         submitBtn.textContent = 'Sign in';
         submitBtn.style.background = '';
         submitBtn.style.borderColor = '';
+        submitBtn.style.color = '';
       }
       toast(e.message || 'Error signing in', true);
     }

@@ -181,8 +181,8 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>My units & OKRs</h3><button class="btn sm ghost" data-goto="units">View all</button></div>
-        ${units.length ? units.map(u => `<div class="row"><div class="row-main"><div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(u.units?.name || 'Unit')}</div><div class="s">Role: ${esc(u.positions?.title || 'Member')}</div></div></div>`).join('')
+        <div class="card-head"><h3>My units &amp; OKRs</h3><button class="btn sm ghost" data-goto="units">View all</button></div>
+        ${units.length ? units.map(u => `<div class="row"><div class="row-main"><div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(u.units?.name || 'Unit')}</div><div class="s">${u.units?.description ? esc(u.units.description) + ' · ' : ''}Role: ${esc(u.positions?.title || 'Member')}</div></div><span class="tag brand">${esc(u.positions?.title || 'Member')}</span></div>`).join('')
         : `<div class="empty" style="padding:20px"><div class="hint">You are not in a unit yet.</div></div>`}
       </div>
 
@@ -696,30 +696,165 @@
 
   window.renderMyUnits = async function (v) {
     const units = await myUnits();
-    const unitIds = units.map(u => u.unit_id);
-    let okrs = [];
-    if (unitIds.length) {
-      const { data } = await sb.from('okrs').select('*, key_results:key_results(*)').or(`unit_id.is.null,unit_id.in.(${unitIds.join(',')})`);
-      okrs = data || [];
-    } else {
-      const { data } = await sb.from('okrs').select('*, key_results:key_results(*)').is('unit_id', null);
-      okrs = data || [];
-    }
+    const unitIds = units.map(u => u.unit_id).filter(Boolean);
+    const [okrRes, matesRes, leadsRes] = await Promise.all([
+      unitIds.length
+        ? sb.from('okrs').select('*, units:unit_id(name), key_results:key_results(*)').or(`unit_id.is.null,unit_id.in.(${unitIds.join(',')})`)
+        : sb.from('okrs').select('*, units:unit_id(name), key_results:key_results(*)').is('unit_id', null),
+      unitIds.length
+        ? sb.from('unit_members').select('unit_id, user_id, profiles:user_id(id,full_name,email), positions:position_id(title)').in('unit_id', unitIds)
+        : Promise.resolve({ data: [] }),
+      sb.from('profiles').select('id,full_name,email').eq('active', true),
+    ]);
+    const okrs = okrRes.data || [];
+    const mates = matesRes.data || [];
+    const leadMap = Object.fromEntries((leadsRes.data || []).map(p => [p.id, p]));
+    const doneOkrs = okrs.filter(o => o.status === 'Done' || (o.progress || 0) >= 100).length;
+
     v.innerHTML = `
-      <div class="card"><div class="card-head"><h3>My units</h3></div>
-        ${units.length ? units.map(u => `<div class="row"><div class="row-main"><div class="t">${esc(u.units?.name || 'Unit')}</div><div class="s">Your role: ${esc(u.positions?.title || 'Member')}</div></div></div>`).join('')
+      <div class="stat-grid">
+        <div class="stat accent"><div class="num">${units.length}</div><div class="cap">My units</div></div>
+        <div class="stat"><div class="num">${okrs.length}</div><div class="cap">Shared OKRs</div></div>
+        <div class="stat ok"><div class="num">${doneOkrs}</div><div class="cap">Completed OKRs</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>My units</h3>
+            <p class="small muted" style="margin-top:2px">Teams you belong to, your role, and unit teammates</p>
+          </div>
+          <span class="tag muted-tag">${units.length} unit${units.length === 1 ? '' : 's'}</span>
+        </div>
+        ${units.length ? units.map(u => {
+          const unitObj = u.units || {};
+          const unitMates = mates.filter(m => m.unit_id === u.unit_id);
+          const lead = unitObj.lead_id ? leadMap[unitObj.lead_id] : null;
+          return `
+            <div class="unit-card">
+              <div class="unit-card-head">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">🏢</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(unitObj.name || 'Unit')}</span>
+                      <span class="tag brand">${esc(u.positions?.title || 'Member')}</span>
+                      <span class="tag muted-tag">${unitMates.length} member${unitMates.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="ds-list-sub">
+                      ${lead ? `<span>Lead: <b>${esc(nameOf(lead))}</b></span>` : '<span>No lead assigned</span>'}
+                      ${unitObj.description ? `<span>·</span><span>${esc(unitObj.description)}</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="btn sm" data-view-unit="${u.unit_id}">View team</button>
+              </div>
+              ${unitMates.length ? `
+                <div class="unit-card-body">
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    ${unitMates.slice(0, 6).map(m => {
+                      const nm = nameOf(m.profiles);
+                      return `<span class="tag muted-tag" title="${esc(nm)} (${esc(m.positions?.title || 'Member')})">${esc(nm)}${m.positions?.title ? ' · ' + esc(m.positions.title) : ''}</span>`;
+                    }).join('')}
+                    ${unitMates.length > 6 ? `<span class="tiny muted">+${unitMates.length - 6} more</span>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')
         : `<div class="empty"><div class="big">No units yet</div><div class="hint">An admin will assign you to a unit.</div></div>`}
       </div>
-      <div class="card"><div class="card-head"><h3>OKRs shared with your units</h3></div>
-        ${okrs.length ? okrs.map(o => `
-          <div class="row" style="align-items:flex-start"><div class="row-main">
-            <div class="t">${esc(o.title || o.objective || 'OKR')}</div>
-            <div class="s">${esc(o.description || '')} · ${esc(o.units?.name || 'Company-wide')}</div>
-            <div class="progress" style="margin-top:8px;max-width:320px"><div style="width:${o.progress || 0}%"></div></div>
-            ${(o.key_results || []).length ? `<div class="small muted" style="margin-top:6px">${o.key_results.map(k => `${esc(k.title)} (${k.progress || 0}%)`).join(' · ')}</div>` : ''}
-          </div><span class="tag ${o.status === 'Done' ? 'ok' : o.status === 'Off Track' ? 'alert' : 'muted-tag'}">${esc(o.status || 'On Track')}</span></div>`).join('')
-        : `<div class="empty"><div class="big">No OKRs shared</div><div class="hint">OKRs for your units will appear here.</div></div>`}
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>OKRs shared with your units</h3>
+            <p class="small muted" style="margin-top:2px">Objectives and key results aligned with your team</p>
+          </div>
+          <span class="tag muted-tag">${okrs.length} total</span>
+        </div>
+        ${okrs.length ? `
+          <div class="ds-list">
+            ${okrs.map(o => {
+              const krs = o.key_results || [];
+              const prog = Math.max(0, Math.min(100, Number(o.progress || 0)));
+              return `
+                <div class="ds-list-card">
+                  <div class="ds-list-main">
+                    <div class="ds-list-icon">🎯</div>
+                    <div class="ds-list-content">
+                      <div class="ds-list-title-row">
+                        <span class="ds-list-title">${esc(o.title || o.objective || 'OKR')}</span>
+                        <span class="tag ${o.status === 'Done' ? 'ok' : o.status === 'Off Track' ? 'alert' : o.status === 'At Risk' ? 'brand' : 'muted-tag'}">${esc(o.status || 'On Track')}</span>
+                        <span class="tag muted-tag">${esc(o.units?.name || 'Company-wide')}</span>
+                      </div>
+                      ${o.description ? `<div class="ds-list-sub">${esc(o.description)}</div>` : ''}
+                      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;max-width:380px">
+                        <div class="progress" style="flex:1"><div style="width:${prog}%"></div></div>
+                        <span class="small" style="font-weight:800;font-variant-numeric:tabular-nums">${prog}%</span>
+                      </div>
+                      ${krs.length ? `<div class="ds-list-snippet">${krs.map(k => `${esc(k.title)} (<b>${k.progress || 0}%</b>)`).join(' · ')}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="ds-list-actions">
+                    <button type="button" class="btn sm" data-view-okr="${o.id}">View</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `<div class="empty"><div class="big">No OKRs shared</div><div class="hint">OKRs for your units will appear here.</div></div>`}
       </div>`;
+
+    $$('[data-view-unit]', v).forEach(b => b.addEventListener('click', () => {
+      const u = units.find(x => x.unit_id === b.dataset.viewUnit);
+      if (!u) return;
+      const unitObj = u.units || {};
+      const unitMates = mates.filter(m => m.unit_id === u.unit_id);
+      const lead = unitObj.lead_id ? leadMap[unitObj.lead_id] : null;
+      window.DS.showDetailsModal({
+        title: unitObj.name || 'Unit',
+        subtitle: unitObj.description || 'Unit roster and your role',
+        badgeHtml: `<span class="tag brand">${esc(u.positions?.title || 'Member')}</span>`,
+        rows: [
+          { label: 'Unit name', value: unitObj.name || '—' },
+          { label: 'Your role', value: u.positions?.title || 'Member' },
+          { label: 'Unit lead', value: lead ? nameOf(lead) : 'No lead assigned' },
+          {
+            label: `Members (${unitMates.length})`,
+            isHtml: true,
+            value: unitMates.length
+              ? unitMates.map(m => `<div><b>${esc(nameOf(m.profiles))}</b> · <span class="muted">${esc(m.positions?.title || 'Member')}</span></div>`).join('')
+              : 'No members listed'
+          }
+        ]
+      });
+    }));
+
+    $$('[data-view-okr]', v).forEach(b => b.addEventListener('click', () => {
+      const o = okrs.find(x => x.id === b.dataset.viewOkr);
+      if (!o) return;
+      const krs = o.key_results || [];
+      window.DS.showDetailsModal({
+        title: o.title || o.objective || 'OKR',
+        subtitle: o.units?.name || 'Company-wide',
+        badgeHtml: `<span class="tag ${o.status === 'Done' ? 'ok' : o.status === 'Off Track' ? 'alert' : 'brand'}">${esc(o.status || 'On Track')} · ${o.progress || 0}%</span>`,
+        rows: [
+          { label: 'Objective', value: o.title || o.objective || '—' },
+          { label: 'Description', value: o.description || 'No description' },
+          { label: 'Scope', value: o.units?.name || 'Company-wide' },
+          { label: 'Overall progress', value: `${o.progress || 0}%` },
+          {
+            label: `Key results (${krs.length})`,
+            isHtml: true,
+            value: krs.length
+              ? krs.map(k => `<div style="margin-bottom:6px"><b>${esc(k.title)}</b> — ${k.progress || 0}%${k.target ? ` (Target: ${esc(k.target)}${k.current ? `, Current: ${esc(k.current)}` : ''})` : ''}</div>`).join('')
+              : '<span class="muted">No key results attached yet</span>'
+          }
+        ]
+      });
+    }));
   };
 
   // ── MEETINGS (member: report attendance) ──
@@ -752,7 +887,7 @@
                   { label: 'View details', icon: '📋', attrs: `data-view-meeting="${m.id}"` },
                   { label: 'File meeting report', icon: '📝', attrs: `data-mr="${m.id}" data-title="${esc(m.title)}"` },
                   m.link ? { label: 'Join meeting', icon: '↗', attrs: `onclick="window.open('${esc(m.link)}', '_blank')"` } : null,
-                  m.minutes ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.minutes)}', '_blank')"` } : null,
+                  m.notes_link ? { label: 'Notes link', icon: '📄', attrs: `onclick="window.open('${esc(m.notes_link)}', '_blank')"` } : null,
                 ];
                 return `
                   <div class="ds-list-card">
@@ -809,7 +944,7 @@
             { label: 'Target unit', value: m.units?.name || 'Everyone' },
             { label: 'Join link', isHtml: true, value: m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.link)} ↗</a>` : '<span class="muted">No video link specified</span>' },
             { label: 'Agenda / description', value: m.description || m.agenda || 'No agenda specified' },
-            { label: 'Drive notes link', isHtml: true, value: m.minutes ? `<a href="${esc(m.minutes)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.minutes)} ↗</a>` : '<span class="muted">No notes link posted yet</span>' },
+            { label: 'Drive notes link', isHtml: true, value: m.notes_link ? `<a href="${esc(m.notes_link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(m.notes_link)} ↗</a>` : '<span class="muted">No notes link posted yet</span>' },
           ],
           actions: [
             m.link ? { label: 'Join meeting ↗', href: m.link } : null,
@@ -824,26 +959,35 @@
 
   function meetingReportModal(meetingId, title) {
     window.DS.modal.open(`
-      <h2 style="margin-bottom:4px">Meeting report</h2>
-      <p class="muted small" style="margin-bottom:18px">${esc(title)}</p>
+      <div class="modal-head">
+        <div>
+          <h2 style="margin:0 0 4px">Meeting report</h2>
+          <p class="muted small" style="margin:0">${esc(title)}</p>
+        </div>
+        <button type="button" class="btn sm ghost" id="mr-close" aria-label="Close" style="padding:4px 8px">✕</button>
+      </div>
       <form id="mr-form" novalidate>
         <div class="field"><label class="label" for="mr-att">Did you attend?</label>
           <select class="input" id="mr-att"><option value="yes">Yes, attended</option><option value="no">No</option></select></div>
-        <div class="field"><label class="label" for="mr-contrib">What did you contribute?</label><textarea class="input" id="mr-contrib" required></textarea></div>
-        <div class="field"><label class="label" for="mr-fb">Feedback on the meeting</label><textarea class="input" id="mr-fb"></textarea></div>
-        <div style="display:flex;gap:10px"><button class="btn primary" style="flex:1" type="submit">Submit</button>
-        <button class="btn" type="button" id="mr-cancel">Cancel</button></div>
+        <div class="field"><label class="label" for="mr-contrib">What did you contribute?</label><textarea class="input" id="mr-contrib" required placeholder="Key points, updates, or action items you took…"></textarea></div>
+        <div class="field"><label class="label" for="mr-fb">Feedback on the meeting</label><textarea class="input" id="mr-fb" placeholder="Optional feedback"></textarea></div>
+        <div class="modal-actions"><button class="btn" type="button" id="mr-cancel">Cancel</button><button class="btn primary" type="submit" id="mr-submit">Submit</button></div>
       </form>`);
-    $('#mr-cancel').addEventListener('click', window.DS.modal.close);
-    $('#mr-form').addEventListener('submit', async (e) => {
+    $('#mr-close')?.addEventListener('click', window.DS.modal.close);
+    $('#mr-cancel')?.addEventListener('click', window.DS.modal.close);
+    $('#mr-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const contrib = $('#mr-contrib').value.trim();
+      if (!contrib) { $('#mr-contrib')?.focus(); return toast('Please describe what you contributed.', true); }
+      const btn = $('#mr-submit');
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
       await sb.from('meeting_attendance').upsert({
         meeting_id: meetingId, user_id: S.user.id,
         attended: $('#mr-att').value === 'yes',
-        note: `Contribution: ${$('#mr-contrib').value.trim()} · Feedback: ${$('#mr-fb').value.trim()}`,
+        note: `Contribution: ${contrib} · Feedback: ${$('#mr-fb').value.trim()}`,
       }, { onConflict: 'meeting_id,user_id' });
       window.DS.modal.close();
-      toast('Meeting report submitted.');
+      toast('✓ Meeting report submitted.');
     });
   }
 
@@ -1118,92 +1262,88 @@
     const list = items || [];
     const cats = [...new Set(list.map(i => i.category).filter(Boolean))];
     let libPage = 1;
+    let libQuery = '';
+    let libCat = '';
 
-    function renderView() {
-      const pg = window.DS.paginate(list, libPage, 25);
-      v.innerHTML = `
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h3>Library</h3>
-              <p class="small muted" style="margin-top:2px">${list.length} resource${list.length === 1 ? '' : 's'} available to you</p>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <input class="input" id="lib-q" placeholder="Search…" style="min-height:36px;width:170px" aria-label="Search library">
-              <select class="input" id="lib-cat" style="min-height:36px;width:auto" aria-label="Filter by category">
-                <option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}
-              </select>
-            </div>
+    v.innerHTML = `
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>Library</h3>
+            <p class="small muted" id="lib-sub" style="margin-top:2px">${list.length} resource${list.length === 1 ? '' : 's'} available to you</p>
           </div>
-          ${pg.items.length ? `
-            <div id="lib-list" class="ds-list">
-              ${pg.items.map(i => {
-                const actions = [
-                  { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
-                  { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
-                  { divider: true },
-                  { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
-                ];
-                return `
-                  <div class="ds-list-card" data-name="${esc(((i.title || '') + ' ' + (i.description || '')).toLowerCase())}" data-cat="${esc(i.category || '')}">
-                    <div class="ds-list-main">
-                      <div class="ds-list-icon">📄</div>
-                      <div class="ds-list-content">
-                        <div class="ds-list-title-row">
-                          <span class="ds-list-title">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</span>
-                          ${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : ''}
-                        </div>
-                        <div class="ds-list-sub">
-                          ${i.category ? esc(i.category) + ' · ' : ''}Added by ${esc(nameOf(i.profiles))}
-                        </div>
-                        ${i.description ? `<div class="ds-list-snippet">${esc(i.description)}</div>` : ''}
-                      </div>
-                    </div>
-                    <div class="ds-list-actions">
-                      <button type="button" class="btn sm ghost" data-view-lib="${i.id}">View</button>
-                      <a class="btn sm primary" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
-                      ${window.DS.renderActionMenu(actions)}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
+          <div class="card-head-controls">
+            <input class="input" id="lib-q" placeholder="Search…" style="min-height:36px;flex:1 1 170px;min-width:140px;width:auto" aria-label="Search library">
+            <select class="input" id="lib-cat" style="min-height:36px;width:auto" aria-label="Filter by category">
+              <option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div id="lib-body"></div>
+      </div>`;
 
-            ${pg.renderBar('lib')}
-          ` : `<div class="empty"><div class="big">Nothing shared with you yet</div><div class="hint">Library links granted to you or your units appear here.</div></div>`}
-        </div>`;
+    const reportBrokenLink = async (itemId) => {
+      await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', itemId);
+      await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + itemId, link_tab: 'library' });
+      await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + itemId });
+      const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
+      for (const a of (admins || [])) {
+        await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + itemId, link_tab: 'library' });
+      }
+      toast('Reported. Admins were notified.');
+      window.DS.navigate('library');
+    };
 
-      bindEvents();
-      window.DS.initActionMenus(v);
-      window.DS.bindPagination(v, (p) => {
-        libPage = p;
-        renderView();
+    function renderList() {
+      const filtered = list.filter(i => {
+        const hay = ((i.title || '') + ' ' + (i.description || '')).toLowerCase();
+        return (!libQuery || hay.includes(libQuery)) && (!libCat || (i.category || '') === libCat);
       });
-    }
+      const pg = window.DS.paginate(filtered, libPage, 25);
+      const sub = $('#lib-sub', v);
+      if (sub) sub.textContent = (libQuery || libCat)
+        ? `${filtered.length} matching resource${filtered.length === 1 ? '' : 's'}`
+        : `${list.length} resource${list.length === 1 ? '' : 's'} available to you`;
 
-    function bindEvents() {
-      const apply = () => {
-        const q = $('#lib-q').value.toLowerCase(), c = $('#lib-cat').value;
-        $$('#lib-list .ds-list-card').forEach(r => {
-          r.style.display = (r.dataset.name.includes(q) && (!c || r.dataset.cat === c)) ? '' : 'none';
-        });
-      };
-      $('#lib-q')?.addEventListener('input', apply);
-      $('#lib-cat')?.addEventListener('change', apply);
+      const body = $('#lib-body', v);
+      if (!body) return;
+      body.innerHTML = pg.items.length ? `
+        <div id="lib-list" class="ds-list">
+          ${pg.items.map(i => {
+            const actions = [
+              { label: 'View details', icon: '📋', attrs: `data-view-lib="${i.id}"` },
+              { label: 'Open link ↗', icon: '↗', attrs: `onclick="window.open('${esc(i.url)}', '_blank')"` },
+              { divider: true },
+              { label: 'Report broken link', icon: '⚠️', isAlert: true, attrs: `data-broken="${i.id}"` },
+            ];
+            return `
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">📄</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(i.title)}${i.broken_link ? ' <span class="tag alert">Broken</span>' : ''}</span>
+                      ${i.category ? `<span class="tag muted-tag">${esc(i.category)}</span>` : ''}
+                    </div>
+                    <div class="ds-list-sub">
+                      ${i.category ? esc(i.category) + ' · ' : ''}Added by ${esc(nameOf(i.profiles))}
+                    </div>
+                    ${i.description ? `<div class="ds-list-snippet">${esc(i.description)}</div>` : ''}
+                  </div>
+                </div>
+                <div class="ds-list-actions">
+                  <button type="button" class="btn sm ghost" data-view-lib="${i.id}">View</button>
+                  <a class="btn sm primary" href="${esc(i.url)}" target="_blank" rel="noopener">Open ↗</a>
+                  ${window.DS.renderActionMenu(actions)}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${pg.renderBar('lib')}
+      ` : `<div class="empty"><div class="big">${(libQuery || libCat) ? 'No matching resources' : 'Nothing shared with you yet'}</div><div class="hint">${(libQuery || libCat) ? 'Try clearing the search or category filter.' : 'Library links granted to you or your units appear here.'}</div></div>`;
 
-      const reportBrokenLink = async (itemId) => {
-        await sb.from('library_items').update({ broken_link: true, last_broken_report_at: new Date().toISOString() }).eq('id', itemId);
-        await sb.from('notifications').insert({ user_id: S.user.id, type: 'broken_link', title: 'Broken link reported', body: 'library_items:' + itemId, link_tab: 'library' });
-        await sb.from('audit_log').insert({ actor_id: S.user.id, action: 'broken_link_reported', target: 'library_items:' + itemId });
-        const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
-        for (const a of (admins || [])) {
-          await sb.from('notifications').insert({ user_id: a.id, type: 'broken_link', title: 'Broken library link reported', body: 'library_items:' + itemId, link_tab: 'library' });
-        }
-        toast('Reported. Admins were notified.');
-        window.DS.navigate('library');
-      };
-
-      $$('[data-view-lib]', v).forEach(b => b.addEventListener('click', () => {
+      $$('[data-view-lib]', body).forEach(b => b.addEventListener('click', () => {
         const item = list.find(x => x.id === b.dataset.viewLib);
         if (!item) return;
         window.DS.showDetailsModal({
@@ -1223,11 +1363,14 @@
           ]
         });
       }));
-
-      $$('[data-broken]', v).forEach(b => b.addEventListener('click', () => reportBrokenLink(b.dataset.broken)));
+      $$('[data-broken]', body).forEach(b => b.addEventListener('click', () => reportBrokenLink(b.dataset.broken)));
+      window.DS.initActionMenus(body);
+      window.DS.bindPagination(body, (p) => { libPage = p; renderList(); });
     }
 
-    renderView();
+    $('#lib-q')?.addEventListener('input', (e) => { libQuery = e.target.value.toLowerCase().trim(); libPage = 1; renderList(); });
+    $('#lib-cat')?.addEventListener('change', (e) => { libCat = e.target.value; libPage = 1; renderList(); });
+    renderList();
   };
 
   // ── LEAVE ──
@@ -1390,44 +1533,48 @@
         <!-- LEFT SUB-NAVIGATION PANE -->
         <div class="chat-channels-pane">
           <div class="chat-pane-head">
-            <div style="font-weight:900;font-size:14px;letter-spacing:-0.02em">CHANNELS &amp; TEAMS</div>
+            <div style="font-weight:900;font-size:13px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy-900)">Channels &amp; Teams</div>
             ${adminMode ? `<button class="btn sm ghost" id="ch-new-btn" style="padding:2px 8px;font-size:12px;font-weight:800" title="Create channel">+ Channel</button>` : ''}
           </div>
           <input class="chat-search-input" id="ch-search-box" placeholder="Filter channels…" aria-label="Filter channels">
 
           <div id="channels-tree" style="display:flex;flex-direction:column;gap:12px">
             <!-- Announcements -->
-            <div>
-              <div class="nav-group-label" style="margin-left:4px">Official Broadcasts</div>
-              ${annChannels.map(c => `
-                <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                  <span style="font-size:14px">📢</span>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
-                  <span class="channel-badge ok">Info</span>
-                </button>
-              `).join('')}
-            </div>
+            ${annChannels.length ? `
+              <div class="ch-group">
+                <div class="nav-group-label" style="margin-left:4px">Official Broadcasts</div>
+                ${annChannels.map(c => `
+                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+                    <span class="ch-icon" aria-hidden="true">📢</span>
+                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
+                    <span class="channel-badge ok">Info</span>
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
 
             <!-- General -->
-            <div>
-              <div class="nav-group-label" style="margin-left:4px">Workspace Channels</div>
-              ${generalChannels.map(c => `
-                <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                  <span style="font-weight:800;color:var(--ink-60)">#</span>
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
-                  ${c.is_private ? '<span class="small muted" title="Private">🔒</span>' : ''}
-                </button>
-              `).join('')}
-            </div>
+            ${generalChannels.length ? `
+              <div class="ch-group">
+                <div class="nav-group-label" style="margin-left:4px">Workspace Channels</div>
+                ${generalChannels.map(c => `
+                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+                    <span class="ch-icon" aria-hidden="true">#</span>
+                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
+                    ${c.is_private ? '<span class="small muted" title="Private" style="flex-shrink:0">🔒</span>' : ''}
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
 
             <!-- Units -->
             ${unitChannels.length ? `
-              <div>
+              <div class="ch-group">
                 <div class="nav-group-label" style="margin-left:4px">Unit Channels</div>
                 ${unitChannels.map(c => `
                   <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                    <span>🏢</span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.display_name || c.name)}</span>
+                    <span class="ch-icon" aria-hidden="true">🏢</span>
+                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
                     <span class="channel-badge muted-tag">Unit</span>
                   </button>
                 `).join('')}
@@ -1438,7 +1585,7 @@
 
         <!-- RIGHT CHAT ROOM PANE -->
         <div class="chat-room-pane" id="chat-room-pane">
-          <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:400px">
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:320px">
             <div class="loading">Loading channel…</div>
           </div>
         </div>
@@ -1453,14 +1600,20 @@
         const text = btn.textContent.toLowerCase();
         btn.style.display = text.includes(q) ? 'flex' : 'none';
       });
+      $$('.ch-group', v).forEach(grp => {
+        const hasVisible = $$('.channel-btn', grp).some(btn => btn.style.display !== 'none');
+        grp.style.display = hasVisible ? 'block' : 'none';
+      });
     });
 
     // Admin create channel modal
     if (adminMode) {
       $('#ch-new-btn')?.addEventListener('click', () => {
         window.DS.modal.open(`
-          <h2 style="margin-bottom:6px">Create a new channel</h2>
-          <p class="muted small" style="margin-bottom:16px">Organize team conversations, unit initiatives, or company announcements.</p>
+          <div class="modal-head">
+            <h2>Create a new channel</h2>
+            <p class="muted small" style="margin-top:4px">Organize team conversations, unit initiatives, or company announcements.</p>
+          </div>
           <form id="new-ch-form" novalidate>
             <div class="field">
               <label class="label" for="nch-name">Channel identifier</label>
@@ -1484,8 +1637,8 @@
               </select>
             </div>
             <div class="error-box hidden" id="nch-error" style="margin-bottom:14px"></div>
-            <div style="display:flex;gap:10px">
-              <button class="btn primary" type="submit" style="flex:1">Create channel</button>
+            <div class="modal-actions">
+              <button class="btn primary" type="submit">Create channel</button>
               <button class="btn" type="button" id="nch-cancel">Cancel</button>
             </div>
           </form>
@@ -1549,9 +1702,9 @@
       room.innerHTML = `
         <!-- CHANNEL HEADER -->
         <div class="chat-room-head">
-          <div style="display:flex;align-items:center;gap:10px">
-            <button class="btn sm ghost" id="chat-mobile-back" style="display:none;padding:4px 8px;font-size:12.5px" title="Back to channels">← Channels</button>
-            <div>
+          <div class="chat-room-head-left">
+            <button class="btn sm ghost chat-back-btn" id="chat-mobile-back" type="button" style="padding:4px 8px;font-size:12.5px" title="Back to channels">← Channels</button>
+            <div class="chat-room-head-meta">
               <div class="chat-room-title">
                 <span>${ch.kind === 'announcements' ? '📢' : ch.kind === 'unit' ? '🏢' : '#'}</span>
                 <span>${esc(ch.display_name || ch.name)}</span>
@@ -1561,8 +1714,8 @@
               <div class="chat-room-sub">${esc(ch.description || 'General team collaboration and updates.')}</div>
             </div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn sm ghost" id="chat-refresh-btn" title="Refresh messages">↻ Refresh</button>
+          <div class="chat-room-head-actions">
+            <button class="btn sm ghost" id="chat-refresh-btn" type="button" title="Refresh messages">↻ Refresh</button>
           </div>
         </div>
 
@@ -1582,14 +1735,16 @@
                   ${esc(getInitials(author))}
                 </div>
                 <div class="chat-msg-body ${priority}">
-                  <div class="chat-meta">
-                    <span class="chat-author">${esc(author)}</span>
-                    <span class="tag muted-tag" style="font-size:10px;padding:0 6px">${esc(authorAccess)}</span>
-                    <span class="chat-time">${fmtDT(m.created_at)}</span>
-                    ${priority === 'urgent' ? '<span class="urgent-pill">🚨 URGENT</span>' : ''}
-                    ${priority === 'important' ? '<span class="important-pill">⚡ IMPORTANT</span>' : ''}
-                    ${priority === 'announcement' ? '<span class="announcement-pill">📢 ANNOUNCEMENT</span>' : ''}
-                    ${canDelete ? `<div style="margin-left:auto">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
+                  <div class="chat-msg-head">
+                    <div class="chat-meta">
+                      <span class="chat-author">${esc(author)}</span>
+                      <span class="tag muted-tag" style="font-size:10px;padding:0 6px">${esc(authorAccess)}</span>
+                      <span class="chat-time">${fmtDT(m.created_at)}</span>
+                      ${priority === 'urgent' ? '<span class="urgent-pill">🚨 URGENT</span>' : ''}
+                      ${priority === 'important' ? '<span class="important-pill">⚡ IMPORTANT</span>' : ''}
+                      ${priority === 'announcement' ? '<span class="announcement-pill">📢 ANNOUNCEMENT</span>' : ''}
+                    </div>
+                    ${canDelete ? `<div class="chat-msg-actions">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
                   </div>
                   <div class="chat-text">${formatChatMessage(m.body, memberList)}</div>
                   ${m.drive_link ? `<div style="margin-top:6px"><a href="${esc(m.drive_link)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">🔗 Attached resource</a></div>` : ''}
@@ -1616,14 +1771,14 @@
               <button type="button" class="toolbar-btn" data-fmt="code" title="Code block (\`code\`)">&lt;/&gt;</button>
               <button type="button" class="toolbar-btn" data-fmt="bullet" title="Bullet item">• List</button>
               <button type="button" class="toolbar-btn" data-fmt="quote" title="Quote block">&gt; Quote</button>
-              <span style="border-left:1px solid var(--line-soft);height:18px;margin:0 4px"></span>
+              <span class="chat-toolbar-sep" aria-hidden="true"></span>
               <button type="button" class="toolbar-btn toolbar-tag-btn urgent" data-tag="#urgent" title="Mark urgent">🚨 #urgent</button>
               <button type="button" class="toolbar-btn toolbar-tag-btn important" data-tag="#important" title="Mark important">⚡ #important</button>
               <button type="button" class="toolbar-btn toolbar-tag-btn announce" data-tag="#announcement" title="Mark announcement">📢 #announcement</button>
-              <span style="border-left:1px solid var(--line-soft);height:18px;margin:0 4px"></span>
+              <span class="chat-toolbar-sep" aria-hidden="true"></span>
               <div style="position:relative;display:inline-block">
                 <button type="button" class="toolbar-btn" id="mention-toggle-btn" title="Mention team member">@ Mention</button>
-                <div class="hidden" id="mention-dropdown" style="position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-lg);min-width:210px;max-height:210px;overflow-y:auto;z-index:30;padding:4px">
+                <div class="mention-dropdown hidden" id="mention-dropdown">
                   ${memberList.map(p => `
                     <div class="mention-item" data-mention-name="${esc(p.full_name || p.email)}">
                       <span>@${esc(p.full_name || p.email)}</span>
@@ -1639,14 +1794,14 @@
 
             <!-- Actions Bar -->
             <div class="chat-actions-bar">
-              <span class="tiny muted">Press <b>Enter</b> to send · <b>Shift+Enter</b> for new line · Style with <b>#urgent</b> or <b>@mentions</b></span>
-              <button class="btn primary sm" id="chat-send-btn" type="button" style="padding:6px 18px;display:flex;align-items:center;gap:6px">
+              <span class="tiny muted chat-composer-hint">Press <b>Enter</b> to send · <b>Shift+Enter</b> for new line · Style with <b>#urgent</b> or <b>@mentions</b></span>
+              <button class="btn primary sm" id="chat-send-btn" type="button" style="padding:6px 18px;display:inline-flex;align-items:center;gap:6px">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                 <span>Send</span>
               </button>
             </div>
           ` : `
-            <div style="padding:16px;text-align:center;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--line-soft)">
+            <div style="padding:14px 16px;text-align:center;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--line-soft)">
               <span class="small muted">📢 This is an official announcements channel. Broadcast posting is restricted to administrators.</span>
             </div>
           `}
@@ -1791,18 +1946,64 @@
   // ── NOTIFICATIONS ──
   window.renderNotifications = async function (v) {
     const { data } = await sb.from('notifications').select('*').eq('user_id', S.user.id).order('created_at', { ascending: false }).limit(40);
+    const list = data || [];
+    const unread = list.filter(n => !n.read).length;
+    const formatNotifBody = (raw) => {
+      if (!raw) return '';
+      if (/^library_items:[a-z0-9-]+$/i.test(raw.trim())) {
+        return 'A shared library resource link was flagged as broken and needs review.';
+      }
+      return raw;
+    };
     v.innerHTML = `<div class="card">
-      <div class="card-head"><h3>All notifications</h3><button class="btn sm ghost" id="mark-read">Mark all read</button></div>
-      ${(data && data.length) ? data.map(n => `<div class="row">
-        <div class="row-main"><div class="t">${esc(n.title)}</div>${n.body ? `<div class="s">${esc(n.body)}</div>` : ''}<div class="tiny muted">${fmtDT(n.created_at)}</div></div>
-        ${n.read ? '<span class="tag muted-tag">Read</span>' : '<span class="tag">New</span>'}
-        ${n.link_tab ? `<button class="btn sm" data-ntab="${n.link_tab}" data-nid="${n.id}">Open</button>` : ''}
-      </div>`).join('') : `<div class="empty"><div class="big">No notifications</div><div class="hint">Scores, reports, meetings and announcements land here.</div></div>`}
+      <div class="card-head">
+        <div>
+          <h3>All notifications</h3>
+          <p class="small muted" style="margin-top:2px">${unread ? `${unread} unread update${unread === 1 ? '' : 's'}` : 'All caught up'}</p>
+        </div>
+        <div class="card-head-controls">
+          <button class="btn sm ghost" id="mark-read" ${unread ? '' : 'disabled'}>Mark all read</button>
+        </div>
+      </div>
+      ${list.length ? `
+        <div class="ds-list notif-list">
+          ${list.map(n => {
+            const bodyText = formatNotifBody(n.body);
+            return `
+              <div class="ds-list-card notif-card ${n.read ? 'is-read' : 'is-unread'}">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">${n.read ? '🔔' : '⚡'}</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(n.title)}</span>
+                      ${n.read ? '<span class="tag muted-tag">Read</span>' : '<span class="tag brand">New</span>'}
+                    </div>
+                    <div class="ds-list-sub">${fmtDT(n.created_at)}</div>
+                    ${bodyText ? `<div class="notif-body">${esc(bodyText)}</div>` : ''}
+                  </div>
+                </div>
+                <div class="ds-list-actions notif-actions">
+                  ${!n.read ? `<button class="btn sm ghost" type="button" data-nread="${n.id}">Mark read</button>` : ''}
+                  ${n.link_tab
+                    ? `<button class="btn sm ${n.read ? '' : 'primary'}" type="button" data-ntab="${esc(n.link_tab)}" data-nid="${n.id}">Open →</button>`
+                    : (n.read ? '<span class="small muted">Viewed</span>' : '')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : `<div class="empty"><div class="big">No notifications</div><div class="hint">Scores, reports, meetings and announcements land here.</div></div>`}
     </div>`;
-    $('#mark-read').addEventListener('click', async () => {
+    $('#mark-read')?.addEventListener('click', async () => {
       await sb.from('notifications').update({ read: true }).eq('user_id', S.user.id).eq('read', false);
       window.DS.loadNotifBadge(); window.DS.navigate('notifications');
     });
+    $$('[data-nread]', v).forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true;
+      await sb.from('notifications').update({ read: true }).eq('id', b.dataset.nread);
+      window.DS.loadNotifBadge();
+      window.DS.navigate('notifications');
+    }));
     $$('[data-ntab]', v).forEach(b => b.addEventListener('click', async () => {
       await sb.from('notifications').update({ read: true }).eq('id', b.dataset.nid);
       window.DS.loadNotifBadge();
@@ -1813,31 +2014,173 @@
   // ── PROFILE ──
   window.renderProfilePage = async function (v) {
     const p = S.profile || {};
-    v.innerHTML = `<div class="card">
-      <div class="card-head">
-        <div>
-          <h3>Profile</h3>
-          <p class="small muted" style="margin-top:2px">Your account details</p>
+    const units = await myUnits();
+    const displayName = p.full_name || S.user?.email || 'Team member';
+    const initials = window.DS.getInitials(displayName);
+
+    v.innerHTML = `
+      <div class="profile-hero">
+        <div class="profile-hero-main">
+          <div class="profile-avatar-lg">${esc(initials)}</div>
+          <div class="profile-hero-info">
+            <div class="profile-hero-name">${esc(displayName)}</div>
+            <div class="profile-hero-email">${esc(p.email || S.user?.email || '—')}</div>
+            <div class="profile-hero-tags">
+              <span class="tag brand">${esc(p.access_level || 'Member')}</span>
+              ${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}
+              ${units.map(u => `<span class="tag">${esc(u.units?.name || 'Unit')}${u.positions?.title ? ' · ' + esc(u.positions.title) : ''}</span>`).join('')}
+            </div>
+          </div>
         </div>
-        <button type="button" class="btn sm" id="profile-signout-btn" style="color:var(--alert);border-color:var(--alert)">Sign out</button>
+        <button type="button" class="btn sm" id="profile-signout-btn">Sign out</button>
       </div>
-      <dl class="kv">
-        <dt>Name</dt><dd>${esc(p.full_name || '—')}</dd>
-        <dt>Email</dt><dd>${esc(p.email || '—')}</dd>
-        <dt>Role</dt><dd>${esc(p.access_level || 'Member')}</dd>
-        <dt>Status</dt><dd>${p.active === false ? '<span class="tag alert">Deactivated</span>' : '<span class="tag ok">Active</span>'}</dd>
-      </dl></div>
-      <div class="card"><div class="card-head"><h3>Change password</h3></div>
-        <form id="cp-form" novalidate>
-          <div class="field"><label class="label" for="cp1">New password</label><input class="input" id="cp1" type="password" minlength="6" required autocomplete="new-password"></div>
-          <button class="btn" type="submit">Update password</button>
-        </form></div>`;
+
+      <div class="profile-grid">
+        <div class="card" style="margin-top:0">
+          <div class="card-head">
+            <div>
+              <h3>Account details</h3>
+              <p class="small muted" style="margin-top:2px">Update your display name and contact info</p>
+            </div>
+          </div>
+          <form id="pf-form" novalidate>
+            <div class="field">
+              <label class="label" for="pf-name">Full name</label>
+              <input class="input" id="pf-name" required value="${esc(p.full_name || '')}" placeholder="Your full name">
+            </div>
+            <div class="field">
+              <label class="label" for="pf-email">Work email</label>
+              <input class="input" id="pf-email" type="email" disabled value="${esc(p.email || S.user?.email || '')}">
+            </div>
+            <div class="field">
+              <label class="label" for="pf-phone">Phone (optional)</label>
+              <input class="input" id="pf-phone" type="tel" value="${esc(p.phone || '')}" placeholder="+234…">
+            </div>
+            <div class="error-box hidden" id="pf-error" style="margin-bottom:14px" role="alert" aria-live="polite"></div>
+            <button class="btn primary" id="pf-save-btn" type="submit">Save profile</button>
+          </form>
+        </div>
+
+        <div class="card" style="margin-top:0">
+          <div class="card-head">
+            <div>
+              <h3>Security &amp; password</h3>
+              <p class="small muted" style="margin-top:2px">Choose a strong password (min 6 characters)</p>
+            </div>
+          </div>
+          <form id="cp-form" novalidate>
+            <div class="field">
+              <div class="pw-label-row">
+                <label class="label" for="cp1" style="margin-bottom:0">New password</label>
+                <button type="button" class="btn ghost sm" id="cp-toggle-btn" style="min-height:auto;padding:2px 8px;font-size:11px">Show</button>
+              </div>
+              <input class="input" id="cp1" type="password" minlength="6" required autocomplete="new-password" placeholder="At least 6 characters">
+            </div>
+            <div class="field">
+              <label class="label" for="cp2">Confirm new password</label>
+              <input class="input" id="cp2" type="password" minlength="6" required autocomplete="new-password" placeholder="Re-enter new password">
+            </div>
+            <div class="error-box hidden" id="cp-error" style="margin-bottom:14px" role="alert" aria-live="polite"></div>
+            <button class="btn primary" id="cp-save-btn" type="submit">Update password</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>My units &amp; roles</h3>
+            <p class="small muted" style="margin-top:2px">Teams and positions assigned to your account</p>
+          </div>
+          <button type="button" class="btn sm ghost" id="pf-goto-units">Open Units &amp; OKRs</button>
+        </div>
+        ${units.length ? `
+          <div class="ds-list">
+            ${units.map(u => `
+              <div class="ds-list-card">
+                <div class="ds-list-main">
+                  <div class="ds-list-icon">🏢</div>
+                  <div class="ds-list-content">
+                    <div class="ds-list-title-row">
+                      <span class="ds-list-title">${esc(u.units?.name || 'Unit')}</span>
+                      <span class="tag brand">${esc(u.positions?.title || 'Member')}</span>
+                    </div>
+                    ${u.units?.description ? `<div class="ds-list-sub">${esc(u.units.description)}</div>` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<div class="empty" style="padding:20px"><div class="hint" style="margin:0">You are not assigned to a unit yet.</div></div>`}
+      </div>
+    `;
+
+    $('#pf-goto-units')?.addEventListener('click', () => window.DS.navigate('units'));
+
+    $('#pf-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('#pf-error');
+      const btn = $('#pf-save-btn');
+      err?.classList.add('hidden'); err?.classList.remove('show');
+      const full_name = $('#pf-name')?.value.trim();
+      const phone = $('#pf-phone')?.value.trim() || null;
+      if (!full_name) {
+        if (err) { err.textContent = 'Full name cannot be empty.'; err.classList.remove('hidden'); err.classList.add('show'); }
+        $('#pf-name')?.focus();
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+      const { error } = await sb.from('profiles').update({ full_name, phone }).eq('id', S.user.id);
+      if (error) {
+        if (err) { err.textContent = error.message; err.classList.remove('hidden'); err.classList.add('show'); }
+        if (btn) { btn.disabled = false; btn.textContent = 'Save profile'; }
+        return;
+      }
+      S.profile = { ...S.profile, full_name, phone };
+      window.DS.renderNav?.();
+      toast('✓ Profile updated.');
+      window.DS.navigate('profile');
+    });
+
+    $('#cp-toggle-btn')?.addEventListener('click', () => {
+      const p1 = $('#cp1'), p2 = $('#cp2'), t = $('#cp-toggle-btn');
+      if (!p1) return;
+      const show = p1.type === 'password';
+      p1.type = show ? 'text' : 'password';
+      if (p2) p2.type = show ? 'text' : 'password';
+      if (t) t.textContent = show ? 'Hide' : 'Show';
+    });
+
     $('#cp-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const { error } = await sb.auth.updateUser({ password: $('#cp1').value });
-      if (error) return toast(error.message, true);
-      toast('Password updated.');
+      const err = $('#cp-error');
+      const btn = $('#cp-save-btn');
+      err?.classList.add('hidden'); err?.classList.remove('show');
+      const p1 = $('#cp1')?.value || '';
+      const p2 = $('#cp2')?.value || '';
+      if (p1.length < 6) {
+        if (err) { err.textContent = 'New password must be at least 6 characters.'; err.classList.remove('hidden'); err.classList.add('show'); }
+        $('#cp1')?.focus();
+        return;
+      }
+      if (p1 !== p2) {
+        if (err) { err.textContent = 'Passwords do not match.'; err.classList.remove('hidden'); err.classList.add('show'); }
+        $('#cp2')?.focus();
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+      const { error } = await sb.auth.updateUser({ password: p1 });
+      if (error) {
+        if (err) { err.textContent = error.message; err.classList.remove('hidden'); err.classList.add('show'); }
+        if (btn) { btn.disabled = false; btn.textContent = 'Update password'; }
+        return;
+      }
+      $('#cp1').value = '';
+      $('#cp2').value = '';
+      if (btn) { btn.disabled = false; btn.textContent = 'Update password'; }
+      toast('✓ Password updated.');
     });
+
     $('#profile-signout-btn')?.addEventListener('click', () => {
       if (window.DS?.auth?.signOut) {
         window.DS.auth.signOut();
