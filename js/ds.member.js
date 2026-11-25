@@ -161,14 +161,20 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h3>My tasks</h3><button class="btn sm ghost" data-goto="tasks">View all</button></div>
+        <div class="card-head">
+          <div>
+            <h3>My tasks</h3>
+            <p class="small muted" style="margin-top:2px">${openTasks.length} active · ${(tasks || []).filter(t => t.status === 'Done').length} completed</p>
+          </div>
+          <button class="btn sm ghost" data-goto="tasks">View all</button>
+        </div>
         ${openTasks.length ? openTasks.slice(0, 5).map(t => `
           <div class="row"><div class="row-main">
             <div class="t" style="word-break:normal;overflow-wrap:break-word">${esc(t.title)} ${t.due_date && t.due_date < date ? '<span class="tag alert">Overdue</span>' : ''}</div>
             <div class="s">${esc(t.status || 'To do')} · due ${fmtD(t.due_date)}${t.priority ? ' · ' + esc(t.priority) : ''}</div>
           </div>
           <button type="button" class="btn sm ghost" data-dash-view-task="${t.id}" style="padding:2px 8px;font-size:12px">View</button>
-          </div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">No open tasks. Nice.</div></div>`}
+          </div>`).join('') : `<div class="empty" style="padding:20px"><div class="hint">${(tasks || []).length ? `All ${(tasks || []).length} assigned tasks completed ✓` : 'No open tasks. Nice.'}</div></div>`}
       </div>
 
       <div class="card">
@@ -569,49 +575,94 @@
   });
 
   window.renderMyTasks = async function (v) {
-    const { data } = await sb.from('tasks').select('*, task_assignees!inner(user_id)').eq('task_assignees.user_id', S.user.id).order('due_date');
+    const [{ data }, { data: myUpdates }] = await Promise.all([
+      sb.from('tasks').select('*, task_assignees!inner(user_id)').eq('task_assignees.user_id', S.user.id).order('due_date'),
+      sb.from('task_updates').select('*').eq('user_id', S.user.id).order('created_at', { ascending: false }),
+    ]);
     const date = todayLagos();
     const list = data || [];
+    const updates = myUpdates || [];
+    let taskFilter = 'all';
     let taskPage = 1;
 
+    const isDoneTask = (t) => String(t?.status || '').toLowerCase() === 'done';
+    const isReviewTask = (t) => String(t?.status || '').toLowerCase().includes('review');
+
     function renderTasksView() {
-      const pg = window.DS.paginate(list, taskPage, 25);
+      const doneList = list.filter(isDoneTask);
+      const reviewList = list.filter(t => !isDoneTask(t) && isReviewTask(t));
+      const activeList = list.filter(t => !isDoneTask(t) && !isReviewTask(t));
+      const overdueCount = list.filter(t => t.due_date && t.due_date < date && !isDoneTask(t)).length;
+
+      const filtered = list.filter(t => {
+        if (taskFilter === 'done') return isDoneTask(t);
+        if (taskFilter === 'review') return !isDoneTask(t) && isReviewTask(t);
+        if (taskFilter === 'active') return !isDoneTask(t) && !isReviewTask(t);
+        return true;
+      });
+
+      const pg = window.DS.paginate(filtered, taskPage, 25);
       v.innerHTML = `
+        <div class="stat-grid">
+          <div class="stat"><div class="num">${activeList.length}</div><div class="cap">Active</div></div>
+          <div class="stat accent"><div class="num">${reviewList.length}</div><div class="cap">In review</div></div>
+          <div class="stat ok"><div class="num">${doneList.length}</div><div class="cap">Completed ✓</div></div>
+          <div class="stat ${overdueCount ? 'alert' : ''}"><div class="num ${overdueCount ? 'alert-text' : ''}">${overdueCount}</div><div class="cap">Overdue</div></div>
+        </div>
+
         <div class="card">
           <div class="card-head">
             <div>
               <h3>My tasks</h3>
-              <p class="small muted" style="margin-top:2px">Assigned deliverables, deadlines, and progress</p>
+              <p class="small muted" style="margin-top:2px">Track deliverables, update status, attach evidence, or mark completed</p>
             </div>
             <span class="tag muted-tag">${pg.curPage} / ${pg.totalPages}</span>
           </div>
+
+          <div class="rq-toolbar">
+            <div class="filter-chips" role="tablist" aria-label="Filter tasks by completion">
+              <button type="button" class="filter-chip ${taskFilter === 'all' ? 'active' : ''}" data-tfilter="all">All <span class="chip-count">${list.length}</span></button>
+              <button type="button" class="filter-chip ${taskFilter === 'active' ? 'active' : ''}" data-tfilter="active">Active <span class="chip-count">${activeList.length}</span></button>
+              <button type="button" class="filter-chip ${taskFilter === 'review' ? 'active' : ''}" data-tfilter="review">In Review <span class="chip-count">${reviewList.length}</span></button>
+              <button type="button" class="filter-chip ${taskFilter === 'done' ? 'active' : ''}" data-tfilter="done">Completed ✓ <span class="chip-count">${doneList.length}</span></button>
+            </div>
+          </div>
+
           ${pg.items.length ? `
             <div class="ds-list">
               ${pg.items.map(t => {
-                const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+                const isDone = isDoneTask(t);
+                const isReview = isReviewTask(t);
+                const overdue = t.due_date && t.due_date < date && !isDone;
+                const latestUpd = updates.find(u => u.task_id === t.id);
                 const actions = [
                   { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+                  !isDone ? { label: 'Update status / evidence', icon: '✏️', attrs: `data-update-task="${t.id}"` } : null,
+                  !isDone ? { label: 'Mark Completed ✓', icon: '✅', attrs: `data-quick-done="${t.id}"` } : null,
+                  (!isDone && !isReview) ? { label: 'Submit for Review', icon: '⏳', attrs: `data-quick-review="${t.id}"` } : null,
                   { divider: true },
-                  { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` },
+                  !isDone ? { label: 'Request extension', icon: '⏱️', attrs: `data-ext="${t.id}"` } : null,
                   t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
                 ];
                 return `
-                  <div class="ds-list-card">
+                  <div class="ds-list-card ${isDone ? 'task-done' : ''}">
                     <div class="ds-list-main">
-                      <div class="ds-list-icon">📋</div>
+                      <div class="ds-list-icon">${isDone ? '✅' : isReview ? '⏳' : '📋'}</div>
                       <div class="ds-list-content">
                         <div class="ds-list-title-row">
-                          <span class="ds-list-title">${esc(t.title)}${t.extension_requested ? ' <span class="tag muted-tag">Extension</span>' : ''}</span>
-                          <span class="tag ${t.status === 'Done' ? 'ok' : t.status && t.status.toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                          <span class="ds-list-title">${esc(t.title)}${t.extension_requested && !isDone ? ' <span class="tag muted-tag">Extension</span>' : ''}</span>
+                          <span class="tag ${isDone ? 'ok' : isReview ? 'brand' : (t.status === 'In Progress' || t.status === 'In progress') ? '' : 'muted-tag'}">${isDone ? '✓ Completed' : esc(t.status || 'To do')}</span>
                           ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
                         </div>
                         <div class="ds-list-sub">
                           Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}${t.priority ? ' · ' + esc(t.priority) : ''}${t.evidence_url ? ` · <a href="${esc(t.evidence_url)}" target="_blank" rel="noopener">Evidence ↗</a>` : ''}
                         </div>
-                        ${t.description ? `<div class="ds-list-snippet">${esc(t.description.slice(0, 110))}${t.description.length > 110 ? '…' : ''}</div>` : ''}
+                        ${t.description ? `<div class="ds-list-snippet">${esc(t.description.slice(0, 140))}${t.description.length > 140 ? '…' : ''}</div>` : ''}
+                        ${latestUpd ? `<div class="ds-list-sub" style="margin-top:4px"><span>Latest note (${fmtD(latestUpd.update_date)}): ${esc((latestUpd.description || '').slice(0, 90))}</span></div>` : ''}
                       </div>
                     </div>
                     <div class="ds-list-actions">
+                      ${!isDone ? `<button type="button" class="btn sm ${isReview ? '' : 'primary'}" data-update-task="${t.id}">${isReview ? 'Update' : 'Complete'}</button>` : ''}
                       <button type="button" class="btn sm" data-view-task="${t.id}">View</button>
                       ${window.DS.renderActionMenu(actions)}
                     </div>
@@ -621,8 +672,119 @@
             </div>
 
             ${pg.renderBar('tasks')}
-          ` : `<div class="empty"><div class="big">No tasks assigned</div><div class="hint">Tasks assigned to you will appear here.</div></div>`}
+          ` : `<div class="empty"><div class="big">${taskFilter === 'all' ? 'No tasks assigned' : 'No matching tasks'}</div><div class="hint">${taskFilter === 'all' ? 'Tasks assigned to you will appear here.' : 'Switch filter tabs above to view other deliverables.'}</div></div>`}
         </div>`;
+
+      const saveTaskProgress = async (taskId, { status, evidenceUrl, note }) => {
+        const t = list.find(x => x.id === taskId);
+        if (!t) return false;
+        const patch = { status };
+        if (evidenceUrl !== undefined) patch.evidence_url = evidenceUrl || null;
+
+        let updatedTaskRow = false;
+        try {
+          const { data: rows, error: tErr } = await sb.from('tasks').update(patch).eq('id', taskId).select('id');
+          if (!tErr && rows && rows.length) {
+            updatedTaskRow = true;
+            t.status = status;
+            if (evidenceUrl !== undefined) t.evidence_url = evidenceUrl || null;
+          }
+        } catch {}
+
+        const pctMap = { 'To Do': 0, 'In Progress': 50, 'In Review': 90, 'Done': 100 };
+        const updPayload = {
+          task_id: taskId,
+          user_id: S.user.id,
+          update_date: date,
+          progress_pct: pctMap[status] ?? 0,
+          description: (note || '').trim() || `Marked status as ${status}`,
+          drive_link: (evidenceUrl !== undefined ? evidenceUrl : t.evidence_url) || null,
+          update_type: status === 'Done' ? 'completion' : 'progress',
+        };
+        const { error: updErr } = await sb.from('task_updates').upsert(updPayload, { onConflict: 'task_id,user_id,update_date' });
+        if (updErr && !updatedTaskRow) {
+          toast('Could not update task right now.', true);
+          return false;
+        }
+
+        if (status === 'Done' || status === 'In Review') {
+          try {
+            const { data: admins } = await sb.from('profiles').select('id').eq('access_level', 'Admin');
+            const who = S.profile?.full_name || S.user?.email || 'Team member';
+            const nTitle = status === 'Done' ? `✅ Task completed: ${t.title}` : `⏳ Task ready for review: ${t.title}`;
+            const nBody = `${who} marked "${t.title}" as ${status}.${note ? ' Note: ' + note : ''}`;
+            await Promise.allSettled((admins || []).map(a =>
+              sb.from('notifications').insert({ user_id: a.id, type: 'task', title: nTitle, body: nBody, link_tab: 'tasks' })
+            ));
+          } catch {}
+        }
+
+        if (updatedTaskRow) {
+          toast(status === 'Done' ? '✓ Task marked Completed!' : `✓ Task moved to ${status}`);
+        } else {
+          toast('✓ Completion note logged. Admin notified to confirm status.');
+        }
+        window.DS.navigate('tasks');
+        return true;
+      };
+
+      const openUpdateTaskModal = (taskId, presetStatus) => {
+        const t = list.find(x => x.id === taskId);
+        if (!t) return;
+        const initialStatus = presetStatus || (t.status === 'To Do' || t.status === 'To do' ? 'Done' : (t.status || 'Done'));
+        const norm = (s) => {
+          const low = String(s || '').toLowerCase();
+          if (low === 'in progress') return 'In Progress';
+          if (low === 'in review') return 'In Review';
+          if (low === 'done') return 'Done';
+          return 'To Do';
+        };
+        const selVal = norm(initialStatus);
+        window.DS.modal.open(`
+          <div class="modal-head">
+            <div>
+              <h2>Update task progress</h2>
+              <p class="small muted" style="margin-top:4px">${esc(t.title)}</p>
+            </div>
+          </div>
+          <form id="tu-form" novalidate>
+            <div class="field">
+              <label class="label" for="tu-status">Task status</label>
+              <select class="input" id="tu-status">
+                <option value="To Do" ${selVal === 'To Do' ? 'selected' : ''}>To Do</option>
+                <option value="In Progress" ${selVal === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                <option value="In Review" ${selVal === 'In Review' ? 'selected' : ''}>In Review (Submit for Admin check)</option>
+                <option value="Done" ${selVal === 'Done' ? 'selected' : ''}>Completed (Done ✓)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="tu-ev">Evidence link (optional)</label>
+              <input class="input" id="tu-ev" type="url" value="${esc(t.evidence_url || '')}" placeholder="https://drive.google.com/…">
+            </div>
+            <div class="field">
+              <label class="label" for="tu-note">Completion / progress note (optional)</label>
+              <textarea class="input" id="tu-note" placeholder="Summarize what you finished or link any deliverable notes…"></textarea>
+            </div>
+            <div class="modal-actions">
+              <button class="btn primary" id="tu-submit" type="submit">Save task status</button>
+              <button class="btn" type="button" id="tu-cancel">Cancel</button>
+            </div>
+          </form>
+        `);
+        $('#tu-cancel')?.addEventListener('click', window.DS.modal.close);
+        $('#tu-form')?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const btn = $('#tu-submit');
+          if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+          const ok = await saveTaskProgress(t.id, {
+            status: $('#tu-status').value,
+            evidenceUrl: $('#tu-ev').value.trim(),
+            note: $('#tu-note').value.trim(),
+          });
+          if (ok) window.DS.modal.close();
+          else if (btn) { btn.disabled = false; btn.textContent = 'Save task status'; }
+        });
+      };
 
       const requestExtension = async (taskId) => {
         const t = list.find(x => x.id === taskId);
@@ -636,11 +798,12 @@
         });
         if (!reason) return;
         try {
-          const { error: extErr } = await sb.from('task_updates').insert({
+          const { error: extErr } = await sb.from('task_updates').upsert({
             task_id: taskId, user_id: S.user.id,
+            update_date: date,
             description: 'Extension requested: ' + reason,
             update_type: 'extension_request',
-          });
+          }, { onConflict: 'task_id,user_id,update_date' });
           if (extErr) throw extErr;
         } catch (e) { toast('Could not send the request.', true); return; }
         await sb.from('tasks').update({ extension_requested: true, extension_note: reason }).eq('id', taskId);
@@ -651,30 +814,43 @@
       const openTaskModal = (taskId) => {
         const t = list.find(x => x.id === taskId);
         if (!t) return;
-        const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+        const isDone = isDoneTask(t);
+        const isReview = isReviewTask(t);
+        const overdue = t.due_date && t.due_date < date && !isDone;
+        const taskLogs = updates.filter(u => u.task_id === t.id);
         window.DS.showDetailsModal({
           title: t.title,
           subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No due date'}`,
-          badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+          badgeHtml: `<span class="tag ${isDone ? 'ok' : isReview ? 'brand' : 'muted-tag'}">${isDone ? '✓ Completed' : esc(t.status || 'To do')}</span>`,
           rows: [
             { label: 'Task title', value: t.title },
             { label: 'Description', value: t.description || 'No additional description provided' },
-            { label: 'Current status', value: t.status || 'To do' },
+            { label: 'Current status', isHtml: true, value: isDone ? '<span class="tag ok">✓ Completed (Done)</span>' : esc(t.status || 'To do') },
             { label: 'Priority', value: t.priority || 'Normal' },
             { label: 'Due date', isHtml: true, value: overdue ? `<span class="tag alert">Overdue ${fmtD(t.due_date)}</span>` : (t.due_date ? fmtD(t.due_date) : '—') },
             { label: 'Extension requested', isHtml: true, value: t.extension_requested ? `<span class="tag alert">Yes (${esc(t.extension_note || 'Requested by you')})</span>` : 'No' },
             { label: 'Evidence link', isHtml: true, value: t.evidence_url ? `<a href="${esc(t.evidence_url)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">Open evidence link ↗</a>` : '<span class="muted">None submitted</span>' },
+            taskLogs.length ? { label: 'My updates', isHtml: true, value: taskLogs.slice(0, 4).map(u => `<div class="small" style="margin-bottom:4px"><b>${fmtD(u.update_date)}</b>: ${esc(u.description)}</div>`).join('') } : null,
             { label: 'Task ID', value: t.id }
-          ],
+          ].filter(Boolean),
           actions: [
             t.evidence_url ? { label: 'Open evidence ↗', href: t.evidence_url } : null,
-            { label: 'Request extension', className: 'primary', onClick: () => requestExtension(t.id) }
+            !isDone ? { label: 'Complete / Update ✓', className: 'primary', onClick: () => openUpdateTaskModal(t.id, 'Done') } : null,
+            !isDone ? { label: 'Request extension', onClick: () => requestExtension(t.id) } : null,
           ]
         });
       };
 
-      $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
+      $$('[data-tfilter]', v).forEach(b => b.addEventListener('click', () => {
+        taskFilter = b.dataset.tfilter;
+        taskPage = 1;
+        renderTasksView();
+      }));
 
+      $$('[data-view-task]', v).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
+      $$('[data-update-task]', v).forEach(b => b.addEventListener('click', () => openUpdateTaskModal(b.dataset.updateTask)));
+      $$('[data-quick-done]', v).forEach(b => b.addEventListener('click', () => openUpdateTaskModal(b.dataset.quickDone, 'Done')));
+      $$('[data-quick-review]', v).forEach(b => b.addEventListener('click', () => openUpdateTaskModal(b.dataset.quickReview, 'In Review')));
       $$('[data-ext]', v).forEach(b => b.addEventListener('click', () => requestExtension(b.dataset.ext)));
 
       window.DS.initActionMenus(v);
@@ -1511,7 +1687,46 @@
     }
   }
 
+  let activeChatRt = null;
+  let activeChatVvHandler = null;
+  let activeTypingGc = null;
+
+  window.DS.cleanupChannelsRealtime = function () {
+    if (activeTypingGc) { clearInterval(activeTypingGc); activeTypingGc = null; }
+    if (activeChatVvHandler && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', activeChatVvHandler);
+      window.visualViewport.removeEventListener('scroll', activeChatVvHandler);
+      activeChatVvHandler = null;
+    }
+    document.documentElement.style.removeProperty('--chat-room-h');
+    document.documentElement.style.removeProperty('--mob-bar-h');
+    if (activeChatRt) {
+      try { sb.removeChannel(activeChatRt); } catch {}
+      activeChatRt = null;
+    }
+  };
+
+  function formatChatTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function formatChatDay(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (sameDay(d, now)) return 'Today';
+    const yest = new Date(now);
+    yest.setDate(now.getDate() - 1);
+    if (sameDay(d, yest)) return 'Yesterday';
+    return d.toLocaleDateString([], { dateStyle: 'medium' });
+  }
+
   window.DS.renderChannelsWorkspace = async function (v, options = {}) {
+    window.DS.cleanupChannelsRealtime();
+    document.body.classList.remove('chat-room-open');
+
     const adminMode = options.isAdmin ?? isAdmin();
     const [{ data: channels }, { data: people }] = await Promise.all([
       sb.from('channels').select('*').order('created_at'),
@@ -1519,6 +1734,7 @@
     ]);
     const channelList = channels || [];
     const memberList = people || [];
+    const memberMap = Object.fromEntries(memberList.map(p => [p.id, p]));
 
     // Categorize channels into Announcements, General Workspaces, and Units
     const annChannels = channelList.filter(c => c.kind === 'announcements');
@@ -1528,56 +1744,46 @@
     // Initial selected channel
     let currentChannel = channelList.find(c => c.name === 'general') || channelList[0];
 
+    const renderChannelBtn = (c, icon, badgeHtml) => `
+      <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
+        <span class="ch-icon" aria-hidden="true">${icon}</span>
+        <span class="ch-meta">
+          <span class="ch-label">${esc(c.display_name || c.name)}</span>
+          <span class="ch-preview">${esc(c.description || 'Team conversation')}</span>
+        </span>
+        ${badgeHtml || ''}
+      </button>
+    `;
+
     v.innerHTML = `
       <div class="chat-container">
-        <!-- LEFT SUB-NAVIGATION PANE -->
+        <!-- LEFT CHATS THREAD LIST -->
         <div class="chat-channels-pane">
           <div class="chat-pane-head">
-            <div style="font-weight:900;font-size:13px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy-900)">Channels &amp; Teams</div>
-            ${adminMode ? `<button class="btn sm ghost" id="ch-new-btn" style="padding:2px 8px;font-size:12px;font-weight:800" title="Create channel">+ Channel</button>` : ''}
+            <div style="font-weight:900;font-size:13px;letter-spacing:.03em;text-transform:uppercase;color:var(--navy-900)">Chats &amp; Channels</div>
+            ${adminMode ? `<button class="btn sm ghost" id="ch-new-btn" style="padding:2px 8px;font-size:12px;font-weight:800" title="Create channel">+ New</button>` : ''}
           </div>
-          <input class="chat-search-input" id="ch-search-box" placeholder="Filter channels…" aria-label="Filter channels">
+          <input class="chat-search-input" id="ch-search-box" placeholder="Search channels…" aria-label="Search channels">
 
-          <div id="channels-tree" style="display:flex;flex-direction:column;gap:12px">
-            <!-- Announcements -->
+          <div id="channels-tree" style="display:flex;flex-direction:column;gap:10px">
             ${annChannels.length ? `
               <div class="ch-group">
                 <div class="nav-group-label" style="margin-left:4px">Official Broadcasts</div>
-                ${annChannels.map(c => `
-                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                    <span class="ch-icon" aria-hidden="true">📢</span>
-                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
-                    <span class="channel-badge ok">Info</span>
-                  </button>
-                `).join('')}
+                ${annChannels.map(c => renderChannelBtn(c, '📢', '<span class="channel-badge ok">Info</span>')).join('')}
               </div>
             ` : ''}
 
-            <!-- General -->
             ${generalChannels.length ? `
               <div class="ch-group">
                 <div class="nav-group-label" style="margin-left:4px">Workspace Channels</div>
-                ${generalChannels.map(c => `
-                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                    <span class="ch-icon" aria-hidden="true">#</span>
-                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
-                    ${c.is_private ? '<span class="small muted" title="Private" style="flex-shrink:0">🔒</span>' : ''}
-                  </button>
-                `).join('')}
+                ${generalChannels.map(c => renderChannelBtn(c, '#', c.is_private ? '<span class="small muted" title="Private" style="flex-shrink:0">🔒</span>' : '')).join('')}
               </div>
             ` : ''}
 
-            <!-- Units -->
             ${unitChannels.length ? `
               <div class="ch-group">
                 <div class="nav-group-label" style="margin-left:4px">Unit Channels</div>
-                ${unitChannels.map(c => `
-                  <button class="channel-btn ${c.id === currentChannel?.id ? 'active' : ''}" data-chid="${c.id}" data-name="${esc(c.display_name || c.name)}" data-kind="${esc(c.kind || '')}">
-                    <span class="ch-icon" aria-hidden="true">🏢</span>
-                    <span class="ch-label">${esc(c.display_name || c.name)}</span>
-                    <span class="channel-badge muted-tag">Unit</span>
-                  </button>
-                `).join('')}
+                ${unitChannels.map(c => renderChannelBtn(c, '🏢', '<span class="channel-badge muted-tag">Unit</span>')).join('')}
               </div>
             ` : ''}
           </div>
@@ -1586,7 +1792,7 @@
         <!-- RIGHT CHAT ROOM PANE -->
         <div class="chat-room-pane" id="chat-room-pane">
           <div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:320px">
-            <div class="loading">Loading channel…</div>
+            <div class="loading">Loading chat…</div>
           </div>
         </div>
       </div>
@@ -1654,7 +1860,7 @@
           const disp = $('#nch-disp').value.trim() || name.replace(/-/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
           const desc = $('#nch-desc').value.trim() || null;
           const kind = $('#nch-kind').value;
-          const { data: newCh, error } = await sb.from('channels').insert({
+          const { error } = await sb.from('channels').insert({
             name, display_name: disp, description: desc, kind,
             is_private: kind !== 'general', created_by: S.user.id,
           }).select().single();
@@ -1671,6 +1877,7 @@
       currentChannel = ch;
       const container = $('.chat-container', v);
       container?.classList.add('view-room');
+      document.body.classList.add('chat-room-open');
       $$('.channel-btn', v).forEach(b => {
         b.classList.toggle('active', b.dataset.chid === ch.id);
       });
@@ -1684,167 +1891,342 @@
       });
     });
 
-    // Render the chat room
+    // Render WhatsApp / Telegram style chat room
     async function renderChannelRoom(ch) {
+      window.DS.cleanupChannelsRealtime();
       const room = $('#chat-room-pane');
       if (!room) return;
       const canPost = ch.kind !== 'announcements' || adminMode;
+      const chIcon = ch.kind === 'announcements' ? '📢' : ch.kind === 'unit' ? '🏢' : '#';
 
-      // Load channel messages
       const { data: messages } = await sb.from('channel_updates')
         .select('*, profiles:author_id(full_name, email, access_level)')
         .eq('channel_id', ch.id)
         .order('created_at', { ascending: true })
-        .limit(60);
+        .limit(80);
 
-      const msgList = messages || [];
+      let msgList = messages || [];
+
+      const buildMsgHtml = (m, prevMsg) => {
+        const prof = m.profiles || memberMap[m.author_id] || {};
+        const author = prof.full_name || prof.email || 'Team member';
+        const authorAccess = prof.access_level || 'Member';
+        const isOwn = m.author_id === S.user.id;
+        const priority = getMessagePriority(m.body, m.update_type);
+        const canDelete = adminMode || isOwn;
+        const prevSameSender = prevMsg && prevMsg.author_id === m.author_id
+          && (new Date(m.created_at) - new Date(prevMsg.created_at)) < 4 * 60 * 1000
+          && formatChatDay(m.created_at) === formatChatDay(prevMsg.created_at);
+
+        const dayDivider = (!prevMsg || formatChatDay(m.created_at) !== formatChatDay(prevMsg.created_at))
+          ? `<div class="chat-date-divider" data-day="${esc(formatChatDay(m.created_at))}">${esc(formatChatDay(m.created_at))}</div>`
+          : '';
+
+        const msgActions = canDelete
+          ? [{ label: 'Delete message', icon: '🗑️', isAlert: true, attrs: `data-del-chat="${m.id}"` }]
+          : [];
+
+        const showSenderHeader = !isOwn && !prevSameSender;
+
+        return `
+          ${dayDivider}
+          <div class="chat-msg-row ${isOwn ? 'is-own' : 'is-other'} ${prevSameSender ? 'is-grouped' : 'is-group-start'}" data-msg-id="${m.id}">
+            ${!isOwn ? `<div class="chat-avatar ${authorAccess === 'Admin' ? 'admin' : ''}" title="${esc(author)} (${esc(authorAccess)})">${esc(getInitials(author))}</div>` : ''}
+            <div class="chat-bubble ${priority}">
+              ${showSenderHeader ? `
+                <div class="chat-bubble-top">
+                  <div class="chat-bubble-sender">
+                    <span class="chat-author ${authorAccess === 'Admin' ? 'admin' : ''}">${esc(author)}</span>
+                    ${authorAccess === 'Admin' ? '<span class="tag brand" style="font-size:9.5px;padding:0 5px;line-height:1.4">Admin</span>' : ''}
+                  </div>
+                  ${canDelete ? `<div class="chat-bubble-menu">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
+                </div>
+              ` : ''}
+              ${priority !== 'general' ? `
+                <div class="chat-bubble-flags">
+                  ${priority === 'urgent' ? '<span class="urgent-pill">🚨 URGENT</span>' : ''}
+                  ${priority === 'important' ? '<span class="important-pill">⚡ IMPORTANT</span>' : ''}
+                  ${priority === 'announcement' ? '<span class="announcement-pill">📢 ANNOUNCEMENT</span>' : ''}
+                </div>
+              ` : ''}
+              <div class="chat-text">${formatChatMessage(m.body, memberList)}</div>
+              ${m.drive_link ? `<div style="margin-top:6px"><a href="${esc(m.drive_link)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">🔗 Attached resource</a></div>` : ''}
+              <div class="chat-bubble-foot">
+                <span class="chat-time">${esc(formatChatTime(m.created_at))}</span>
+                ${isOwn ? '<span class="chat-tick" title="Delivered">✓✓</span>' : ''}
+                ${(!showSenderHeader && canDelete) ? `<div class="chat-bubble-menu">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      const renderStreamHtml = (items) => {
+        if (!items.length) {
+          return `
+            <div class="empty" id="chat-empty-state" style="margin:auto;max-width:360px;padding:28px 20px">
+              <div class="big">No messages yet</div>
+              <div class="hint">Say hello in ${esc(ch.display_name || ch.name)} — format with Aa or tag teammates with @mentions.</div>
+            </div>
+          `;
+        }
+        return items.map((m, idx) => buildMsgHtml(m, idx > 0 ? items[idx - 1] : null)).join('');
+      };
+
+      const defaultSub = ch.description || (ch.kind === 'announcements' ? 'Official team broadcasts' : 'Team workspace chat');
 
       room.innerHTML = `
-        <!-- CHANNEL HEADER -->
+        <!-- WHATSAPP / TELEGRAM STYLE CHAT HEADER -->
         <div class="chat-room-head">
           <div class="chat-room-head-left">
-            <button class="btn sm ghost chat-back-btn" id="chat-mobile-back" type="button" style="padding:4px 8px;font-size:12.5px" title="Back to channels">← Channels</button>
+            <button class="btn ghost chat-back-btn" id="chat-mobile-back" type="button" title="Back to chats" aria-label="Back to chats">←</button>
+            <div class="chat-room-avatar" aria-hidden="true">${chIcon}</div>
             <div class="chat-room-head-meta">
               <div class="chat-room-title">
-                <span>${ch.kind === 'announcements' ? '📢' : ch.kind === 'unit' ? '🏢' : '#'}</span>
-                <span>${esc(ch.display_name || ch.name)}</span>
+                <span class="chat-room-title-text">${esc(ch.display_name || ch.name)}</span>
                 ${ch.kind === 'announcements' ? '<span class="announcement-pill">Broadcast</span>' : ''}
-                ${ch.is_private ? '<span class="status-pill draft">🔒 Private</span>' : ''}
+                ${ch.is_private ? '<span class="tiny muted" title="Private">🔒</span>' : ''}
               </div>
-              <div class="chat-room-sub">${esc(ch.description || 'General team collaboration and updates.')}</div>
+              <div class="chat-room-sub" id="chat-room-subtitle">${esc(defaultSub)}</div>
             </div>
           </div>
           <div class="chat-room-head-actions">
-            <button class="btn sm ghost" id="chat-refresh-btn" type="button" title="Refresh messages">↻ Refresh</button>
+            <button class="chat-icon-btn" id="chat-refresh-btn" type="button" title="Refresh messages" aria-label="Refresh messages">↻</button>
           </div>
         </div>
 
         <!-- MESSAGES STREAM -->
         <div class="chat-messages" id="chat-stream">
-          ${msgList.length ? msgList.map(m => {
-            const author = m.profiles?.full_name || m.profiles?.email || 'Team member';
-            const authorAccess = m.profiles?.access_level || 'Member';
-            const priority = getMessagePriority(m.body, m.update_type);
-            const canDelete = adminMode || m.author_id === S.user.id;
-            const msgActions = [
-              canDelete ? { label: 'Delete message', icon: '🗑️', isAlert: true, attrs: `data-del-chat="${m.id}"` } : null,
-            ];
-            return `
-              <div class="chat-msg-row" data-msg-id="${m.id}">
-                <div class="chat-avatar ${authorAccess === 'Admin' ? 'admin' : ''}" title="${esc(author)} (${esc(authorAccess)})">
-                  ${esc(getInitials(author))}
-                </div>
-                <div class="chat-msg-body ${priority}">
-                  <div class="chat-msg-head">
-                    <div class="chat-meta">
-                      <span class="chat-author">${esc(author)}</span>
-                      <span class="tag muted-tag" style="font-size:10px;padding:0 6px">${esc(authorAccess)}</span>
-                      <span class="chat-time">${fmtDT(m.created_at)}</span>
-                      ${priority === 'urgent' ? '<span class="urgent-pill">🚨 URGENT</span>' : ''}
-                      ${priority === 'important' ? '<span class="important-pill">⚡ IMPORTANT</span>' : ''}
-                      ${priority === 'announcement' ? '<span class="announcement-pill">📢 ANNOUNCEMENT</span>' : ''}
-                    </div>
-                    ${canDelete ? `<div class="chat-msg-actions">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
-                  </div>
-                  <div class="chat-text">${formatChatMessage(m.body, memberList)}</div>
-                  ${m.drive_link ? `<div style="margin-top:6px"><a href="${esc(m.drive_link)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">🔗 Attached resource</a></div>` : ''}
-                </div>
-              </div>
-            `;
-          }).join('') : `
-            <div class="empty" style="padding:40px 20px">
-              <div class="big">No messages in #${esc(ch.display_name || ch.name)} yet</div>
-              <div class="hint">Be the first to post! Format with toolbar, use @mentions, or mark #urgent / #important.</div>
+          ${renderStreamHtml(msgList)}
+          <div class="chat-msg-row is-other chat-typing-row hidden" id="chat-typing-row">
+            <div class="chat-typing-bubble">
+              <span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span id="chat-typing-label">Someone is typing…</span>
             </div>
-          `}
+          </div>
         </div>
 
-        <!-- COMPOSER -->
+        <!-- COMPACT WHATSAPP / TELEGRAM COMPOSER -->
         <div class="chat-composer-box">
           ${canPost ? `
-            <!-- Word-Style Formatting Toolbar -->
-            <div class="chat-toolbar">
+            <div class="mention-dropdown hidden" id="mention-dropdown">
+              ${memberList.map(p => `
+                <div class="mention-item" data-mention-name="${esc(p.full_name || p.email)}">
+                  <span>@${esc(p.full_name || p.email)}</span>
+                  <span class="muted tiny">(${esc(p.access_level)})</span>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="chat-fmt-drawer hidden" id="chat-fmt-drawer">
               <button type="button" class="toolbar-btn" data-fmt="bold" title="Bold (**text**)"><b>B</b></button>
               <button type="button" class="toolbar-btn" data-fmt="italic" title="Italic (*text*)"><i>I</i></button>
               <button type="button" class="toolbar-btn" data-fmt="underline" title="Underline (<u>text</u>)"><u>U</u></button>
               <button type="button" class="toolbar-btn" data-fmt="strike" title="Strikethrough (~~text~~)"><s>S</s></button>
-              <button type="button" class="toolbar-btn" data-fmt="code" title="Code block (\`code\`)">&lt;/&gt;</button>
+              <button type="button" class="toolbar-btn" data-fmt="code" title="Code (\`code\`)">&lt;/&gt;</button>
               <button type="button" class="toolbar-btn" data-fmt="bullet" title="Bullet item">• List</button>
               <button type="button" class="toolbar-btn" data-fmt="quote" title="Quote block">&gt; Quote</button>
               <span class="chat-toolbar-sep" aria-hidden="true"></span>
               <button type="button" class="toolbar-btn toolbar-tag-btn urgent" data-tag="#urgent" title="Mark urgent">🚨 #urgent</button>
               <button type="button" class="toolbar-btn toolbar-tag-btn important" data-tag="#important" title="Mark important">⚡ #important</button>
               <button type="button" class="toolbar-btn toolbar-tag-btn announce" data-tag="#announcement" title="Mark announcement">📢 #announcement</button>
-              <span class="chat-toolbar-sep" aria-hidden="true"></span>
-              <div style="position:relative;display:inline-block">
-                <button type="button" class="toolbar-btn" id="mention-toggle-btn" title="Mention team member">@ Mention</button>
-                <div class="mention-dropdown hidden" id="mention-dropdown">
-                  ${memberList.map(p => `
-                    <div class="mention-item" data-mention-name="${esc(p.full_name || p.email)}">
-                      <span>@${esc(p.full_name || p.email)}</span>
-                      <span class="muted tiny">(${p.access_level})</span>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
             </div>
 
-            <!-- Input Textarea -->
-            <textarea class="chat-input-area" id="chat-body-input" placeholder="Message #${esc(ch.display_name || ch.name)}… (Press Enter to send, Shift+Enter for new line)" rows="3"></textarea>
-
-            <!-- Actions Bar -->
-            <div class="chat-actions-bar">
-              <span class="tiny muted chat-composer-hint">Press <b>Enter</b> to send · <b>Shift+Enter</b> for new line · Style with <b>#urgent</b> or <b>@mentions</b></span>
-              <button class="btn primary sm" id="chat-send-btn" type="button" style="padding:6px 18px;display:inline-flex;align-items:center;gap:6px">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                <span>Send</span>
+            <div class="chat-composer-bar">
+              <button type="button" class="chat-icon-btn" id="chat-fmt-toggle" title="Formatting & priority tags" aria-label="Formatting and tags" aria-expanded="false">Aa</button>
+              <div class="chat-input-pill">
+                <textarea class="chat-input-area" id="chat-body-input" placeholder="Message ${esc(ch.display_name || ch.name)}…" rows="1" aria-label="Message"></textarea>
+                <button type="button" class="chat-mention-inline" id="mention-toggle-btn" title="Mention teammate" aria-label="Mention teammate">@</button>
+              </div>
+              <button class="chat-send-circle" id="chat-send-btn" type="button" title="Send message" aria-label="Send message">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
               </button>
             </div>
           ` : `
-            <div style="padding:14px 16px;text-align:center;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--line-soft)">
-              <span class="small muted">📢 This is an official announcements channel. Broadcast posting is restricted to administrators.</span>
+            <div style="padding:10px 14px;text-align:center;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--line-soft)">
+              <span class="small muted">📢 Official broadcast channel — only admins can post announcements.</span>
             </div>
           `}
         </div>
       `;
 
-      // Auto-scroll messages to bottom
       const stream = $('#chat-stream');
-      if (stream) stream.scrollTop = stream.scrollHeight;
+      const typingRow = $('#chat-typing-row');
+      const typingLabel = $('#chat-typing-label');
+      const subtitleEl = $('#chat-room-subtitle');
 
-      // Mobile back to channels button
+      const scrollToBottom = (force) => {
+        if (!stream) return;
+        const nearBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 120;
+        if (force || nearBottom) {
+          stream.scrollTop = stream.scrollHeight;
+        }
+      };
+
+      const syncMobileMetrics = () => {
+        const mobBar = $('#ds-mobile-bar');
+        const barH = mobBar && mobBar.offsetHeight ? mobBar.offsetHeight : 59;
+        document.documentElement.style.setProperty('--mob-bar-h', barH + 'px');
+        const vvH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--chat-room-h', Math.max(220, Math.round(vvH - barH)) + 'px');
+        if (document.body.classList.contains('chat-room-open') && window.innerWidth <= 900) {
+          window.scrollTo(0, 0);
+          scrollToBottom(true);
+        }
+      };
+
+      syncMobileMetrics();
+      if (window.visualViewport) {
+        activeChatVvHandler = () => syncMobileMetrics();
+        window.visualViewport.addEventListener('resize', activeChatVvHandler);
+        window.visualViewport.addEventListener('scroll', activeChatVvHandler);
+      }
+
+      scrollToBottom(true);
+
+      // Mobile back to chats button
       $('#chat-mobile-back')?.addEventListener('click', () => {
         $('.chat-container', v)?.classList.remove('view-room');
+        document.body.classList.remove('chat-room-open');
       });
 
       // Refresh button
       $('#chat-refresh-btn')?.addEventListener('click', () => renderChannelRoom(ch));
 
-      // Initialize action dropdowns inside room
-      window.DS.initActionMenus(room);
-
-      // Delete message handler
-      $$('[data-del-chat]', room).forEach(b => b.addEventListener('click', async () => {
-        const ok = await window.DS.confirmModal({
-          title: 'Delete message',
-          message: 'Are you sure you want to permanently delete this message from the channel?',
-          confirmLabel: 'Delete message',
-          isAlert: true,
+      // Bind message delete buttons inside room
+      const bindRoomMessageActions = (scope) => {
+        window.DS.initActionMenus(scope);
+        $$('[data-del-chat]', scope).forEach(b => {
+          if (b._boundDel) return;
+          b._boundDel = true;
+          b.addEventListener('click', async () => {
+            const ok = await window.DS.confirmModal({
+              title: 'Delete message',
+              message: 'Are you sure you want to permanently delete this message from the channel?',
+              confirmLabel: 'Delete message',
+              isAlert: true,
+            });
+            if (!ok) return;
+            b.disabled = true;
+            const msgId = b.dataset.delChat;
+            const { error } = await sb.from('channel_updates').delete().eq('id', msgId);
+            if (error) { toast(error.message, true); b.disabled = false; return; }
+            msgList = msgList.filter(x => x.id !== msgId);
+            stream?.querySelector(`[data-msg-id="${msgId}"]`)?.remove();
+            toast('✓ Message deleted');
+          });
         });
-        if (!ok) return;
-        b.disabled = true;
-        const { error } = await sb.from('channel_updates').delete().eq('id', b.dataset.delChat);
-        if (error) { toast(error.message, true); b.disabled = false; return; }
-        toast('✓ Message deleted');
-        renderChannelRoom(ch);
-      }));
+      };
+      bindRoomMessageActions(room);
+
+      // Live typing indicator state + Realtime subscription
+      const typingUsers = new Map();
+      const refreshTypingBanner = () => {
+        const now = Date.now();
+        for (const [uid, info] of typingUsers.entries()) {
+          if (info.expiresAt <= now) typingUsers.delete(uid);
+        }
+        const names = [...typingUsers.values()].map(x => x.name);
+        if (names.length) {
+          const text = names.length === 1
+            ? `${names[0]} is typing…`
+            : names.length === 2
+              ? `${names[0]} and ${names[1]} are typing…`
+              : `${names[0]} and ${names.length - 1} others are typing…`;
+          if (subtitleEl) {
+            subtitleEl.innerHTML = `<span class="chat-typing-status">${esc(text)}</span>`;
+          }
+          if (typingLabel && typingRow) {
+            typingLabel.textContent = text;
+            typingRow.classList.remove('hidden');
+            scrollToBottom(false);
+          }
+        } else {
+          if (subtitleEl) subtitleEl.textContent = defaultSub;
+          typingRow?.classList.add('hidden');
+        }
+      };
+
+      const appendIncomingMessage = (msg) => {
+        if (!stream || !msg || !msg.id) return;
+        if (stream.querySelector(`[data-msg-id="${msg.id}"]`)) return;
+        $('#chat-empty-state')?.remove();
+        const prevMsg = msgList.length ? msgList[msgList.length - 1] : null;
+        msgList.push(msg);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = buildMsgHtml(msg, prevMsg);
+        const nodes = [...wrapper.children];
+        nodes.forEach(node => {
+          stream.insertBefore(node, typingRow || null);
+          bindRoomMessageActions(node);
+        });
+        scrollToBottom(msg.author_id === S.user.id);
+      };
+
+      activeTypingGc = setInterval(() => {
+        if (typingUsers.size) refreshTypingBanner();
+      }, 1000);
+
+      try {
+        activeChatRt = sb.channel(`nodaar-room-${ch.id}`)
+          .on('broadcast', { event: 'typing' }, ({ payload }) => {
+            if (!payload || !payload.userId || payload.userId === S.user.id) return;
+            if (payload.typing) {
+              typingUsers.set(payload.userId, {
+                name: String(payload.name || 'Someone').split(/\s+/)[0],
+                expiresAt: Date.now() + 3500,
+              });
+            } else {
+              typingUsers.delete(payload.userId);
+            }
+            refreshTypingBanner();
+          })
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'channel_updates',
+            filter: `channel_id=eq.${ch.id}`,
+          }, (payload) => {
+            const row = payload.new;
+            if (!row || !row.id) return;
+            typingUsers.delete(row.author_id);
+            refreshTypingBanner();
+            appendIncomingMessage(row);
+          })
+          .on('postgres_changes', {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'channel_updates',
+            filter: `channel_id=eq.${ch.id}`,
+          }, (payload) => {
+            const oldId = payload.old?.id;
+            if (!oldId) return;
+            msgList = msgList.filter(x => x.id !== oldId);
+            stream?.querySelector(`[data-msg-id="${oldId}"]`)?.remove();
+          })
+          .subscribe();
+      } catch {}
 
       if (!canPost) return;
 
       const textarea = $('#chat-body-input');
       const sendBtn = $('#chat-send-btn');
+      const fmtToggleBtn = $('#chat-fmt-toggle');
+      const fmtDrawer = $('#chat-fmt-drawer');
       const mentionBtn = $('#mention-toggle-btn');
       const mentionMenu = $('#mention-dropdown');
+
+      const autoResizeInput = () => {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(112, Math.max(30, textarea.scrollHeight)) + 'px';
+      };
+
+      fmtToggleBtn?.addEventListener('click', () => {
+        const isHidden = fmtDrawer?.classList.toggle('hidden');
+        fmtToggleBtn.classList.toggle('active', !isHidden);
+        fmtToggleBtn.setAttribute('aria-expanded', String(!isHidden));
+      });
 
       // Toolbar formatting handlers
       $$('[data-fmt]', room).forEach(btn => btn.addEventListener('click', () => {
@@ -1856,16 +2238,31 @@
         else if (fmt === 'code') insertFormatting(textarea, '`', '`');
         else if (fmt === 'bullet') insertFormatting(textarea, '• ');
         else if (fmt === 'quote') insertFormatting(textarea, '> ');
+        autoResizeInput();
       }));
 
       // Toolbar priority tag handlers
       $$('[data-tag]', room).forEach(btn => btn.addEventListener('click', () => {
         insertFormatting(textarea, btn.dataset.tag + ' ');
+        autoResizeInput();
       }));
 
-      // Mention toggle and insert
+      // Mention toggle and inline @ typing filter
+      const filterMentions = (query) => {
+        if (!mentionMenu) return;
+        const q = (query || '').toLowerCase();
+        let anyVisible = false;
+        $$('.mention-item', mentionMenu).forEach(item => {
+          const match = !q || (item.dataset.mentionName || '').toLowerCase().includes(q);
+          item.style.display = match ? 'flex' : 'none';
+          if (match) anyVisible = true;
+        });
+        if (!anyVisible) mentionMenu.classList.add('hidden');
+      };
+
       mentionBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
+        filterMentions('');
         mentionMenu?.classList.toggle('hidden');
       });
       if (!window._dsMentionDocBound) {
@@ -1878,28 +2275,80 @@
       }
       $$('.mention-item', room).forEach(item => item.addEventListener('click', () => {
         const name = item.dataset.mentionName;
-        insertFormatting(textarea, `@${name} `);
+        const before = textarea.value.slice(0, textarea.selectionStart || 0);
+        const match = before.match(/(^|\s)@([A-Za-z0-9_ ]{0,20})$/);
+        if (match) {
+          const replaceStart = before.length - match[0].length + match[1].length;
+          textarea.setRangeText(`@${name} `, replaceStart, textarea.selectionEnd || before.length, 'end');
+          textarea.focus();
+        } else {
+          insertFormatting(textarea, `@${name} `);
+        }
         mentionMenu?.classList.add('hidden');
+        autoResizeInput();
       }));
 
-      // Send message function
+      // Broadcast typing indicator + auto-resize + @mention trigger
+      let lastTypingSent = 0;
+      let stopTypingTimer = null;
+      const myName = S.profile?.full_name || S.user?.email || 'Member';
+      const sendTypingSignal = (typing) => {
+        if (!activeChatRt) return;
+        try {
+          activeChatRt.send({
+            type: 'broadcast',
+            event: 'typing',
+            payload: { userId: S.user.id, name: myName, typing },
+          });
+        } catch {}
+      };
+
+      textarea?.addEventListener('input', () => {
+        autoResizeInput();
+        const cursor = textarea.selectionStart || 0;
+        const before = textarea.value.slice(0, cursor);
+        const atMatch = before.match(/(^|\s)@([A-Za-z0-9_ ]{0,20})$/);
+        if (atMatch && mentionMenu) {
+          mentionMenu.classList.remove('hidden');
+          filterMentions(atMatch[2]);
+        } else if (mentionMenu) {
+          mentionMenu.classList.add('hidden');
+        }
+
+        if (textarea.value.trim()) {
+          const now = Date.now();
+          if (now - lastTypingSent > 1400) {
+            lastTypingSent = now;
+            sendTypingSignal(true);
+          }
+          clearTimeout(stopTypingTimer);
+          stopTypingTimer = setTimeout(() => sendTypingSignal(false), 2400);
+        } else {
+          clearTimeout(stopTypingTimer);
+          sendTypingSignal(false);
+        }
+      });
+
+      // Send message without resetting composer DOM or losing keyboard focus
       async function sendMessage() {
         const text = textarea.value.trim();
         if (!text) return;
         sendBtn.disabled = true;
+        clearTimeout(stopTypingTimer);
+        sendTypingSignal(false);
 
         const isUrgent = text.toLowerCase().includes('#urgent');
         const isAnnounce = text.toLowerCase().includes('#announcement') || ch.kind === 'announcements';
         const updateType = isUrgent ? 'priority' : isAnnounce ? 'announcement' : 'general';
 
-        const { error } = await sb.from('channel_updates').insert({
+        const { data: inserted, error } = await sb.from('channel_updates').insert({
           channel_id: ch.id,
           author_id: S.user.id,
           title: text.slice(0, 60),
           body: text,
           update_type: updateType,
           status: 'published',
-        });
+        }).select('*, profiles:author_id(full_name, email, access_level)').single();
 
         if (error) {
           toast(error.message, true);
@@ -1907,24 +2356,27 @@
           return;
         }
 
-        toast('✓ Message sent');
         textarea.value = '';
+        autoResizeInput();
+        mentionMenu?.classList.add('hidden');
         sendBtn.disabled = false;
-        await renderChannelRoom(ch);
+        if (inserted) appendIncomingMessage(inserted);
+        else await renderChannelRoom(ch);
       }
 
       sendBtn?.addEventListener('click', sendMessage);
 
-      // Keyboard handler: Enter to send, Shift+Enter for newline
+      // Desktop Enter sends; mobile touch Return adds newline cleanly
+      const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
       textarea?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !isCoarsePointer) {
           e.preventDefault();
           sendMessage();
         }
       });
     }
 
-    // Initialize with current channel
+    // Initialize desktop view cleanly; mobile starts on channel list until user picks a channel
     if (currentChannel) {
       await renderChannelRoom(currentChannel);
     }

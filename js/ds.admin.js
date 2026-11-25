@@ -1333,6 +1333,33 @@
       window.DS.navigate('tasks');
     };
 
+    const updateAdminTaskStatus = async (taskId, rawStatus) => {
+      const map = { 'To do': 'To Do', 'In progress': 'In Progress', 'In review': 'In Review', 'Done': 'Done' };
+      const newSt = map[rawStatus] || rawStatus;
+      const { error } = await sb.from('tasks').update({ status: newSt }).eq('id', taskId);
+      if (error) { toast(error.message, true); return false; }
+      const item = (tasks || []).find(x => x.id === taskId);
+      if (item) item.status = newSt;
+      await audit('task_status_changed', 'tasks:' + taskId, null, newSt);
+      const recipientIds = [...new Set([
+        ...(assignees || []).filter(a => a.task_id === taskId).map(a => a.user_id),
+        item?.assignee_id,
+      ].filter(Boolean))];
+      if (recipientIds.length && item) {
+        const isDone = newSt === 'Done';
+        const title = isDone ? `✅ Task completed: ${item.title}` : `Task updated (${newSt}): ${item.title}`;
+        const body = isDone
+          ? 'This deliverable has been marked Done.'
+          : `Task status changed to ${newSt}.`;
+        await Promise.allSettled(recipientIds.map(uid =>
+          sb.from('notifications').insert({ user_id: uid, type: 'task', title, body, link_tab: 'tasks' })
+        ));
+      }
+      renderTasksBody();
+      toast(newSt === 'Done' ? '✓ Task marked Done and assignee notified.' : 'Task status updated.');
+      return true;
+    };
+
     const openTaskModal = (taskId) => {
       const t = (tasks || []).find(x => x.id === taskId);
       if (!t) return;
@@ -1341,7 +1368,7 @@
       window.DS.showDetailsModal({
         title: t.title,
         subtitle: `Task · Due ${t.due_date ? fmtD(t.due_date) : 'No deadline'}`,
-        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>`,
+        badgeHtml: `<span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? 'brand' : 'muted-tag'}">${t.status === 'Done' ? '✓ Completed' : esc(t.status || 'To do')}</span>`,
         rows: [
           { label: 'Task title', value: t.title },
           { label: 'Description', value: t.description || 'No additional description provided' },
@@ -1355,6 +1382,7 @@
         ],
         actions: [
           t.evidence_url ? { label: 'Open evidence ↗', href: t.evidence_url } : null,
+          t.status !== 'Done' ? { label: 'Mark Done ✓', className: 'primary', onClick: () => updateAdminTaskStatus(t.id, 'Done') } : null,
           { label: 'Delete task', className: 'alert', onClick: () => deleteTaskById(t.id) }
         ]
       });
@@ -1369,23 +1397,25 @@
         <div class="ds-list">
           ${pg.items.map(t => {
             const as = (assignees || []).filter(a => a.task_id === t.id).map(a => nameOf(pmap[a.user_id]));
-            const overdue = t.due_date && t.due_date < date && t.status !== 'Done';
+            const isDone = t.status === 'Done';
+            const overdue = t.due_date && t.due_date < date && !isDone;
             const normSt = normTaskStatus(t.status);
             const actions = [
               { label: 'View task details', icon: '📋', attrs: `data-view-task="${t.id}"` },
+              !isDone ? { label: 'Mark Done ✓', icon: '✅', attrs: `data-done-task="${t.id}"` } : null,
               { divider: true },
               t.evidence_url ? { label: 'Open evidence link', icon: '↗', attrs: `onclick="window.open('${esc(t.evidence_url)}', '_blank')"` } : null,
               { divider: true },
               { label: 'Delete task', icon: '🗑️', isAlert: true, attrs: `data-del-task="${t.id}"` },
             ];
             return `
-              <div class="ds-list-card">
+              <div class="ds-list-card ${isDone ? 'task-done' : ''}">
                 <div class="ds-list-main">
-                  <div class="ds-list-icon">🎯</div>
+                  <div class="ds-list-icon">${isDone ? '✅' : '🎯'}</div>
                   <div class="ds-list-content">
                     <div class="ds-list-title-row">
                       <span class="ds-list-title">${esc(t.title)}</span>
-                      <span class="tag ${t.status === 'Done' ? 'ok' : (t.status || '').toLowerCase().includes('review') ? '' : 'muted-tag'}">${esc(t.status || 'To do')}</span>
+                      <span class="tag ${isDone ? 'ok' : (t.status || '').toLowerCase().includes('review') ? 'brand' : 'muted-tag'}">${isDone ? '✓ Completed' : esc(t.status || 'To do')}</span>
                       ${t.priority ? `<span class="tag muted-tag">${esc(t.priority)}</span>` : ''}
                       ${overdue ? '<span class="tag alert">Overdue</span>' : ''}
                       ${t.extension_requested ? '<span class="tag brand">Extension</span>' : ''}
@@ -1413,17 +1443,8 @@
         ${pg.renderBar('tasks')}
       ` : emptyState(taskFilter ? 'No matching tasks' : 'No tasks yet', taskFilter ? 'Try clearing the status filter above.' : 'Create one above and assign it to a member or a unit.');
 
-      $$('[data-setst]', container).forEach(sel => sel.addEventListener('change', async () => {
-        const raw = sel.value;
-        const map = { 'To do': 'To Do', 'In progress': 'In Progress', 'In review': 'In Review', 'Done': 'Done' };
-        const newSt = map[raw] || raw;
-        const { error } = await sb.from('tasks').update({ status: newSt }).eq('id', sel.dataset.setst);
-        if (error) return toast(error.message, true);
-        const item = (tasks || []).find(x => x.id === sel.dataset.setst);
-        if (item) item.status = newSt;
-        await audit('task_status_changed', 'tasks:' + sel.dataset.setst, null, raw);
-        toast('Task status updated.');
-      }));
+      $$('[data-setst]', container).forEach(sel => sel.addEventListener('change', () => updateAdminTaskStatus(sel.dataset.setst, sel.value)));
+      $$('[data-done-task]', container).forEach(b => b.addEventListener('click', () => updateAdminTaskStatus(b.dataset.doneTask, 'Done')));
       $$('[data-view-task]', container).forEach(b => b.addEventListener('click', () => openTaskModal(b.dataset.viewTask)));
       $$('[data-del-task]', container).forEach(b => b.addEventListener('click', () => deleteTaskById(b.dataset.delTask, b)));
       window.DS.initActionMenus(container);

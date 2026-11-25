@@ -751,6 +751,11 @@
   window.DS.registerRoute = (id, def) => { ROUTES[id] = def; };
 
   async function navigate(id) {
+    if (id !== 'channels') {
+      document.body.classList.remove('chat-room-open');
+      try { window.DS.cleanupChannelsRealtime?.(); } catch {}
+    }
+    document.body.dataset.route = id;
     S.route = id;
     const def = ROUTES[id] || ROUTES.dashboard;
     $('#page-title').textContent = def.title || '';
