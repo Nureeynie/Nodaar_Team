@@ -1,15 +1,15 @@
 // Nodaar Team Hub — Service Worker (PWA)
-const CACHE_NAME = 'nodaar-hub-v3.5';
+const CACHE_NAME = 'nodaar-hub-v4.2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/app.html',
   '/manifest.json',
-  '/css/ds.css',
-  '/js/ds.core.js',
-  '/js/ds.member.js',
-  '/js/ds.admin.js',
-  '/js/ds.boot.js',
+  '/css/ds.css?v=4.2',
+  '/js/ds.core.js?v=4.2',
+  '/js/ds.member.js?v=4.2',
+  '/js/ds.admin.js?v=4.2',
+  '/js/ds.boot.js?v=4.2',
   '/js/supabase-sdk.js',
   '/assets/favicon.png',
   '/assets/icon-192.png',
@@ -21,7 +21,7 @@ const PRECACHE_ASSETS = [
   '/assets/logo-wordmark-light.png'
 ];
 
-// Install: precache essential shell assets
+// Install: precache essential shell assets and activate immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -33,63 +33,62 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: clean up outdated caches
+// Activate: remove old caches cleanly and take control immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then((keys) => Promise.all(
+      keys.map((key) => {
+        if (key !== CACHE_NAME) {
+          return caches.delete(key);
+        }
+      })
+    )).then(() => self.clients.claim())
   );
 });
 
-// Fetch: Network-first for dynamic & API calls, Stale-while-revalidate for local static assets
+function networkFirst(req, fallbackUrl) {
+  return fetch(req, { cache: 'no-cache' })
+    .then((res) => {
+      if (res && res.status === 200 && res.type === 'basic') {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+      }
+      return res;
+    })
+    .catch(() => caches.match(req).then((hit) => hit || (fallbackUrl ? caches.match(fallbackUrl) : undefined)));
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Ignore non-GET requests and Supabase auth/data websocket calls
-  if (req.method !== 'GET' || url.protocol.startsWith('ws')) {
-    return;
-  }
+  if (req.method !== 'GET' || url.protocol.startsWith('ws')) return;
+  if (url.hostname.includes('supabase.co') || url.pathname.startsWith('/auth/')) return;
+  if (url.origin !== self.location.origin) return;
 
-  // Supabase API or external endpoints: Network first, don't cache auth
-  if (url.hostname.includes('supabase.co') || url.pathname.startsWith('/auth/')) {
-    return;
-  }
-
-  // HTML navigation requests: Network first, fall back to cached index.html
+  // HTML documents: Network-first with offline index fallback
   if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req).catch(() => {
-        return caches.match('/index.html') || caches.match('/');
-      })
-    );
+    event.respondWith(networkFirst(req, '/index.html'));
     return;
   }
 
-  // Static assets (CSS, JS, images, fonts): Stale-While-Revalidate
-  event.respondWith(
-    caches.match(req).then((cachedResponse) => {
-      const fetchPromise = fetch(req)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(req, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
+  // App shell CSS, JS, and manifest: always Network-first so deploys never mix old JS with new CSS
+  if (url.pathname.endsWith('.css') || url.pathname.endsWith('.js') || url.pathname.endsWith('/manifest.json')) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
 
-      return cachedResponse || fetchPromise;
+  // Static images/icons: Cache-first with background refresh
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res && res.status === 200 && res.type === 'basic') {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      });
     })
   );
 });

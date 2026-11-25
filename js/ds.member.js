@@ -1907,6 +1907,21 @@
 
       let msgList = messages || [];
 
+      const formatAttachmentHtml = (url) => {
+        if (!url) return '';
+        const clean = String(url).trim();
+        const isImg = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(clean);
+        const rawName = clean.split('?')[0].split('/').pop() || '';
+        let niceName = rawName;
+        try { niceName = decodeURIComponent(rawName).replace(/^\d{10,14}_/, ''); } catch {}
+        if (isImg) {
+          return `<div class="chat-attach-wrap"><a href="${esc(clean)}" target="_blank" rel="noopener"><img class="chat-img-preview" src="${esc(clean)}" alt="${esc(niceName || 'Shared image')}" loading="lazy"></a></div>`;
+        }
+        const isUpload = clean.includes('channel-uploads/');
+        const label = (isUpload && niceName) ? niceName : 'Open attached link';
+        return `<div class="chat-attach-wrap"><a href="${esc(clean)}" target="_blank" rel="noopener" class="chat-file-chip">${isUpload ? '📎' : '🔗'} <span>${esc(label)}</span> ↗</a></div>`;
+      };
+
       const buildMsgHtml = (m, prevMsg) => {
         const prof = m.profiles || memberMap[m.author_id] || {};
         const author = prof.full_name || prof.email || 'Team member';
@@ -1914,6 +1929,7 @@
         const isOwn = m.author_id === S.user.id;
         const priority = getMessagePriority(m.body, m.update_type);
         const canDelete = adminMode || isOwn;
+        const rt = m.reactions && typeof m.reactions === 'object' ? m.reactions.reply_to : null;
         const prevSameSender = prevMsg && prevMsg.author_id === m.author_id
           && (new Date(m.created_at) - new Date(prevMsg.created_at)) < 4 * 60 * 1000
           && formatChatDay(m.created_at) === formatChatDay(prevMsg.created_at);
@@ -1922,25 +1938,30 @@
           ? `<div class="chat-date-divider" data-day="${esc(formatChatDay(m.created_at))}">${esc(formatChatDay(m.created_at))}</div>`
           : '';
 
-        const msgActions = canDelete
-          ? [{ label: 'Delete message', icon: '🗑️', isAlert: true, attrs: `data-del-chat="${m.id}"` }]
-          : [];
-
         const showSenderHeader = !isOwn && !prevSameSender;
 
         return `
           ${dayDivider}
           <div class="chat-msg-row ${isOwn ? 'is-own' : 'is-other'} ${prevSameSender ? 'is-grouped' : 'is-group-start'}" data-msg-id="${m.id}">
             ${!isOwn ? `<div class="chat-avatar ${authorAccess === 'Admin' ? 'admin' : ''}" title="${esc(author)} (${esc(authorAccess)})">${esc(getInitials(author))}</div>` : ''}
-            <div class="chat-bubble ${priority}">
+            <div class="chat-bubble ${priority}" data-bubble-msg="${m.id}" ${canDelete ? 'data-can-del="1"' : ''}>
+              <div class="chat-hover-tools" aria-hidden="true">
+                <button type="button" class="chat-hover-btn" data-quick-reply="${m.id}" title="Reply">↩</button>
+                <button type="button" class="chat-hover-btn" data-open-sheet="${m.id}" title="More actions">⋯</button>
+              </div>
               ${showSenderHeader ? `
                 <div class="chat-bubble-top">
                   <div class="chat-bubble-sender">
                     <span class="chat-author ${authorAccess === 'Admin' ? 'admin' : ''}">${esc(author)}</span>
                     ${authorAccess === 'Admin' ? '<span class="tag brand" style="font-size:9.5px;padding:0 5px;line-height:1.4">Admin</span>' : ''}
                   </div>
-                  ${canDelete ? `<div class="chat-bubble-menu">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
                 </div>
+              ` : ''}
+              ${rt && rt.id ? `
+                <button type="button" class="chat-reply-quote" data-jump-msg="${esc(rt.id)}" title="Go to original message">
+                  <span class="chat-reply-author">${esc(rt.author || 'Message')}</span>
+                  <span class="chat-reply-snippet">${esc(rt.text || 'Original message')}</span>
+                </button>
               ` : ''}
               ${priority !== 'general' ? `
                 <div class="chat-bubble-flags">
@@ -1950,11 +1971,10 @@
                 </div>
               ` : ''}
               <div class="chat-text">${formatChatMessage(m.body, memberList)}</div>
-              ${m.drive_link ? `<div style="margin-top:6px"><a href="${esc(m.drive_link)}" target="_blank" rel="noopener" class="btn sm ghost" style="padding:2px 8px;font-size:12px">🔗 Attached resource</a></div>` : ''}
+              ${m.drive_link ? formatAttachmentHtml(m.drive_link) : ''}
               <div class="chat-bubble-foot">
                 <span class="chat-time">${esc(formatChatTime(m.created_at))}</span>
                 ${isOwn ? '<span class="chat-tick" title="Delivered">✓✓</span>' : ''}
-                ${(!showSenderHeader && canDelete) ? `<div class="chat-bubble-menu">${window.DS.renderActionMenu(msgActions)}</div>` : ''}
               </div>
             </div>
           </div>
@@ -1966,20 +1986,20 @@
           return `
             <div class="empty" id="chat-empty-state" style="margin:auto;max-width:360px;padding:28px 20px">
               <div class="big">No messages yet</div>
-              <div class="hint">Say hello in ${esc(ch.display_name || ch.name)} — format with Aa or tag teammates with @mentions.</div>
+              <div class="hint">Say hello in ${esc(ch.display_name || ch.name)}, or tap + to share a file or link.</div>
             </div>
           `;
         }
         return items.map((m, idx) => buildMsgHtml(m, idx > 0 ? items[idx - 1] : null)).join('');
       };
 
-      const defaultSub = ch.description || (ch.kind === 'announcements' ? 'Official team broadcasts' : 'Team workspace chat');
+      const defaultSub = ch.description || (ch.kind === 'announcements' ? 'Official team broadcasts' : 'Share updates, links, and chat');
 
       room.innerHTML = `
-        <!-- WHATSAPP / TELEGRAM STYLE CHAT HEADER -->
+        <!-- CLEAN CHANNEL HEADER -->
         <div class="chat-room-head">
           <div class="chat-room-head-left">
-            <button class="btn ghost chat-back-btn" id="chat-mobile-back" type="button" title="Back to chats" aria-label="Back to chats">←</button>
+            <button class="btn ghost chat-back-btn" id="chat-mobile-back" type="button" title="Back to channels" aria-label="Back to channels">←</button>
             <div class="chat-room-avatar" aria-hidden="true">${chIcon}</div>
             <div class="chat-room-head-meta">
               <div class="chat-room-title">
@@ -2006,7 +2026,12 @@
           </div>
         </div>
 
-        <!-- COMPACT WHATSAPP / TELEGRAM COMPOSER -->
+        <!-- LONG-PRESS / MESSAGE ACTION SHEET -->
+        <div class="chat-sheet-backdrop hidden" id="chat-msg-sheet-backdrop" role="dialog" aria-modal="true">
+          <div class="chat-msg-sheet" id="chat-msg-sheet"></div>
+        </div>
+
+        <!-- CLEAN SHARE & CHAT COMPOSER -->
         <div class="chat-composer-box">
           ${canPost ? `
             <div class="mention-dropdown hidden" id="mention-dropdown">
@@ -2018,24 +2043,40 @@
               `).join('')}
             </div>
 
-            <div class="chat-fmt-drawer hidden" id="chat-fmt-drawer">
-              <button type="button" class="toolbar-btn" data-fmt="bold" title="Bold (**text**)"><b>B</b></button>
-              <button type="button" class="toolbar-btn" data-fmt="italic" title="Italic (*text*)"><i>I</i></button>
-              <button type="button" class="toolbar-btn" data-fmt="underline" title="Underline (<u>text</u>)"><u>U</u></button>
-              <button type="button" class="toolbar-btn" data-fmt="strike" title="Strikethrough (~~text~~)"><s>S</s></button>
-              <button type="button" class="toolbar-btn" data-fmt="code" title="Code (\`code\`)">&lt;/&gt;</button>
-              <button type="button" class="toolbar-btn" data-fmt="bullet" title="Bullet item">• List</button>
-              <button type="button" class="toolbar-btn" data-fmt="quote" title="Quote block">&gt; Quote</button>
-              <span class="chat-toolbar-sep" aria-hidden="true"></span>
-              <button type="button" class="toolbar-btn toolbar-tag-btn urgent" data-tag="#urgent" title="Mark urgent">🚨 #urgent</button>
-              <button type="button" class="toolbar-btn toolbar-tag-btn important" data-tag="#important" title="Mark important">⚡ #important</button>
-              <button type="button" class="toolbar-btn toolbar-tag-btn announce" data-tag="#announcement" title="Mark announcement">📢 #announcement</button>
+            <div class="chat-plus-menu hidden" id="chat-plus-menu">
+              <button type="button" class="chat-plus-item" id="chat-pick-link">
+                <span class="chat-plus-ico">🔗</span>
+                <span>Add link / URL</span>
+              </button>
+              <button type="button" class="chat-plus-item" id="chat-pick-file">
+                <span class="chat-plus-ico">📎</span>
+                <span>Attach file or photo</span>
+              </button>
+            </div>
+            <input type="file" id="chat-file-input" class="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip">
+
+            <div class="chat-replying-bar hidden" id="chat-replying-bar">
+              <div class="chat-replying-info">
+                <div class="chat-reply-author" id="chat-replying-who"></div>
+                <div class="chat-reply-snippet" id="chat-replying-text"></div>
+              </div>
+              <button type="button" class="btn sm ghost" id="chat-reply-cancel" title="Cancel reply" aria-label="Cancel reply">✕</button>
+            </div>
+
+            <div class="chat-attach-bar hidden" id="chat-attach-bar">
+              <span id="chat-attach-label" class="small" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+              <button type="button" class="btn sm ghost" id="chat-attach-clear" title="Remove attachment" aria-label="Remove attachment">✕</button>
+            </div>
+
+            <div class="chat-link-drawer hidden" id="chat-link-drawer">
+              <input class="chat-link-input" id="chat-link-input" type="url" placeholder="Paste URL (Google Drive, Figma, Docs…)">
+              <button type="button" class="btn sm ghost" id="chat-link-clear" title="Remove link" aria-label="Remove link">✕</button>
             </div>
 
             <div class="chat-composer-bar">
-              <button type="button" class="chat-icon-btn" id="chat-fmt-toggle" title="Formatting & priority tags" aria-label="Formatting and tags" aria-expanded="false">Aa</button>
+              <button type="button" class="chat-icon-btn" id="chat-plus-btn" title="Add URL or file" aria-label="Add URL or file" aria-expanded="false">+</button>
               <div class="chat-input-pill">
-                <textarea class="chat-input-area" id="chat-body-input" placeholder="Message ${esc(ch.display_name || ch.name)}…" rows="1" aria-label="Message"></textarea>
+                <textarea class="chat-input-area" id="chat-body-input" placeholder="Message…" rows="1" aria-label="Message"></textarea>
                 <button type="button" class="chat-mention-inline" id="mention-toggle-btn" title="Mention teammate" aria-label="Mention teammate">@</button>
               </div>
               <button class="chat-send-circle" id="chat-send-btn" type="button" title="Send message" aria-label="Send message">
@@ -2084,7 +2125,7 @@
 
       scrollToBottom(true);
 
-      // Mobile back to chats button
+      // Mobile back to channels button
       $('#chat-mobile-back')?.addEventListener('click', () => {
         $('.chat-container', v)?.classList.remove('view-room');
         document.body.classList.remove('chat-room-open');
@@ -2093,27 +2134,174 @@
       // Refresh button
       $('#chat-refresh-btn')?.addEventListener('click', () => renderChannelRoom(ch));
 
-      // Bind message delete buttons inside room
+      const sheetBackdrop = $('#chat-msg-sheet-backdrop');
+      const sheetEl = $('#chat-msg-sheet');
+      let replyTarget = null;
+      let attachedFile = null;
+
+      const setReplyTarget = (msg) => {
+        replyTarget = msg || null;
+        const bar = $('#chat-replying-bar');
+        if (!bar) return;
+        if (!msg) {
+          bar.classList.add('hidden');
+          return;
+        }
+        const prof = msg.profiles || memberMap[msg.author_id] || {};
+        const who = prof.full_name || prof.email || 'Team member';
+        $('#chat-replying-who').textContent = `Replying to ${who}`;
+        $('#chat-replying-text').textContent = (msg.body || '').slice(0, 120) || (msg.drive_link ? 'Attached file/link' : '');
+        bar.classList.remove('hidden');
+        $('#chat-body-input')?.focus();
+      };
+
+      const jumpToMessage = (targetId) => {
+        if (!stream || !targetId) return;
+        const row = stream.querySelector(`[data-msg-id="${targetId}"]`);
+        if (!row) {
+          toast('Original message is outside the recent view.', true);
+          return;
+        }
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const bubble = row.querySelector('.chat-bubble');
+        if (bubble) {
+          bubble.classList.remove('is-highlighted');
+          void bubble.offsetWidth;
+          bubble.classList.add('is-highlighted');
+          setTimeout(() => bubble.classList.remove('is-highlighted'), 1900);
+        }
+      };
+
+      const deleteMessageById = async (msgId) => {
+        const ok = await window.DS.confirmModal({
+          title: 'Delete message',
+          message: 'Are you sure you want to permanently delete this message from the channel?',
+          confirmLabel: 'Delete message',
+          isAlert: true,
+        });
+        if (!ok) return;
+        const { error } = await sb.from('channel_updates').delete().eq('id', msgId);
+        if (error) { toast(error.message, true); return; }
+        msgList = msgList.filter(x => x.id !== msgId);
+        stream?.querySelector(`[data-msg-id="${msgId}"]`)?.remove();
+        toast('✓ Message deleted');
+      };
+
+      const closeMsgSheet = () => {
+        sheetBackdrop?.classList.add('hidden');
+        $$('.chat-bubble.is-pressed', room).forEach(el => el.classList.remove('is-pressed'));
+      };
+      sheetBackdrop?.addEventListener('click', (e) => {
+        if (e.target === sheetBackdrop) closeMsgSheet();
+      });
+
+      const openMsgActionSheet = (msg) => {
+        if (!msg || !sheetEl || !sheetBackdrop) return;
+        const prof = msg.profiles || memberMap[msg.author_id] || {};
+        const author = prof.full_name || prof.email || 'Team member';
+        const canDelete = adminMode || msg.author_id === S.user.id;
+        const bubble = stream?.querySelector(`[data-bubble-msg="${msg.id}"]`);
+        bubble?.classList.add('is-pressed');
+
+        sheetEl.innerHTML = `
+          <div class="chat-sheet-preview">
+            <div class="chat-sheet-author">${esc(author)}</div>
+            <div class="chat-sheet-snippet">${esc((msg.body || '').slice(0, 120) || 'Attachment')}</div>
+          </div>
+          <div class="chat-sheet-actions">
+            ${canPost ? `<button type="button" class="chat-sheet-btn" id="sheet-reply"><span>↩</span><span>Reply to message</span></button>` : ''}
+            <button type="button" class="chat-sheet-btn" id="sheet-copy"><span>📋</span><span>Copy message</span></button>
+            ${msg.drive_link ? `<a class="chat-sheet-btn" href="${esc(msg.drive_link)}" target="_blank" rel="noopener" id="sheet-link"><span>↗</span><span>Open attachment</span></a>` : ''}
+            ${canDelete ? `<button type="button" class="chat-sheet-btn alert" id="sheet-delete"><span>🗑️</span><span>Delete message</span></button>` : ''}
+            <button type="button" class="chat-sheet-btn cancel" id="sheet-cancel">Cancel</button>
+          </div>
+        `;
+        sheetBackdrop.classList.remove('hidden');
+
+        $('#sheet-reply')?.addEventListener('click', () => { closeMsgSheet(); setReplyTarget(msg); });
+        $('#sheet-copy')?.addEventListener('click', async () => {
+          closeMsgSheet();
+          try { await navigator.clipboard.writeText(msg.body || ''); toast('✓ Message copied'); } catch { toast('Could not copy message', true); }
+        });
+        $('#sheet-link')?.addEventListener('click', () => closeMsgSheet());
+        $('#sheet-delete')?.addEventListener('click', () => { closeMsgSheet(); deleteMessageById(msg.id); });
+        $('#sheet-cancel')?.addEventListener('click', closeMsgSheet);
+      };
+
+      // Bind long-press, right-click, desktop quick reply/menu hover buttons, and reply-quote jump
       const bindRoomMessageActions = (scope) => {
-        window.DS.initActionMenus(scope);
-        $$('[data-del-chat]', scope).forEach(b => {
-          if (b._boundDel) return;
-          b._boundDel = true;
-          b.addEventListener('click', async () => {
-            const ok = await window.DS.confirmModal({
-              title: 'Delete message',
-              message: 'Are you sure you want to permanently delete this message from the channel?',
-              confirmLabel: 'Delete message',
-              isAlert: true,
-            });
-            if (!ok) return;
-            b.disabled = true;
-            const msgId = b.dataset.delChat;
-            const { error } = await sb.from('channel_updates').delete().eq('id', msgId);
-            if (error) { toast(error.message, true); b.disabled = false; return; }
-            msgList = msgList.filter(x => x.id !== msgId);
-            stream?.querySelector(`[data-msg-id="${msgId}"]`)?.remove();
-            toast('✓ Message deleted');
+        $$('[data-jump-msg]', scope).forEach(btn => {
+          if (btn._boundJump) return;
+          btn._boundJump = true;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            jumpToMessage(btn.dataset.jumpMsg);
+          });
+        });
+
+        $$('[data-quick-reply]', scope).forEach(btn => {
+          if (btn._boundQReply) return;
+          btn._boundQReply = true;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const target = msgList.find(x => x.id === btn.dataset.quickReply);
+            if (target) setReplyTarget(target);
+          });
+        });
+
+        $$('[data-open-sheet]', scope).forEach(btn => {
+          if (btn._boundSheet) return;
+          btn._boundSheet = true;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const target = msgList.find(x => x.id === btn.dataset.openSheet);
+            if (target) openMsgActionSheet(target);
+          });
+        });
+
+        $$('[data-bubble-msg]', scope).forEach(bubble => {
+          if (bubble._boundHold) return;
+          bubble._boundHold = true;
+          const msgId = bubble.dataset.bubbleMsg;
+          let holdTimer = null;
+          let startX = 0;
+          let startY = 0;
+
+          const clearHold = () => {
+            if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+          };
+
+          bubble.addEventListener('touchstart', (e) => {
+            if (e.target.closest('a, button')) return;
+            const touch = e.touches && e.touches[0];
+            startX = touch ? touch.clientX : 0;
+            startY = touch ? touch.clientY : 0;
+            clearHold();
+            holdTimer = setTimeout(() => {
+              holdTimer = null;
+              try { navigator.vibrate?.(12); } catch {}
+              const target = msgList.find(x => x.id === msgId);
+              if (target) openMsgActionSheet(target);
+            }, 420);
+          }, { passive: true });
+
+          bubble.addEventListener('touchmove', (e) => {
+            if (!holdTimer) return;
+            const touch = e.touches && e.touches[0];
+            if (!touch) return;
+            if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
+              clearHold();
+            }
+          }, { passive: true });
+
+          bubble.addEventListener('touchend', clearHold);
+          bubble.addEventListener('touchcancel', clearHold);
+
+          bubble.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('a')) return;
+            e.preventDefault();
+            const target = msgList.find(x => x.id === msgId);
+            if (target) openMsgActionSheet(target);
           });
         });
       };
@@ -2211,8 +2399,14 @@
 
       const textarea = $('#chat-body-input');
       const sendBtn = $('#chat-send-btn');
-      const fmtToggleBtn = $('#chat-fmt-toggle');
-      const fmtDrawer = $('#chat-fmt-drawer');
+      const plusBtn = $('#chat-plus-btn');
+      const plusMenu = $('#chat-plus-menu');
+      const fileInput = $('#chat-file-input');
+      const attachBar = $('#chat-attach-bar');
+      const attachLabel = $('#chat-attach-label');
+      const linkDrawer = $('#chat-link-drawer');
+      const linkInput = $('#chat-link-input');
+      const linkClearBtn = $('#chat-link-clear');
       const mentionBtn = $('#mention-toggle-btn');
       const mentionMenu = $('#mention-dropdown');
 
@@ -2222,30 +2416,77 @@
         textarea.style.height = Math.min(112, Math.max(30, textarea.scrollHeight)) + 'px';
       };
 
-      fmtToggleBtn?.addEventListener('click', () => {
-        const isHidden = fmtDrawer?.classList.toggle('hidden');
-        fmtToggleBtn.classList.toggle('active', !isHidden);
-        fmtToggleBtn.setAttribute('aria-expanded', String(!isHidden));
+      $('#chat-reply-cancel')?.addEventListener('click', () => setReplyTarget(null));
+
+      const closePlusMenu = () => {
+        plusMenu?.classList.add('hidden');
+        plusBtn?.classList.remove('active');
+        plusBtn?.setAttribute('aria-expanded', 'false');
+      };
+
+      plusBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = plusMenu?.classList.toggle('hidden');
+        plusBtn.classList.toggle('active', !isHidden);
+        plusBtn.setAttribute('aria-expanded', String(!isHidden));
       });
 
-      // Toolbar formatting handlers
-      $$('[data-fmt]', room).forEach(btn => btn.addEventListener('click', () => {
-        const fmt = btn.dataset.fmt;
-        if (fmt === 'bold') insertFormatting(textarea, '**', '**');
-        else if (fmt === 'italic') insertFormatting(textarea, '*', '*');
-        else if (fmt === 'underline') insertFormatting(textarea, '<u>', '</u>');
-        else if (fmt === 'strike') insertFormatting(textarea, '~~', '~~');
-        else if (fmt === 'code') insertFormatting(textarea, '`', '`');
-        else if (fmt === 'bullet') insertFormatting(textarea, '• ');
-        else if (fmt === 'quote') insertFormatting(textarea, '> ');
-        autoResizeInput();
-      }));
+      $('#chat-pick-link')?.addEventListener('click', () => {
+        closePlusMenu();
+        linkDrawer?.classList.remove('hidden');
+        linkInput?.focus();
+      });
 
-      // Toolbar priority tag handlers
-      $$('[data-tag]', room).forEach(btn => btn.addEventListener('click', () => {
-        insertFormatting(textarea, btn.dataset.tag + ' ');
-        autoResizeInput();
-      }));
+      linkClearBtn?.addEventListener('click', () => {
+        if (linkInput) linkInput.value = '';
+        linkDrawer?.classList.add('hidden');
+      });
+
+      $('#chat-pick-file')?.addEventListener('click', () => {
+        closePlusMenu();
+        fileInput?.click();
+      });
+
+      $('#chat-attach-clear')?.addEventListener('click', () => {
+        attachedFile = null;
+        if (fileInput) fileInput.value = '';
+        attachBar?.classList.add('hidden');
+      });
+
+      fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (file.size > 15 * 1024 * 1024) {
+          toast('File must be under 15 MB.', true);
+          fileInput.value = '';
+          return;
+        }
+        if (attachLabel && attachBar) {
+          attachLabel.textContent = `Uploading ${file.name}…`;
+          attachBar.classList.remove('hidden');
+        }
+        try {
+          const safeName = (file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+          const path = `channel-uploads/${S.user.id}/${ch.id}/${Date.now()}_${safeName}`;
+          let bucket = 'channel-files';
+          let up = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+          if (up.error) {
+            bucket = 'avatars';
+            up = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+          }
+          if (up.error) throw up.error;
+          const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
+          attachedFile = { url: pub?.publicUrl || '', name: file.name || safeName };
+          if (attachLabel) attachLabel.textContent = `📎 ${attachedFile.name}`;
+          toast('✓ File ready to send');
+        } catch (err) {
+          attachedFile = null;
+          attachBar?.classList.add('hidden');
+          toast(err?.message || 'File upload failed.', true);
+        } finally {
+          fileInput.value = '';
+        }
+      });
 
       // Mention toggle and inline @ typing filter
       const filterMentions = (query) => {
@@ -2270,6 +2511,11 @@
         document.addEventListener('click', (e) => {
           if (!e.target.closest('#mention-dropdown') && !e.target.closest('#mention-toggle-btn')) {
             $('#mention-dropdown')?.classList.add('hidden');
+          }
+          if (!e.target.closest('#chat-plus-menu') && !e.target.closest('#chat-plus-btn')) {
+            $('#chat-plus-menu')?.classList.add('hidden');
+            $('#chat-plus-btn')?.classList.remove('active');
+            $('#chat-plus-btn')?.setAttribute('aria-expanded', 'false');
           }
         });
       }
@@ -2329,10 +2575,14 @@
         }
       });
 
-      // Send message without resetting composer DOM or losing keyboard focus
+      // Send message (text, link/file, optional reply reference) without losing focus
       async function sendMessage() {
-        const text = textarea.value.trim();
-        if (!text) return;
+        const rawText = textarea.value.trim();
+        const manualLink = (linkInput?.value || '').trim() || null;
+        const driveLink = attachedFile?.url || manualLink;
+        if (!rawText && !driveLink) return;
+
+        const text = rawText || (attachedFile ? `Shared ${attachedFile.name}` : 'Shared a link');
         sendBtn.disabled = true;
         clearTimeout(stopTypingTimer);
         sendTypingSignal(false);
@@ -2341,14 +2591,42 @@
         const isAnnounce = text.toLowerCase().includes('#announcement') || ch.kind === 'announcements';
         const updateType = isUrgent ? 'priority' : isAnnounce ? 'announcement' : 'general';
 
-        const { data: inserted, error } = await sb.from('channel_updates').insert({
+        const rtProf = replyTarget ? (replyTarget.profiles || memberMap[replyTarget.author_id] || {}) : null;
+        const replyMeta = replyTarget ? {
+          id: replyTarget.id,
+          author: rtProf?.full_name || rtProf?.email || 'Team member',
+          text: (replyTarget.body || '').slice(0, 120) || (replyTarget.drive_link ? 'Shared attachment' : ''),
+        } : null;
+
+        const basePayload = {
           channel_id: ch.id,
           author_id: S.user.id,
           title: text.slice(0, 60),
           body: text,
+          drive_link: driveLink,
           update_type: updateType,
           status: 'published',
-        }).select('*, profiles:author_id(full_name, email, access_level)').single();
+        };
+        if (replyMeta) basePayload.reactions = { reply_to: replyMeta };
+
+        let { data: inserted, error } = await sb.from('channel_updates')
+          .insert(basePayload)
+          .select('*, profiles:author_id(full_name, email, access_level)')
+          .single();
+
+        if (error && replyMeta) {
+          const fallbackPayload = {
+            ...basePayload,
+            body: `> ${replyMeta.author}: ${replyMeta.text}\n\n${text}`,
+          };
+          delete fallbackPayload.reactions;
+          const retry = await sb.from('channel_updates')
+            .insert(fallbackPayload)
+            .select('*, profiles:author_id(full_name, email, access_level)')
+            .single();
+          inserted = retry.data;
+          error = retry.error;
+        }
 
         if (error) {
           toast(error.message, true);
@@ -2357,6 +2635,12 @@
         }
 
         textarea.value = '';
+        attachedFile = null;
+        attachBar?.classList.add('hidden');
+        if (linkInput) linkInput.value = '';
+        linkDrawer?.classList.add('hidden');
+        setReplyTarget(null);
+        closePlusMenu();
         autoResizeInput();
         mentionMenu?.classList.add('hidden');
         sendBtn.disabled = false;
